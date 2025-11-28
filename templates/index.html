@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <title>EVE-NG Image Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+      :root {
+        --bg-color: #020617;
+        --card-bg: #020617;
+        --accent: #38bdf8;
+        --border-color: #1e293b;
+        --text-main: #e5e7eb;
+        --text-muted: #94a3b8;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: radial-gradient(circle at top, #1e293b 0, #020617 55%, #000 100%);
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .container { width: 100%; max-width: 560px; }
+
+      .card {
+        background: linear-gradient(145deg, #020617 0%, #020617 60%, #020617 100%);
+        border-radius: 18px;
+        padding: 22px 22px 18px;
+        box-shadow:
+          0 18px 45px rgba(0, 0, 0, 0.9),
+          0 0 0 1px rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .card-inner { position: relative; z-index: 1; }
+
+      .header {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .brand-left,
+      .brand-right {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand-left { justify-content: flex-start; }
+      .brand-right { justify-content: flex-end; }
+
+      .brand-logo {
+        height: 32px;
+        max-width: 110px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 6px rgba(15, 23, 42, 0.9));
+      }
+
+      .project-title {
+        text-align: center;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--text-main);
+        white-space: nowrap;
+      }
+
+      .divider {
+        margin: 12px 0 14px;
+        border: none;
+        border-top: 1px solid rgba(30, 41, 59, 0.9);
+      }
+
+      form { display: flex; flex-direction: column; gap: 12px; }
+
+      .field-group { display: flex; gap: 10px; }
+      .field-group .field { flex: 1; }
+
+      .field { display: flex; flex-direction: column; gap: 5px; }
+
+      label {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted);
+      }
+
+      input[type="text"],
+      input[type="password"],
+      input[type="file"] {
+        background-color: rgba(15, 23, 42, 0.85);
+        border-radius: 10px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        padding: 8px 10px;
+        font-size: 13px;
+        color: var(--text-main);
+        outline: none;
+      }
+
+      input[type="file"] { padding: 6px 10px; }
+      input::placeholder { color: rgba(148, 163, 184, 0.7); }
+
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
+        background-color: rgba(15, 23, 42, 0.95);
+      }
+
+      .radio-group {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .radio-group label {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+        cursor: pointer;
+        color: var(--text-main);
+      }
+
+      .radio-group input[type="radio"] {
+        width: 15px;
+        height: 15px;
+      }
+
+      .hint { font-size: 11px; color: var(--text-muted); }
+
+      .messages { margin-bottom: 8px; }
+
+      .alert {
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 12px;
+        margin-bottom: 6px;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background-color: rgba(15, 23, 42, 0.9);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .alert-success {
+        border-color: rgba(34, 197, 94, 0.7);
+        background-color: rgba(22, 163, 74, 0.12);
+        color: #bbf7d0;
+      }
+
+      .alert-error {
+        border-color: rgba(248, 113, 113, 0.7);
+        background-color: rgba(248, 113, 113, 0.12);
+        color: #fecaca;
+      }
+
+      .progress-container {
+        margin: 4px 0 4px;
+        background-color: rgba(15, 23, 42, 0.9);
+        border-radius: 999px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        height: 12px;
+        width: 100%;
+        overflow: hidden;
+        display: none;
+      }
+
+      .progress-bar {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #38bdf8, #0ea5e9, #1d4ed8);
+        transition: width 0.15s ease-out;
+      }
+
+      .progress-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+        display: none;
+      }
+
+      .footer {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .small-info {
+        font-size: 11px;
+        color: var(--text-muted);
+        max-width: 260px;
+        line-height: 1.4;
+      }
+
+      .btn-primary {
+        border: none;
+        border-radius: 999px;
+        padding: 9px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        background: radial-gradient(circle at 0 0, #38bdf8 0, #0ea5e9 35%, #1d4ed8 100%);
+        color: white;
+        cursor: pointer;
+        box-shadow:
+          0 10px 25px rgba(8, 47, 73, 0.9),
+          0 0 0 1px rgba(56, 189, 248, 0.6);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+      }
+
+      .btn-primary span.icon { font-size: 14px; }
+
+      @media (max-width: 600px) {
+        .card { padding: 20px 18px 16px; }
+        .field-group { flex-direction: column; }
+        .footer { flex-direction: column-reverse; align-items: stretch; }
+        .small-info { max-width: 100%; }
+        .btn-primary { justify-content: center; width: 100%; }
+        .header { grid-template-columns: auto; row-gap: 8px; text-align: center; }
+        .brand-left, .brand-right { justify-content: center; }
+        .project-title { margin-top: 4px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="card-inner">
+          <div class="header">
+            <div class="brand-left">
+              <img src="{{ url_for('static', filename='img/hexa-logo.png') }}" alt="Hexa Networks" class="brand-logo">
+            </div>
+
+            <div class="project-title">
+              EVE-NG Image Manager
+            </div>
+
+            <div class="brand-right">
+              <img src="{{ url_for('static', filename='img/netconfig-logo.png') }}" alt="NetConfig" class="brand-logo">
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <div id="messages" class="messages"></div>
+
+          <form id="uploadForm" method="post" enctype="multipart/form-data">
+            <div class="field-group">
+              <div class="field">
+                <label>IP do EVE-NG</label>
+                <input type="text" name="eve_ip" placeholder="Ex: 10.0.0.10" required>
+              </div>
+              <div class="field">
+                <label>Usuário SSH</label>
+                <input type="text" name="eve_user" placeholder="Ex: root" required>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Senha SSH</label>
+              <input type="password" name="eve_pass" placeholder="Senha do usuário no EVE" required>
+            </div>
+
+            <div class="field">
+              <label>Tipo de imagem (Destino)</label>
+              <div class="radio-group">
+                <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
+                <label><input type="radio" name="image_type" value="iol"> IOL</label>
+                <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
+              </div>
+              <div class="hint">
+                Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Diretório base no EVE</label>
+              <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
+              <div class="hint">
+                QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips: <code>/opt/unetlab/addons/dynamips</code>.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Nome do Template</label>
+              <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" required>
+            </div>
+
+            <div class="field">
+              <label>Imagens (pode selecionar várias)</label>
+              <input type="file" name="image" multiple required>
+              <div class="hint">
+                Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+              </div>
+            </div>
+
+            <div class="progress-label" id="progressText">Enviando...</div>
+            <div class="progress-container" id="progressContainer">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <div class="footer">
+              <div class="small-info">
+                Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
+              </div>
+              <button type="submit" class="btn-primary">
+                <span class="icon">⬆</span>
+                <span>Enviar imagens</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Radios atualizam o diretório base
+      const radioButtons = document.querySelectorAll("input[name='image_type']");
+      const baseDirInput = document.getElementById("eve_base_dir");
+
+      radioButtons.forEach(radio => {
+        radio.addEventListener("change", () => {
+          if (radio.value === "qemu") baseDirInput.value = "/opt/unetlab/addons/qemu";
+          if (radio.value === "iol") baseDirInput.value = "/opt/unetlab/addons/iol/bin";
+          if (radio.value === "dynamips") baseDirInput.value = "/opt/unetlab/addons/dynamips";
+        });
+      });
+
+      const form = document.getElementById('uploadForm');
+      const messages = document.getElementById('messages');
+      const progressContainer = document.getElementById('progressContainer');
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+
+      function showMessage(type, text) {
+        const div = document.createElement('div');
+        div.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
+        div.innerHTML = text;
+        messages.appendChild(div);
+      }
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        messages.innerHTML = '';
+
+        const formData = new FormData(form);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/', true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+        xhr.upload.addEventListener('progress', function(e) {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            progressContainer.style.display = 'block';
+            progressText.style.display = 'block';
+            progressBar.style.width = percent + '%';
+            progressText.textContent = 'Enviando arquivos... ' + percent + '%';
+          }
+        });
+
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            try {
+              const resp = JSON.parse(xhr.responseText || '{}');
+              if (xhr.status === 200 && resp.success) {
+                progressBar.style.width = '100%';
+                progressText.textContent = 'Processando no servidor...';
+                showMessage('success', resp.message || 'Upload concluído com sucesso.');
+              } else {
+                showMessage('error', resp.message || 'Erro ao processar upload.');
+                if (resp.errors && resp.errors.length) {
+                  resp.errors.forEach(err => {
+                    const detail = [];
+                    if (err.filename) detail.push('<b>' + err.filename + '</b>');
+                    if (err.stdout) detail.push('<pre>' + err.stdout + '</pre>');
+                    if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
+                    showMessage('error', detail.join('<br>'));
+                  });
+                }
+              }
+            } catch (e) {
+              showMessage('error', 'Erro ao interpretar resposta do servidor.');
+            } finally {
+              setTimeout(() => {
+                progressContainer.style.display = 'none';
+                progressText.style.display = 'none';
+                progressBar.style.width = '0%';
+              }, 2000);
+            }
+          }
+        };
+
+        xhr.onerror = function() {
+          showMessage('error', 'Falha na comunicação com o servidor.');
+          progressContainer.style.display = 'none';
+          progressText.style.display = 'none';
+          progressBar.style.width = '0%';
+        };
+
+        xhr.send(formData);
+      });
+    </script>
+  </body>
+</html>

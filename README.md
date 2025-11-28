@@ -1,3 +1,5 @@
+Suporta tanto EVE-NG, quanto PNETLAB :)
+
 # Instalação do EVE-NG Image Manager
 
 ## 1. Instalar dependências

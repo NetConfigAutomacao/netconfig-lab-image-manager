@@ -1,11 +1,26 @@
 version: "3.9"
 
 services:
-  eve-image-manager:
-    build: .
-    container_name: eve-image-manager
-    ports:
-      - "8080:8080"
+  api:
+    build: ./api
+    container_name: eveng-api
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+    networks:
+      - eveng-net
+
+  web:
+    build: ./web
+    container_name: eveng-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    networks:
+      - eveng-net
+
+networks:
+  eveng-net:
+    driver: bridge

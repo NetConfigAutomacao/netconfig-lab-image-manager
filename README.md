@@ -1,6 +1,6 @@
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
-# Instalação do EVE-NG Image Manager
+# Instalação do NetConfig Lab Image Manager
 
 ## 1. Instalar dependências
 
@@ -15,13 +15,13 @@ curl -fsSL https://get.docker.com | sh
 ## 2. Clonar o repositório
 
 ```bash
-git clone https://github.com/andrediashexa/eveng-image-manager.git /opt/eveng-image-manager
+git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 ```
 
 ## 3. Iniciar o sistema
 
 ```bash
-cd /opt/eveng-image-manager
+cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
 

@@ -208,7 +208,10 @@ def list_images():
       - /opt/unetlab/addons/qemu
       - /opt/unetlab/addons/iol/bin
       - /opt/unetlab/addons/dynamips
-    Retorna as pastas (templates) de cada um.
+
+    Mesmo que o comando SSH retorne RC != 0, usamos o stdout para montar
+    a lista. Só registramos erro se tiver stderr "de verdade" (não apenas
+    o warning de known_hosts).
     """
     try:
         print("[API] Requisição /images recebida", flush=True)
@@ -232,7 +235,6 @@ def list_images():
         errors = []
 
         for kind, base_dir in base_dirs.items():
-            # comando que só lista diretórios (templates) dentro do diretório base
             cmd = (
                 f"if [ -d '{base_dir}' ]; then "
                 f"cd '{base_dir}' && for d in *; do [ -d \"$d\" ] && echo \"$d\"; done; "
@@ -241,18 +243,30 @@ def list_images():
             print(f"[API] Listando {kind} em {base_dir}", flush=True)
             rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
 
-            if rc != 0:
-                errors.append(
-                    {
-                        "context": kind,
-                        "stdout": out,
-                        "stderr": err,
-                    }
+            # Sempre aproveita o stdout como lista
+            entries = [line.strip() for line in out.splitlines() if line.strip()]
+            images[kind] = entries
+
+            # Limpa stderr e ignora warning de known_hosts
+            cleaned_err = (err or "").strip()
+            if cleaned_err:
+                # Se for APENAS o warning de "Permanently added", ignora
+                # (isso é ruído normal de SSH com host novo)
+                warning_phrase = "Permanently added"
+                only_warning = (
+                    warning_phrase in cleaned_err
+                    and all(
+                        (not line.strip()) or (warning_phrase in line)
+                        for line in cleaned_err.splitlines()
+                    )
                 )
-                images[kind] = []
-            else:
-                entries = [line.strip() for line in out.splitlines() if line.strip()]
-                images[kind] = entries
+                if not only_warning:
+                    errors.append(
+                        {
+                            "context": kind,
+                            "stderr": cleaned_err,
+                        }
+                    )
 
         msg_ok = "Imagens listadas com sucesso."
         if errors:

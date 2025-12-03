@@ -13,6 +13,7 @@
       --border-color: #1e293b;
       --text-main: #e5e7eb;
       --text-muted: #94a3b8;
+      --badge-bg: rgba(15, 23, 42, 0.95);
     }
 
     * {
@@ -34,7 +35,7 @@
 
     .container {
       width: 100%;
-      max-width: 560px;
+      max-width: 640px;
     }
 
     .card {
@@ -289,17 +290,117 @@
       font-size: 13px;
     }
 
+    /* --- ÁREA DE IMAGENS EXISTENTES --- */
+
+    #imagesResultWrapper {
+      margin-top: 12px;
+    }
+
     #imagesResult {
-      margin-top: 8px;
-      font-size: 11px;
-      max-height: 220px;
+      display: none;
+      margin-top: 4px;
+      padding: 10px 10px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 1) 0, #020617 60%);
+      font-size: 12px;
+      max-height: 260px;
       overflow-y: auto;
     }
 
-    #imagesResult code {
+    .images-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .images-title-row span {
       font-size: 11px;
-      line-height: 1.4;
-      display: block;
+      color: var(--text-muted);
+    }
+
+    .images-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .images-section {
+      border-radius: 10px;
+      padding: 8px 8px 6px;
+      background-color: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(30, 64, 175, 0.4);
+    }
+
+    .images-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .images-section-main {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .images-section-title {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .images-section-path {
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .images-section-count {
+      font-size: 10px;
+      color: var(--accent);
+      background-color: rgba(15, 23, 42, 1);
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      white-space: nowrap;
+    }
+
+    .images-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background-color: rgba(15, 23, 42, 1);
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: var(--text-main);
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tag-pill::before {
+      content: "◆";
+      font-size: 8px;
+      margin-right: 4px;
+      color: var(--accent);
+    }
+
+    .images-empty {
+      font-size: 11px;
+      color: var(--text-muted);
     }
 
     @media (max-width: 600px) {
@@ -338,6 +439,7 @@
 
       .project-title {
         margin-top: 4px;
+        white-space: normal;
       }
     }
   </style>
@@ -438,7 +540,9 @@
           </div>
         </form>
 
-        <div id="imagesResult" class="alert" style="display:none;"></div>
+        <div id="imagesResultWrapper">
+          <div id="imagesResult"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -585,36 +689,53 @@
           }
 
           const images = resp.images || {};
-          let html = '';
-
           const sections = [
-            ['qemu', 'QEMU (/opt/unetlab/addons/qemu)'],
-            ['iol', 'IOL (/opt/unetlab/addons/iol/bin)'],
-            ['dynamips', 'Dynamips (/opt/unetlab/addons/dynamips)'],
+            ['qemu', 'QEMU', '/opt/unetlab/addons/qemu'],
+            ['iol', 'IOL', '/opt/unetlab/addons/iol/bin'],
+            ['dynamips', 'Dynamips', '/opt/unetlab/addons/dynamips'],
           ];
 
-          sections.forEach(([key, label]) => {
+          let html = `
+              <div class="images-title-row">
+                <span><strong>Imagens existentes no EVE-NG</strong></span>
+                <span>Atualizado agora</span>
+              </div>
+              <div class="images-sections">
+            `;
+
+          sections.forEach(([key, label, path]) => {
             const list = images[key] || [];
-            html += `<b>${label}</b><br>`;
-            if (list.length === 0) {
-              html += '<code>(Nenhum template encontrado ou diretório vazio)</code><br><br>';
+            const count = list.length;
+
+            html += `
+                <div class="images-section">
+                  <div class="images-section-header">
+                    <div class="images-section-main">
+                      <span class="images-section-title">${label}</span>
+                      <span class="images-section-path">${path}</span>
+                    </div>
+                    <span class="images-section-count">${count} template${count === 1 ? '' : 's'}</span>
+                  </div>
+              `;
+
+            if (count === 0) {
+              html += `
+                  <div class="images-empty">
+                    Nenhum template encontrado neste diretório.
+                  </div>
+                `;
             } else {
+              html += `<div class="images-tags">`;
               list.forEach(item => {
-                html += `<code>${item}</code>`;
+                html += `<span class="tag-pill" title="${item}">${item}</span>`;
               });
-              html += '<br>';
+              html += `</div>`;
             }
+
+            html += `</div>`;
           });
 
-          if (resp.errors && resp.errors.length) {
-            html += '<hr><b>Erros:</b><br>';
-            resp.errors.forEach(err => {
-              const context = err.context ? `Contexto: ${err.context}<br>` : '';
-              const stdout = err.stdout ? `<pre>${err.stdout}</pre>` : '';
-              const stderr = err.stderr ? `<pre>${err.stderr}</pre>` : '';
-              html += context + stdout + stderr + '<br>';
-            });
-          }
+          html += `</div>`;
 
           imagesResult.innerHTML = html;
           imagesResult.style.display = 'block';

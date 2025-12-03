@@ -269,6 +269,39 @@
       font-size: 14px;
     }
 
+    .btn-secondary {
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-secondary span.icon {
+      font-size: 13px;
+    }
+
+    #imagesResult {
+      margin-top: 8px;
+      font-size: 11px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    #imagesResult code {
+      font-size: 11px;
+      line-height: 1.4;
+      display: block;
+    }
+
     @media (max-width: 600px) {
       .card {
         padding: 20px 18px 16px;
@@ -392,12 +425,20 @@
             <div class="small-info">
               Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
             </div>
-            <button type="submit" class="btn-primary">
-              <span class="icon">⬆</span>
-              <span>Enviar imagens</span>
-            </button>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="btn-secondary" id="checkImagesBtn">
+                <span class="icon">🔍</span>
+                <span>Check Existent Images</span>
+              </button>
+              <button type="submit" class="btn-primary">
+                <span class="icon">⬆</span>
+                <span>Enviar imagens</span>
+              </button>
+            </div>
           </div>
         </form>
+
+        <div id="imagesResult" class="alert" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -419,12 +460,22 @@
     const progressContainer = document.getElementById('progressContainer');
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
+    const checkBtn = document.getElementById('checkImagesBtn');
+    const imagesResult = document.getElementById('imagesResult');
 
     function showMessage(type, text) {
       const div = document.createElement('div');
       div.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
       div.innerHTML = text;
       messages.appendChild(div);
+    }
+
+    function resetProgress() {
+      setTimeout(() => {
+        progressContainer.style.display = 'none';
+        progressText.style.display = 'none';
+        progressBar.style.width = '0%';
+      }, 1500);
     }
 
     form.addEventListener('submit', function (e) {
@@ -468,6 +519,7 @@
               resp.errors.forEach(err => {
                 const detail = [];
                 if (err.filename) detail.push('<b>' + err.filename + '</b>');
+                if (err.context) detail.push('<b>Contexto:</b> ' + err.context);
                 if (err.stdout) detail.push('<pre>' + err.stdout + '</pre>');
                 if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
                 showMessage('error', detail.join('<br>'));
@@ -486,13 +538,95 @@
       xhr.send(formData);
     });
 
-    function resetProgress() {
-      setTimeout(() => {
-        progressContainer.style.display = 'none';
-        progressText.style.display = 'none';
-        progressBar.style.width = '0%';
-      }, 1500);
-    }
+    // --- Botão "Check Existent Images" ---
+    checkBtn.addEventListener('click', function () {
+      messages.innerHTML = '';
+      imagesResult.style.display = 'none';
+      imagesResult.innerHTML = '';
+
+      const eve_ip = form.elements['eve_ip'].value.trim();
+      const eve_user = form.elements['eve_user'].value.trim();
+      const eve_pass = form.elements['eve_pass'].value.trim();
+
+      if (!eve_ip || !eve_user || !eve_pass) {
+        showMessage('error', 'Preencha IP do EVE, usuário e senha para listar as imagens.');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('eve_ip', eve_ip);
+      fd.append('eve_user', eve_user);
+      fd.append('eve_pass', eve_pass);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/images', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          let resp = null;
+          try {
+            resp = JSON.parse(xhr.responseText || '{}');
+          } catch (e) {
+            showMessage('error', 'Erro ao interpretar resposta do servidor na listagem.<br><pre>' +
+              (xhr.responseText || String(e)) + '</pre>');
+            return;
+          }
+
+          if (!resp) {
+            showMessage('error', 'Resposta vazia da API ao listar imagens.');
+            return;
+          }
+
+          if (!resp.success) {
+            showMessage('error', resp.message || 'Falha ao listar imagens.');
+          } else {
+            showMessage('success', resp.message || 'Imagens listadas com sucesso.');
+          }
+
+          const images = resp.images || {};
+          let html = '';
+
+          const sections = [
+            ['qemu', 'QEMU (/opt/unetlab/addons/qemu)'],
+            ['iol', 'IOL (/opt/unetlab/addons/iol/bin)'],
+            ['dynamips', 'Dynamips (/opt/unetlab/addons/dynamips)'],
+          ];
+
+          sections.forEach(([key, label]) => {
+            const list = images[key] || [];
+            html += `<b>${label}</b><br>`;
+            if (list.length === 0) {
+              html += '<code>(Nenhum template encontrado ou diretório vazio)</code><br><br>';
+            } else {
+              list.forEach(item => {
+                html += `<code>${item}</code>`;
+              });
+              html += '<br>';
+            }
+          });
+
+          if (resp.errors && resp.errors.length) {
+            html += '<hr><b>Erros:</b><br>';
+            resp.errors.forEach(err => {
+              const context = err.context ? `Contexto: ${err.context}<br>` : '';
+              const stdout = err.stdout ? `<pre>${err.stdout}</pre>` : '';
+              const stderr = err.stderr ? `<pre>${err.stderr}</pre>` : '';
+              html += context + stdout + stderr + '<br>';
+            });
+          }
+
+          imagesResult.innerHTML = html;
+          imagesResult.style.display = 'block';
+        }
+      };
+
+      xhr.onerror = function () {
+        showMessage('error', 'Falha na comunicação com o servidor ao listar imagens.');
+      };
+
+      xhr.send(fd);
+    });
   </script>
 </body>
 

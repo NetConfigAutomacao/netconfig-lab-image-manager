@@ -9,8 +9,6 @@ ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
 DEFAULT_EVE_BASE_DIR = "/opt/unetlab/addons/qemu"
 
 app = Flask(__name__)
-# Sem limite de tamanho
-#app.config["MAX_CONTENT_LENGTH"] = 0
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -91,7 +89,11 @@ def upload():
         template_name = request.form.get("template_name", "").strip()
         files = request.files.getlist("image")
 
-        print(f"[API] Dados recebidos: eve_ip={eve_ip}, eve_user={eve_user}, base_dir={eve_base_dir}, template_name={template_name}", flush=True)
+        print(
+            f"[API] Dados recebidos: eve_ip={eve_ip}, eve_user={eve_user}, "
+            f"base_dir={eve_base_dir}, template_name={template_name}",
+            flush=True,
+        )
         print(f"[API] Total de arquivos enviados: {len(files)}", flush=True)
 
         if not (eve_ip and eve_user and eve_pass and template_name):
@@ -106,7 +108,7 @@ def upload():
         if not re.match(r"^[A-Za-z0-9._-]+$", template_name):
             return jsonify(
                 success=False,
-                message="Nome de template inválido. Use apenas letras, números, ponto, hífen e underline."
+                message="Nome de template inválido. Use apenas letras, números, ponto, hífen e underline.",
             ), 400
 
         if not files or files[0].filename == "":
@@ -119,7 +121,7 @@ def upload():
             if not allowed_file(f.filename):
                 return jsonify(
                     success=False,
-                    message=f"Extensão inválida em {f.filename}. Use qcow2, img, iso, vmdk."
+                    message=f"Extensão inválida em {f.filename}. Use qcow2, img, iso, vmdk.",
                 ), 400
             filename = os.path.basename(f.filename)
             local_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -196,6 +198,74 @@ def upload():
         return jsonify(
             success=False,
             message=f"Erro interno na API: {str(e)}",
+        ), 500
+
+
+@app.route("/images", methods=["POST"])
+def list_images():
+    """
+    Lista as imagens já existentes no EVE-NG, olhando:
+      - /opt/unetlab/addons/qemu
+      - /opt/unetlab/addons/iol/bin
+      - /opt/unetlab/addons/dynamips
+    Retorna as pastas (templates) de cada um.
+    """
+    try:
+        print("[API] Requisição /images recebida", flush=True)
+
+        eve_ip = request.form.get("eve_ip", "").strip()
+        eve_user = request.form.get("eve_user", "").strip()
+        eve_pass = request.form.get("eve_pass", "").strip()
+
+        print(f"[API] Dados recebidos para /images: eve_ip={eve_ip}, eve_user={eve_user}", flush=True)
+
+        if not (eve_ip and eve_user and eve_pass):
+            return jsonify(success=False, message="Preencha IP, usuário e senha para listar imagens."), 400
+
+        base_dirs = {
+            "qemu": "/opt/unetlab/addons/qemu",
+            "iol": "/opt/unetlab/addons/iol/bin",
+            "dynamips": "/opt/unetlab/addons/dynamips",
+        }
+
+        images = {}
+        errors = []
+
+        for kind, base_dir in base_dirs.items():
+            # comando que só lista diretórios (templates) dentro do diretório base
+            cmd = (
+                f"if [ -d '{base_dir}' ]; then "
+                f"cd '{base_dir}' && for d in *; do [ -d \"$d\" ] && echo \"$d\"; done; "
+                f"fi"
+            )
+            print(f"[API] Listando {kind} em {base_dir}", flush=True)
+            rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+
+            if rc != 0:
+                errors.append(
+                    {
+                        "context": kind,
+                        "stdout": out,
+                        "stderr": err,
+                    }
+                )
+                images[kind] = []
+            else:
+                entries = [line.strip() for line in out.splitlines() if line.strip()]
+                images[kind] = entries
+
+        msg_ok = "Imagens listadas com sucesso."
+        if errors:
+            msg_ok += " Alguns diretórios retornaram erro, veja detalhes."
+
+        print(f"[API] Resultado /images: {images}", flush=True)
+        return jsonify(success=(len(errors) == 0), message=msg_ok, images=images, errors=errors), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(
+            success=False,
+            message=f"Erro interno na API ao listar imagens: {str(e)}",
         ), 500
 
 

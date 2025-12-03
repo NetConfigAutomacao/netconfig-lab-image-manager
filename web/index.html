@@ -368,11 +368,43 @@
       white-space: nowrap;
     }
 
-    .images-tags {
+    .images-empty {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Grupos por "vendor" (fortinet-, timos-, huaweine-, etc.) */
+
+    .vendor-group {
+      margin-bottom: 6px;
+    }
+
+    .vendor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+
+    .vendor-name {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: lowercase;
+      color: var(--text-main);
+    }
+
+    .vendor-count {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .vendor-tags {
       display: flex;
       flex-wrap: wrap;
       gap: 4px;
-      margin-top: 2px;
+      margin-left: 2px;
     }
 
     .tag-pill {
@@ -396,11 +428,6 @@
       font-size: 8px;
       margin-right: 4px;
       color: var(--accent);
-    }
-
-    .images-empty {
-      font-size: 11px;
-      color: var(--text-muted);
     }
 
     @media (max-width: 600px) {
@@ -642,6 +669,42 @@
       xhr.send(formData);
     });
 
+    // --- Agrupa lista por vendor (prefixo até o primeiro "-") ---
+    function groupByVendor(list) {
+      const groups = {};
+      list.forEach(name => {
+        let vendor = name;
+        let version = '';
+
+        const idx = name.indexOf('-');
+        if (idx > 0) {
+          vendor = name.slice(0, idx);
+          version = name.slice(idx + 1);
+        } else {
+          vendor = name;
+          version = '';
+        }
+
+        const key = vendor.toLowerCase();
+        if (!groups[key]) {
+          groups[key] = {
+            vendor: vendor,
+            items: []
+          };
+        }
+
+        groups[key].items.push({
+          full: name,
+          version: version || name
+        });
+      });
+
+      // retorna array de grupos ordenado por vendor
+      return Object.values(groups).sort((a, b) =>
+        a.vendor.toLowerCase().localeCompare(b.vendor.toLowerCase())
+      );
+    }
+
     // --- Botão "Check Existent Images" ---
     checkBtn.addEventListener('click', function () {
       messages.innerHTML = '';
@@ -705,7 +768,7 @@
 
           sections.forEach(([key, label, path]) => {
             const list = images[key] || [];
-            const count = list.length;
+            const totalCount = list.length;
 
             html += `
                 <div class="images-section">
@@ -714,22 +777,36 @@
                       <span class="images-section-title">${label}</span>
                       <span class="images-section-path">${path}</span>
                     </div>
-                    <span class="images-section-count">${count} template${count === 1 ? '' : 's'}</span>
+                    <span class="images-section-count">${totalCount} template${totalCount === 1 ? '' : 's'}</span>
                   </div>
               `;
 
-            if (count === 0) {
+            if (totalCount === 0) {
               html += `
                   <div class="images-empty">
                     Nenhum template encontrado neste diretório.
                   </div>
                 `;
             } else {
-              html += `<div class="images-tags">`;
-              list.forEach(item => {
-                html += `<span class="tag-pill" title="${item}">${item}</span>`;
+              const groups = groupByVendor(list);
+              groups.forEach(group => {
+                const count = group.items.length;
+                html += `
+                    <div class="vendor-group">
+                      <div class="vendor-header">
+                        <span class="vendor-name">${group.vendor}</span>
+                        <span class="vendor-count">${count} versão${count === 1 ? '' : 'es'}</span>
+                      </div>
+                      <div class="vendor-tags">
+                  `;
+                group.items.forEach(entry => {
+                  html += `<span class="tag-pill" title="${entry.full}">${entry.version}</span>`;
+                });
+                html += `
+                      </div>
+                    </div>
+                  `;
               });
-              html += `</div>`;
             }
 
             html += `</div>`;

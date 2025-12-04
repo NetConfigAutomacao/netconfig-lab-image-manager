@@ -1,5 +1,7 @@
 # NetConfig Lab Image Manager
 
+![ScreenShot](images/screenshot-lab-image-manager.png)
+
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
 ## Instalação do NetConfig Lab Image Manager

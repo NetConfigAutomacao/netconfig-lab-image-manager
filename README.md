@@ -1,8 +1,10 @@
+# NetConfig Lab Image Manager
+
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
-# Instalação do NetConfig Lab Image Manager
+## Instalação do NetConfig Lab Image Manager
 
-## 1. Instalar dependências
+### 1. Instalar dependências
 
 No Debian 12 ou 13:
 
@@ -12,20 +14,20 @@ apt-get install curl -y
 curl -fsSL https://get.docker.com | sh
 ```
 
-## 2. Clonar o repositório
+### 2. Clonar o repositório
 
 ```bash
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 ```
 
-## 3. Iniciar o sistema
+### 3. Iniciar o sistema
 
 ```bash
 cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
 
-## 4. Alterar porta (opcional)
+### 4. Alterar porta (opcional)
 
 Caso precise modificar a porta de acesso, edite o arquivo docker-compose.yml e ajuste o mapeamento de porta, por exemplo:
 

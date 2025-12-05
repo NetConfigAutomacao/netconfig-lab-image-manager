@@ -13,23 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
-FROM python:3.12-slim
+import os
 
-ENV PYTHONUNBUFFERED=1
+UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "/tmp/eve_uploads")
+DEFAULT_EVE_BASE_DIR = os.getenv("DEFAULT_EVE_BASE_DIR", "/opt/unetlab/addons/qemu")
+ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    sshpass openssh-client \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# instala dependências
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# copia TODO o código da API (app.py + módulos auxiliares)
-COPY . .
-
-EXPOSE 8080
-
-CMD ["python", "app.py"]
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)

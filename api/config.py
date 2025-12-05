@@ -20,3 +20,8 @@ DEFAULT_EVE_BASE_DIR = os.getenv("DEFAULT_EVE_BASE_DIR", "/opt/unetlab/addons/qe
 ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+TEMPLATES_AMD_DIR = "/opt/unetlab/html/templates/amd"
+TEMPLATES_INTEL_DIR = "/opt/unetlab/html/templates/intel"
+
+TEMPLATE_ALLOWED_EXT = {"yml", "yaml"}

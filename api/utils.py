@@ -14,16 +14,9 @@
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
 import subprocess
-from typing import Tuple
-
-from config import ALLOWED_EXTENSIONS
 
 
-def allowed_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
-def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str) -> Tuple[int, str, str]:
+def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str):
     cmd = [
         "sshpass",
         "-p",
@@ -53,13 +46,7 @@ def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str) -> 
     return proc.returncode, stdout, stderr
 
 
-def scp_upload(
-    eve_ip: str,
-    eve_user: str,
-    eve_pass: str,
-    local_path: str,
-    remote_path: str,
-) -> Tuple[int, str, str]:
+def scp_upload(eve_ip: str, eve_user: str, eve_pass: str, local_path: str, remote_path: str):
     cmd = [
         "sshpass",
         "-p",

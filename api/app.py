@@ -17,21 +17,21 @@ from flask import Flask, jsonify
 
 from upload_routes import upload_bp
 from image_routes import images_bp
-from templates_routes import templates_bp  # garante que o arquivo se chama templates_routes.py
+from templates_routes import templates_bp
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    # Blueprints de API
-    # /api/upload
-    app.register_blueprint(upload_bp, url_prefix="/api")
-
-    # /api/images
-    app.register_blueprint(images_bp, url_prefix="/api")
-
-    # /api/templates/get, /api/templates/upload, /api/templates/list
-    app.register_blueprint(templates_bp, url_prefix="/api/templates")
+    # IMPORTANTE: sem prefixo "/api" aqui.
+    # O Nginx recebe "/api/..." e repassa para o Flask SEM o "/api".
+    #
+    # /api/upload      -> Flask vê /upload
+    # /api/images      -> Flask vê /images
+    # /api/templates/* -> Flask vê /templates/*
+    app.register_blueprint(upload_bp)
+    app.register_blueprint(images_bp)
+    app.register_blueprint(templates_bp)
 
     @app.route("/health", methods=["GET"])
     def health():

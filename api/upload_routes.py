@@ -18,10 +18,19 @@ import re
 import traceback
 from flask import Blueprint, request, jsonify
 
-from config import UPLOAD_FOLDER, DEFAULT_EVE_BASE_DIR
-from utils import allowed_file, run_ssh_command, scp_upload
+from utils import run_ssh_command, scp_upload
 
-upload_bp = Blueprint("upload", __name__)
+UPLOAD_FOLDER = "/tmp/eve_uploads"
+ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
+DEFAULT_EVE_BASE_DIR = "/opt/unetlab/addons/qemu"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+upload_bp = Blueprint("upload_bp", __name__)
+
+
+def allowed_file(filename: str) -> bool:
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @upload_bp.route("/upload", methods=["POST"])

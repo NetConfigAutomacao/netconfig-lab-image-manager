@@ -18,17 +18,11 @@ from flask import Blueprint, request, jsonify
 
 from utils import run_ssh_command
 
-images_bp = Blueprint("images", __name__)
+images_bp = Blueprint("images_bp", __name__)
 
 
 @images_bp.route("/images", methods=["POST"])
 def list_images():
-    """
-    Lista as imagens já existentes no EVE-NG, olhando:
-      - /opt/unetlab/addons/qemu
-      - /opt/unetlab/addons/iol/bin
-      - /opt/unetlab/addons/dynamips
-    """
     try:
         print("[API] Requisição /images recebida", flush=True)
 
@@ -59,11 +53,9 @@ def list_images():
             print(f"[API] Listando {kind} em {base_dir}", flush=True)
             rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
 
-            # Sempre aproveita o stdout como lista
             entries = [line.strip() for line in out.splitlines() if line.strip()]
             images[kind] = entries
 
-            # Limpa stderr e ignora warning de known_hosts
             cleaned_err = (err or "").strip()
             if cleaned_err:
                 warning_phrase = "Permanently added"

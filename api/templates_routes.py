@@ -20,10 +20,11 @@ from flask import Blueprint, request, jsonify
 
 from utils import run_ssh_command, scp_upload
 
-templates_bp = Blueprint("templates_bp", __name__)
-
 TEMPLATES_BASE_DIR_AMD = "/opt/unetlab/html/templates/amd"
 TEMPLATES_BASE_DIR_INTEL = "/opt/unetlab/html/templates/intel"
+
+# prefixo /templates aqui
+templates_bp = Blueprint("templates_bp", __name__, url_prefix="/templates")
 
 
 def _sanitize_template_name(name: str) -> str:
@@ -44,11 +45,6 @@ def _sanitize_template_name(name: str) -> str:
 
 @templates_bp.route("/get", methods=["POST"])
 def get_template():
-    """
-    Lê um template YAML do EVE, procurando em:
-      - /opt/unetlab/html/templates/amd
-      - /opt/unetlab/html/templates/intel
-    """
     try:
         eve_ip = request.form.get("eve_ip", "").strip()
         eve_user = request.form.get("eve_user", "").strip()
@@ -108,12 +104,6 @@ def get_template():
 
 @templates_bp.route("/upload", methods=["POST"])
 def upload_template():
-    """
-    Envia o conteúdo de um template YAML para:
-      - /opt/unetlab/html/templates/amd
-      - /opt/unetlab/html/templates/intel
-    usando SCP via sshpass.
-    """
     try:
         eve_ip = request.form.get("eve_ip", "").strip()
         eve_user = request.form.get("eve_user", "").strip()
@@ -144,7 +134,6 @@ def upload_template():
         except ValueError as exc:
             return jsonify(success=False, message=str(exc)), 400
 
-        # Salva conteúdo temporariamente no container
         tmp_dir = "/tmp/eve_templates"
         os.makedirs(tmp_dir, exist_ok=True)
         local_path = os.path.join(tmp_dir, template_name)
@@ -214,13 +203,6 @@ def upload_template():
 
 @templates_bp.route("/list", methods=["POST"])
 def list_templates():
-    """
-    Lista os templates existentes em:
-      - /opt/unetlab/html/templates/amd
-      - /opt/unetlab/html/templates/intel
-
-    Retorna uma lista combinada e também separado por diretório.
-    """
     try:
         eve_ip = request.form.get("eve_ip", "").strip()
         eve_user = request.form.get("eve_user", "").strip()
@@ -242,7 +224,6 @@ def list_templates():
 
         templates = {"amd": [], "intel": [], "all": []}
         errors = []
-
         all_names = set()
 
         for kind, base_dir in dirs.items():

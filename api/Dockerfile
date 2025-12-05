@@ -23,12 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# instala dependências
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# copia TODO o código da API (app.py + módulos auxiliares)
-COPY . .
+# copia TODOS os .py (app, rotas, utils, etc)
+COPY . /app/
 
 EXPOSE 8080
 

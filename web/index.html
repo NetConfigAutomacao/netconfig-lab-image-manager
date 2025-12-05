@@ -15,7 +15,6 @@
   along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-
 <!doctype html>
 <html lang="pt-BR">
 
@@ -145,7 +144,8 @@
 
     input[type="text"],
     input[type="password"],
-    input[type="file"] {
+    input[type="file"],
+    textarea {
       background-color: rgba(15, 23, 42, 0.85);
       border-radius: 10px;
       border: 1px solid rgba(51, 65, 85, 0.9);
@@ -159,11 +159,20 @@
       padding: 6px 10px;
     }
 
-    input::placeholder {
+    textarea {
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      min-height: 160px;
+      resize: vertical;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
       color: rgba(148, 163, 184, 0.7);
     }
 
-    input:focus {
+    input:focus,
+    textarea:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
       background-color: rgba(15, 23, 42, 0.95);
@@ -308,6 +317,39 @@
       font-size: 13px;
     }
 
+    /* --- TABS --- */
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .tab-button {
+      padding: 8px 14px;
+      background-color: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 8px;
+      cursor: pointer;
+      color: #e5e7eb;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .tab-button.active {
+      background-color: #0ea5e9;
+      color: white;
+      border-color: #0ea5e9;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
     /* --- ÁREA DE IMAGENS EXISTENTES --- */
 
     #imagesResultWrapper {
@@ -391,8 +433,6 @@
       color: var(--text-muted);
     }
 
-    /* Grupos por "vendor" (fortinet-, timos-, huaweine-, etc.) */
-
     .vendor-group {
       margin-bottom: 6px;
     }
@@ -448,6 +488,67 @@
       color: var(--accent);
     }
 
+    /* --- LISTA DE TEMPLATES --- */
+
+    .template-search-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    #template_search {
+      flex: 1;
+      min-width: 0;
+    }
+
+    #templatesList {
+      margin-top: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      border-radius: 10px;
+      padding: 6px;
+      border: 1px solid rgba(30, 64, 175, 0.4);
+      background-color: rgba(15, 23, 42, 0.95);
+    }
+
+    .templates-empty {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .template-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      background-color: rgba(15, 23, 42, 1);
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: var(--text-main);
+      cursor: pointer;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background-color 0.12s ease-out, border-color 0.12s ease-out, transform 0.08s ease-out;
+    }
+
+    .template-pill:hover {
+      border-color: rgba(56, 189, 248, 0.7);
+      background-color: rgba(15, 23, 42, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .template-pill.active {
+      border-color: rgba(56, 189, 248, 1);
+      background-color: rgba(37, 99, 235, 0.7);
+    }
+
     @media (max-width: 600px) {
       .card {
         padding: 20px 18px 16px;
@@ -486,6 +587,10 @@
         margin-top: 4px;
         white-space: normal;
       }
+
+      .tabs {
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
@@ -517,6 +622,7 @@
         <div id="messages" class="messages"></div>
 
         <form id="uploadForm" enctype="multipart/form-data">
+          <!-- CAMPOS COMUNS (USADOS EM IMAGES E TEMPLATES) -->
           <div class="field-group">
             <div class="field">
               <label>IP do EVE-NG</label>
@@ -533,321 +639,132 @@
             <input type="password" name="eve_pass" placeholder="Senha do usuário no EVE" required>
           </div>
 
-          <div class="field">
-            <label>Tipo de imagem (Destino)</label>
-            <div class="radio-group">
-              <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
-              <label><input type="radio" name="image_type" value="iol"> IOL</label>
-              <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
-            </div>
-            <div class="hint">
-              Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
-            </div>
+          <!-- ABAS -->
+          <div class="tabs">
+            <button type="button" class="tab-button active" data-tab="images-tab">Images</button>
+            <button type="button" class="tab-button" data-tab="templates-tab">Templates</button>
           </div>
 
-          <div class="field">
-            <label>Diretório base no EVE</label>
-            <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
-            <div class="hint">
-              QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
-              <code>/opt/unetlab/addons/dynamips</code>.
+          <!-- ==================== ABA IMAGES ==================== -->
+          <div id="images-tab" class="tab-content active">
+            <div class="field">
+              <label>Tipo de imagem (Destino)</label>
+              <div class="radio-group">
+                <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
+                <label><input type="radio" name="image_type" value="iol"> IOL</label>
+                <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
+              </div>
+              <div class="hint">
+                Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Diretório base no EVE</label>
+              <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
+              <div class="hint">
+                QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
+                <code>/opt/unetlab/addons/dynamips</code>.
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Nome do Template (diretório)</label>
+              <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" required>
+            </div>
+
+            <div class="field">
+              <label>Imagens (pode selecionar várias)</label>
+              <input type="file" name="image" multiple required>
+              <div class="hint">
+                Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+              </div>
+            </div>
+
+            <div class="progress-label" id="progressText">Enviando...</div>
+            <div class="progress-container" id="progressContainer">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <div class="footer">
+              <div class="small-info">
+                Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn-secondary" id="checkImagesBtn">
+                  <span class="icon">🔍</span>
+                  <span>Check Existent Images</span>
+                </button>
+                <button type="submit" class="btn-primary">
+                  <span class="icon">⬆</span>
+                  <span>Enviar imagens</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="imagesResultWrapper">
+              <div id="imagesResult"></div>
             </div>
           </div>
+          <!-- ==================== FIM ABA IMAGES ==================== -->
 
-          <div class="field">
-            <label>Nome do Template</label>
-            <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" required>
-          </div>
-
-          <div class="field">
-            <label>Imagens (pode selecionar várias)</label>
-            <input type="file" name="image" multiple required>
-            <div class="hint">
-              Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+          <!-- ==================== ABA TEMPLATES ==================== -->
+          <div id="templates-tab" class="tab-content">
+            <div class="field">
+              <label>Templates existentes no EVE</label>
+              <div class="template-search-row">
+                <input type="text" id="template_search"
+                  placeholder="Filtrar por nome (ex: huawei, juniper, mikrotik...)">
+                <button type="button" class="btn-secondary" id="listTemplatesBtn">
+                  <span class="icon">📂</span>
+                  <span>Listar templates</span>
+                </button>
+              </div>
+              <div id="templatesList"></div>
+              <div class="hint">
+                Clique em um template da lista para carregar o conteúdo no editor abaixo.
+              </div>
             </div>
-          </div>
 
-          <div class="progress-label" id="progressText">Enviando...</div>
-          <div class="progress-container" id="progressContainer">
-            <div class="progress-bar" id="progressBar"></div>
-          </div>
-
-          <div class="footer">
-            <div class="small-info">
-              Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
+            <div class="field">
+              <label>Nome do arquivo de template</label>
+              <input type="text" name="template_yaml_name" id="template_yaml_name" placeholder="Ex: huaweine40.yml">
+              <div class="hint">
+                Se não informar a extensão, será usado <code>.yml</code> automaticamente.
+              </div>
             </div>
-            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-              <button type="button" class="btn-secondary" id="checkImagesBtn">
-                <span class="icon">🔍</span>
-                <span>Check Existent Images</span>
+
+            <div class="field">
+              <label>Conteúdo do template YAML</label>
+              <textarea id="template_content" name="template_content"
+                placeholder="# Cole ou edite aqui o conteúdo YAML do template..."></textarea>
+              <div class="hint">
+                O arquivo será enviado para:
+                <code>/opt/unetlab/html/templates/amd</code> e
+                <code>/opt/unetlab/html/templates/intel</code>.
+              </div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+              <button type="button" class="btn-secondary" id="loadTemplateBtn">
+                <span class="icon">📥</span>
+                <span>Carregar template do EVE</span>
               </button>
-              <button type="submit" class="btn-primary">
-                <span class="icon">⬆</span>
-                <span>Enviar imagens</span>
+
+              <button type="button" class="btn-secondary" id="saveTemplateBtn">
+                <span class="icon">💾</span>
+                <span>Salvar template no EVE</span>
               </button>
             </div>
           </div>
+          <!-- ==================== FIM ABA TEMPLATES ==================== -->
+
         </form>
-
-        <div id="imagesResultWrapper">
-          <div id="imagesResult"></div>
-        </div>
       </div>
     </div>
   </div>
 
-  <script>
-    const radioButtons = document.querySelectorAll("input[name='image_type']");
-    const baseDirInput = document.getElementById("eve_base_dir");
-
-    radioButtons.forEach(radio => {
-      radio.addEventListener("change", () => {
-        if (radio.value === "qemu") baseDirInput.value = "/opt/unetlab/addons/qemu";
-        if (radio.value === "iol") baseDirInput.value = "/opt/unetlab/addons/iol/bin";
-        if (radio.value === "dynamips") baseDirInput.value = "/opt/unetlab/addons/dynamips";
-      });
-    });
-
-    const form = document.getElementById('uploadForm');
-    const messages = document.getElementById('messages');
-    const progressContainer = document.getElementById('progressContainer');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-    const checkBtn = document.getElementById('checkImagesBtn');
-    const imagesResult = document.getElementById('imagesResult');
-
-    function showMessage(type, text) {
-      const div = document.createElement('div');
-      div.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
-      div.innerHTML = text;
-      messages.appendChild(div);
-    }
-
-    function resetProgress() {
-      setTimeout(() => {
-        progressContainer.style.display = 'none';
-        progressText.style.display = 'none';
-        progressBar.style.width = '0%';
-      }, 1500);
-    }
-
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      messages.innerHTML = '';
-
-      const formData = new FormData(form);
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/upload', true);
-      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-      xhr.upload.addEventListener('progress', function (e) {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          progressContainer.style.display = 'block';
-          progressText.style.display = 'block';
-          progressBar.style.width = percent + '%';
-          progressText.textContent = 'Enviando arquivos... ' + percent + '%';
-        }
-      });
-
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          let resp = null;
-          try {
-            resp = JSON.parse(xhr.responseText || '{}');
-          } catch (e) {
-            showMessage('error', 'Erro ao interpretar resposta do servidor.<br><pre>' +
-              (xhr.responseText || String(e)) + '</pre>');
-            resetProgress();
-            return;
-          }
-
-          if (xhr.status === 200 && resp.success) {
-            progressBar.style.width = '100%';
-            progressText.textContent = 'Processando no servidor...';
-            showMessage('success', resp.message || 'Upload concluído com sucesso.');
-          } else {
-            showMessage('error', resp.message || 'Erro ao processar upload.');
-            if (resp.errors && resp.errors.length) {
-              resp.errors.forEach(err => {
-                const detail = [];
-                if (err.filename) detail.push('<b>' + err.filename + '</b>');
-                if (err.context) detail.push('<b>Contexto:</b> ' + err.context);
-                if (err.stdout) detail.push('<pre>' + err.stdout + '</pre>');
-                if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
-                showMessage('error', detail.join('<br>'));
-              });
-            }
-          }
-          resetProgress();
-        }
-      };
-
-      xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor.');
-        resetProgress();
-      };
-
-      xhr.send(formData);
-    });
-
-    // --- Agrupa lista por vendor (prefixo até o primeiro "-") ---
-    function groupByVendor(list) {
-      const groups = {};
-      list.forEach(name => {
-        let vendor = name;
-        let version = '';
-
-        const idx = name.indexOf('-');
-        if (idx > 0) {
-          vendor = name.slice(0, idx);
-          version = name.slice(idx + 1);
-        } else {
-          vendor = name;
-          version = '';
-        }
-
-        const key = vendor.toLowerCase();
-        if (!groups[key]) {
-          groups[key] = {
-            vendor: vendor,
-            items: []
-          };
-        }
-
-        groups[key].items.push({
-          full: name,
-          version: version || name
-        });
-      });
-
-      // retorna array de grupos ordenado por vendor
-      return Object.values(groups).sort((a, b) =>
-        a.vendor.toLowerCase().localeCompare(b.vendor.toLowerCase())
-      );
-    }
-
-    // --- Botão "Check Existent Images" ---
-    checkBtn.addEventListener('click', function () {
-      messages.innerHTML = '';
-      imagesResult.style.display = 'none';
-      imagesResult.innerHTML = '';
-
-      const eve_ip = form.elements['eve_ip'].value.trim();
-      const eve_user = form.elements['eve_user'].value.trim();
-      const eve_pass = form.elements['eve_pass'].value.trim();
-
-      if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP do EVE, usuário e senha para listar as imagens.');
-        return;
-      }
-
-      const fd = new FormData();
-      fd.append('eve_ip', eve_ip);
-      fd.append('eve_user', eve_user);
-      fd.append('eve_pass', eve_pass);
-
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/images', true);
-      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          let resp = null;
-          try {
-            resp = JSON.parse(xhr.responseText || '{}');
-          } catch (e) {
-            showMessage('error', 'Erro ao interpretar resposta do servidor na listagem.<br><pre>' +
-              (xhr.responseText || String(e)) + '</pre>');
-            return;
-          }
-
-          if (!resp) {
-            showMessage('error', 'Resposta vazia da API ao listar imagens.');
-            return;
-          }
-
-          if (!resp.success) {
-            showMessage('error', resp.message || 'Falha ao listar imagens.');
-          } else {
-            showMessage('success', resp.message || 'Imagens listadas com sucesso.');
-          }
-
-          const images = resp.images || {};
-          const sections = [
-            ['qemu', 'QEMU', '/opt/unetlab/addons/qemu'],
-            ['iol', 'IOL', '/opt/unetlab/addons/iol/bin'],
-            ['dynamips', 'Dynamips', '/opt/unetlab/addons/dynamips'],
-          ];
-
-          let html = `
-              <div class="images-title-row">
-                <span><strong>Imagens existentes no EVE-NG</strong></span>
-                <span>Atualizado agora</span>
-              </div>
-              <div class="images-sections">
-            `;
-
-          sections.forEach(([key, label, path]) => {
-            const list = images[key] || [];
-            const totalCount = list.length;
-
-            html += `
-                <div class="images-section">
-                  <div class="images-section-header">
-                    <div class="images-section-main">
-                      <span class="images-section-title">${label}</span>
-                      <span class="images-section-path">${path}</span>
-                    </div>
-                    <span class="images-section-count">${totalCount} template${totalCount === 1 ? '' : 's'}</span>
-                  </div>
-              `;
-
-            if (totalCount === 0) {
-              html += `
-                  <div class="images-empty">
-                    Nenhum template encontrado neste diretório.
-                  </div>
-                `;
-            } else {
-              const groups = groupByVendor(list);
-              groups.forEach(group => {
-                const count = group.items.length;
-                html += `
-                    <div class="vendor-group">
-                      <div class="vendor-header">
-                        <span class="vendor-name">${group.vendor}</span>
-                        <span class="vendor-count">${count} versão${count === 1 ? '' : 'es'}</span>
-                      </div>
-                      <div class="vendor-tags">
-                  `;
-                group.items.forEach(entry => {
-                  html += `<span class="tag-pill" title="${entry.full}">${entry.version}</span>`;
-                });
-                html += `
-                      </div>
-                    </div>
-                  `;
-              });
-            }
-
-            html += `</div>`;
-          });
-
-          html += `</div>`;
-
-          imagesResult.innerHTML = html;
-          imagesResult.style.display = 'block';
-        }
-      };
-
-      xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor ao listar imagens.');
-      };
-
-      xhr.send(fd);
-    });
-  </script>
+  <script src="/static/js/main.js"></script>
 </body>
 
 </html>

@@ -14,144 +14,215 @@
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
-import re
-import traceback
+from typing import List, Dict, Any
+
 from flask import Blueprint, request, jsonify
+import paramiko
 
-from utils import run_ssh_command, scp_upload
-
-UPLOAD_FOLDER = "/tmp/eve_uploads"
-ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
-DEFAULT_EVE_BASE_DIR = "/opt/unetlab/addons/qemu"
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+from config import UPLOAD_FOLDER, DEFAULT_EVE_BASE_DIR, ALLOWED_EXTENSIONS
 
 upload_bp = Blueprint("upload_bp", __name__)
 
 
-def allowed_file(filename: str) -> bool:
+def _allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@upload_bp.route("/upload", methods=["POST"])
-def upload():
+def _ssh_connect(eve_ip: str, eve_user: str, eve_pass: str) -> paramiko.SSHClient:
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(eve_ip, username=eve_user, password=eve_pass, timeout=30)
+    return ssh
+
+
+def _run_fixpermissions(ssh: paramiko.SSHClient, errors: List[Dict[str, Any]]) -> bool:
+    """
+    Executa o comando oficial do EVE-NG para corrigir permissões após o upload.
+    /opt/unetlab/wrappers/unl_wrapper -a fixpermissions
+    """
+    cmd = "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions"
+
     try:
-        print("[API] Requisição /upload recebida", flush=True)
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        exit_status = stdout.channel.recv_exit_status()
+        out = stdout.read().decode(errors="ignore")
+        err = stderr.read().decode(errors="ignore")
 
-        eve_ip = request.form.get("eve_ip", "").strip()
-        eve_user = request.form.get("eve_user", "").strip()
-        eve_pass = request.form.get("eve_pass", "").strip()
-        eve_base_dir = request.form.get("eve_base_dir", "").strip()
-        template_name = request.form.get("template_name", "").strip()
-        files = request.files.getlist("image")
-
-        print(
-            f"[API] Dados recebidos: eve_ip={eve_ip}, eve_user={eve_user}, "
-            f"base_dir={eve_base_dir}, template_name={template_name}",
-            flush=True,
-        )
-        print(f"[API] Total de arquivos enviados: {len(files)}", flush=True)
-
-        if not (eve_ip and eve_user and eve_pass and template_name):
-            return jsonify(success=False, message="Preencha IP, usuário, senha e template."), 400
-
-        if not eve_base_dir:
-            eve_base_dir = DEFAULT_EVE_BASE_DIR
-
-        if not eve_base_dir.startswith("/"):
-            return jsonify(success=False, message="Diretório base inválido."), 400
-
-        if not re.match(r"^[A-Za-z0-9._-]+$", template_name):
-            return jsonify(
-                success=False,
-                message="Nome de template inválido. Use apenas letras, números, ponto, hífen e underline.",
-            ), 400
-
-        if not files or files[0].filename == "":
-            return jsonify(success=False, message="Nenhum arquivo enviado."), 400
-
-        saved_files = []
-        for f in files:
-            if not f or f.filename == "":
-                continue
-            if not allowed_file(f.filename):
-                return jsonify(
-                    success=False,
-                    message=f"Extensão inválida em {f.filename}. Use qcow2, img, iso, vmdk.",
-                ), 400
-            filename = os.path.basename(f.filename)
-            local_path = os.path.join(UPLOAD_FOLDER, filename)
-            print(f"[API] Salvando arquivo local: {local_path}", flush=True)
-            f.save(local_path)
-            saved_files.append((local_path, filename))
-
-        if not saved_files:
-            return jsonify(success=False, message="Nenhum arquivo válido para upload."), 400
-
-        remote_template_dir = f"{eve_base_dir.rstrip('/')}/{template_name}"
-        print(f"[API] Diretório remoto do template: {remote_template_dir}", flush=True)
-        errors = []
-
-        # 1) Criar diretório remoto
-        rc, out, err = run_ssh_command(
-            eve_ip, eve_user, eve_pass, f"mkdir -p '{remote_template_dir}'"
-        )
-        if rc != 0:
-            errors.append({"filename": "(mkdir)", "stdout": out, "stderr": err})
-        else:
-            # 2) Enviar arquivos via SCP
-            for local_path, filename in saved_files:
-                remote_path = f"{remote_template_dir}/{filename}"
-                print(f"[API] Enviando {local_path} -> {remote_path}", flush=True)
-                rc_file, out_file, err_file = scp_upload(
-                    eve_ip, eve_user, eve_pass, local_path, remote_path
-                )
-                if rc_file != 0:
-                    errors.append(
-                        {"filename": filename, "stdout": out_file, "stderr": err_file}
-                    )
-
-        # 3) fixpermissions
-        if not errors:
-            rc_fix, out_fix, err_fix = run_ssh_command(
-                eve_ip,
-                eve_user,
-                eve_pass,
-                "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions",
+        if exit_status != 0:
+            errors.append(
+                {
+                    "step": "fixpermissions",
+                    "stdout": out,
+                    "stderr": err or f"Exit status {exit_status}",
+                }
             )
-            if rc_fix != 0:
-                errors.append(
-                    {"filename": "fixpermissions", "stdout": out_fix, "stderr": err_fix}
-                )
+            return False
 
-        # Limpar arquivos locais
-        for local_path, _ in saved_files:
-            try:
-                if os.path.exists(local_path):
-                    print(f"[API] Removendo arquivo local: {local_path}", flush=True)
-                    os.remove(local_path)
-            except Exception as e:
-                print(f"[API] Erro ao remover {local_path}: {e}", flush=True)
+        # Apenas para debug se precisar no futuro:
+        if out.strip():
+            errors.append(
+                {
+                    "step": "fixpermissions_stdout",
+                    "stdout": out.strip(),
+                }
+            )
 
-        if errors:
-            print(f"[API] Erros detectados: {errors}", flush=True)
-            return jsonify(
+        return True
+    except Exception as e:
+        errors.append(
+            {
+                "step": "fixpermissions",
+                "stderr": f"Exception: {e}",
+            }
+        )
+        return False
+
+
+@upload_bp.route("/upload", methods=["POST"])
+def upload_images():
+    """
+    Recebe imagens via HTTP, envia para o EVE-NG via SSH/SFTP e
+    ao final executa o fixpermissions no host de destino.
+    """
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    eve_base_dir = request.form.get("eve_base_dir") or DEFAULT_EVE_BASE_DIR
+    template_name = (request.form.get("template_name") or "").strip()
+
+    errors: List[Dict[str, Any]] = []
+
+    if not eve_ip or not eve_user or not eve_pass:
+        return (
+            jsonify(
                 success=False,
-                message="Alguns arquivos falharam ao enviar ou ao executar fixpermissions.",
-                errors=errors,
-            ), 500
+                message="Informe IP, usuário e senha do EVE-NG.",
+                errors=[],
+            ),
+            400,
+        )
 
-        msg = f"Upload concluído com sucesso de {len(saved_files)} arquivo(s) para '{remote_template_dir}'."
-        print(f"[API] {msg}", flush=True)
-        return jsonify(
-            success=True,
-            message=msg,
-            errors=[],
-        ), 200
+    if not template_name:
+        return (
+            jsonify(
+                success=False,
+                message="Informe o nome do template (diretório).",
+                errors=[],
+            ),
+            400,
+        )
+
+    files = request.files.getlist("image")
+    if not files or all(not f.filename for f in files):
+        return (
+            jsonify(
+                success=False,
+                message="Nenhuma imagem foi enviada.",
+                errors=[],
+            ),
+            400,
+        )
+
+    ssh = None
+    sftp = None
+
+    try:
+        ssh = _ssh_connect(eve_ip, eve_user, eve_pass)
+        sftp = ssh.open_sftp()
+
+        # Diretório final no EVE: ex: /opt/unetlab/addons/qemu/mikrotik-6.38.4
+        remote_dir = f"{eve_base_dir.rstrip('/')}/{template_name}"
+        ssh.exec_command(f"mkdir -p '{remote_dir}'")
+
+        uploaded_any = False
+
+        for f in files:
+            if not f or not f.filename:
+                continue
+
+            filename = os.path.basename(f.filename)
+            if not _allowed_file(filename):
+                errors.append(
+                    {
+                        "filename": filename,
+                        "context": "Extensão não permitida",
+                    }
+                )
+                continue
+
+            local_path = os.path.join(UPLOAD_FOLDER, filename)
+
+            try:
+                # Salva temporariamente no container
+                f.save(local_path)
+
+                # Envia via SFTP para o EVE
+                remote_path = f"{remote_dir}/{filename}"
+                sftp.put(local_path, remote_path)
+                uploaded_any = True
+            except Exception as e:
+                errors.append(
+                    {
+                        "filename": filename,
+                        "context": "Falha ao enviar via SFTP para o EVE",
+                        "stderr": str(e),
+                    }
+                )
+            finally:
+                try:
+                    if os.path.exists(local_path):
+                        os.remove(local_path)
+                except OSError:
+                    pass
+
+        if sftp is not None:
+            sftp.close()
+
+        # Só roda fixpermissions se pelo menos uma imagem foi enviada com sucesso
+        fix_ok = False
+        if uploaded_any:
+            fix_ok = _run_fixpermissions(ssh, errors)
+        else:
+            errors.append(
+                {
+                    "step": "upload",
+                    "stderr": "Nenhuma imagem foi efetivamente enviada para o EVE.",
+                }
+            )
+
+        # Decide sucesso geral
+        success = uploaded_any and fix_ok
+        if success:
+            msg = "Upload concluído e fixpermissions executado com sucesso."
+        elif uploaded_any and not fix_ok:
+            msg = "Imagens enviadas, mas o comando fixpermissions retornou erro. Verifique os detalhes."
+        else:
+            msg = "Falha ao enviar as imagens para o EVE. Veja os detalhes."
+
+        return (
+            jsonify(
+                success=success,
+                message=msg,
+                errors=errors,
+            ),
+            200 if uploaded_any else 500,
+        )
 
     except Exception as e:
-        traceback.print_exc()
-        return jsonify(
-            success=False,
-            message=f"Erro interno na API: {str(e)}",
-        ), 500
+        errors.append(
+            {
+                "step": "upload_exception",
+                "stderr": str(e),
+            }
+        )
+        return (
+            jsonify(
+                success=False,
+                message="Erro inesperado ao enviar as imagens para o EVE.",
+                errors=errors,
+            ),
+            500,
+        )
+    finally:
+        if ssh is not None:
+            ssh.close()

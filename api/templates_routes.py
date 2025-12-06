@@ -13,273 +13,333 @@
 # You should have received a copy of the GNU General Public License
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
+from __future__ import annotations
+
 import os
-import re
-import traceback
+from typing import Dict, Any, List
+
 from flask import Blueprint, request, jsonify
+import paramiko
 
-from utils import run_ssh_command, scp_upload
+from config import TEMPLATES_AMD_DIR, TEMPLATES_INTEL_DIR, TEMPLATE_ALLOWED_EXT
 
-TEMPLATES_BASE_DIR_AMD = "/opt/unetlab/html/templates/amd"
-TEMPLATES_BASE_DIR_INTEL = "/opt/unetlab/html/templates/intel"
-
-# prefixo /templates aqui
 templates_bp = Blueprint("templates_bp", __name__, url_prefix="/templates")
 
 
-def _sanitize_template_name(name: str) -> str:
-    name = (name or "").strip()
+def _ssh_connect(eve_ip: str, eve_user: str, eve_pass: str) -> paramiko.SSHClient:
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(eve_ip, username=eve_user, password=eve_pass, timeout=30)
+    return ssh
+
+
+def _run_fixpermissions(ssh: paramiko.SSHClient, errors: List[Dict[str, Any]]) -> bool:
+    cmd = "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions"
+
+    try:
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        exit_status = stdout.channel.recv_exit_status()
+        out = stdout.read().decode(errors="ignore")
+        err = stderr.read().decode(errors="ignore")
+
+        if exit_status != 0:
+            errors.append(
+                {
+                    "step": "fixpermissions",
+                    "stdout": out,
+                    "stderr": err or f"Exit status {exit_status}",
+                }
+            )
+            return False
+
+        if out.strip():
+            errors.append(
+                {
+                    "step": "fixpermissions_stdout",
+                    "stdout": out.strip(),
+                }
+            )
+
+        return True
+    except Exception as e:
+        errors.append(
+            {
+                "step": "fixpermissions",
+                "stderr": f"Exception: {e}",
+            }
+        )
+        return False
+
+
+def _normalize_template_name(name: str) -> str:
+    name = name.strip()
     if not name:
-        raise ValueError("Nome de template vazio.")
+        return name
 
-    if not name.lower().endswith(".yml"):
-        name = name + ".yml"
+    if "." not in name:
+        # se não tiver extensão, força .yml
+        return name + ".yml"
 
-    if not re.match(r"^[A-Za-z0-9._-]+\.yml$", name):
-        raise ValueError(
-            "Nome de template inválido. Use apenas letras, números, ponto, hífen, underline e extensão .yml."
+    base, ext = os.path.splitext(name)
+    ext = ext.lstrip(".").lower()
+
+    if ext not in TEMPLATE_ALLOWED_EXT:
+        # força .yml se extensão não for aceita
+        return base + ".yml"
+
+    return base + "." + ext
+
+
+@templates_bp.route("/list", methods=["POST"])
+def list_templates():
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+
+    if not eve_ip or not eve_user or not eve_pass:
+        return (
+            jsonify(
+                success=False,
+                message="Informe IP, usuário e senha do EVE-NG.",
+                templates={"amd": [], "intel": [], "all": []},
+            ),
+            400,
         )
 
-    return name
+    ssh = None
+    try:
+        ssh = _ssh_connect(eve_ip, eve_user, eve_pass)
+        sftp = ssh.open_sftp()
+
+        def list_dir(path: str) -> List[str]:
+            try:
+                files = sftp.listdir(path)
+                return sorted(f for f in files if f.endswith((".yml", ".yaml")))
+            except IOError:
+                return []
+
+        amd_list = list_dir(TEMPLATES_AMD_DIR)
+        intel_list = list_dir(TEMPLATES_INTEL_DIR)
+
+        all_set = sorted(set(amd_list) | set(intel_list))
+
+        sftp.close()
+
+        return (
+            jsonify(
+                success=True,
+                message="Templates listados com sucesso.",
+                templates={
+                    "amd": amd_list,
+                    "intel": intel_list,
+                    "all": all_set,
+                },
+            ),
+            200,
+        )
+    except Exception as e:
+        return (
+            jsonify(
+                success=False,
+                message=f"Erro ao listar templates: {e}",
+                templates={"amd": [], "intel": [], "all": []},
+            ),
+            500,
+        )
+    finally:
+        if ssh is not None:
+            ssh.close()
 
 
 @templates_bp.route("/get", methods=["POST"])
 def get_template():
-    try:
-        eve_ip = request.form.get("eve_ip", "").strip()
-        eve_user = request.form.get("eve_user", "").strip()
-        eve_pass = request.form.get("eve_pass", "").strip()
-        raw_name = request.form.get("template_name", "").strip()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    template_name = (request.form.get("template_name") or "").strip()
 
-        if not (eve_ip and eve_user and eve_pass and raw_name):
-            return (
-                jsonify(
-                    success=False,
-                    message="Informe IP, usuário, senha e nome do template.",
-                ),
-                400,
-            )
-
-        try:
-            template_name = _sanitize_template_name(raw_name)
-        except ValueError as exc:
-            return jsonify(success=False, message=str(exc)), 400
-
-        search_paths = [
-            f"{TEMPLATES_BASE_DIR_AMD}/{template_name}",
-            f"{TEMPLATES_BASE_DIR_INTEL}/{template_name}",
-        ]
-
-        last_err = ""
-        for path in search_paths:
-            cmd = f"if [ -f '{path}' ]; then cat '{path}'; fi"
-            rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
-            if out.strip():
-                return (
-                    jsonify(
-                        success=True,
-                        message=f"Template '{template_name}' carregado de {path}.",
-                        content=out,
-                    ),
-                    200,
-                )
-            last_err = err or last_err
-
-        msg = (
-            f"Template '{template_name}' não encontrado em "
-            f"{TEMPLATES_BASE_DIR_AMD} ou {TEMPLATES_BASE_DIR_INTEL}."
-        )
-        return jsonify(success=False, message=msg, stderr=last_err), 404
-
-    except Exception as e:
-        traceback.print_exc()
+    if not eve_ip or not eve_user or not eve_pass:
         return (
             jsonify(
                 success=False,
-                message=f"Erro interno ao buscar template: {str(e)}",
+                message="Informe IP, usuário e senha do EVE-NG.",
+                content="",
             ),
-            500,
+            400,
         )
 
+    if not template_name:
+        return (
+            jsonify(
+                success=False,
+                message="Informe o nome do arquivo de template.",
+                content="",
+            ),
+            400,
+        )
 
-@templates_bp.route("/upload", methods=["POST"])
-def upload_template():
+    template_name = _normalize_template_name(template_name)
+
+    ssh = None
     try:
-        eve_ip = request.form.get("eve_ip", "").strip()
-        eve_user = request.form.get("eve_user", "").strip()
-        eve_pass = request.form.get("eve_pass", "").strip()
-        raw_name = request.form.get("template_name", "").strip()
-        content = request.form.get("template_content", "")
+        ssh = _ssh_connect(eve_ip, eve_user, eve_pass)
+        sftp = ssh.open_sftp()
 
-        if not (eve_ip and eve_user and eve_pass and raw_name):
-            return (
-                jsonify(
-                    success=False,
-                    message="Informe IP, usuário, senha e nome do template.",
-                ),
-                400,
-            )
-
-        if not content.strip():
-            return (
-                jsonify(
-                    success=False,
-                    message="Conteúdo do template não pode estar vazio.",
-                ),
-                400,
-            )
-
-        try:
-            template_name = _sanitize_template_name(raw_name)
-        except ValueError as exc:
-            return jsonify(success=False, message=str(exc)), 400
-
-        tmp_dir = "/tmp/eve_templates"
-        os.makedirs(tmp_dir, exist_ok=True)
-        local_path = os.path.join(tmp_dir, template_name)
-
-        with open(local_path, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        targets = [
-            f"{TEMPLATES_BASE_DIR_AMD}/{template_name}",
-            f"{TEMPLATES_BASE_DIR_INTEL}/{template_name}",
+        # tenta primeiro em amd, depois em intel
+        paths = [
+            f"{TEMPLATES_AMD_DIR}/{template_name}",
+            f"{TEMPLATES_INTEL_DIR}/{template_name}",
         ]
 
-        errors = []
+        content = None
+        last_error = None
 
-        for target in targets:
-            rc, out, err = scp_upload(
-                eve_ip, eve_user, eve_pass, local_path, target
-            )
-            if rc != 0:
-                errors.append(
-                    {
-                        "target": target,
-                        "step": "scp",
-                        "stdout": out,
-                        "stderr": err,
-                    }
-                )
+        for p in paths:
+            try:
+                with sftp.open(p, "r") as f:
+                    content = f.read().decode("utf-8", errors="ignore")
+                break
+            except Exception as e:
+                last_error = e
 
-        try:
-            if os.path.exists(local_path):
-                os.remove(local_path)
-        except Exception as cleanup_err:
-            print(f"[TEMPLATES] Erro ao remover {local_path}: {cleanup_err}", flush=True)
+        sftp.close()
 
-        if errors:
+        if content is None:
             return (
                 jsonify(
                     success=False,
-                    message="Falha ao enviar template para um ou mais destinos.",
-                    errors=errors,
+                    message=f"Template '{template_name}' não encontrado. Erro: {last_error}",
+                    content="",
                 ),
-                500,
+                404,
             )
 
         return (
             jsonify(
                 success=True,
-                message=(
-                    f"Template '{template_name}' enviado com sucesso para "
-                    f"{TEMPLATES_BASE_DIR_AMD} e {TEMPLATES_BASE_DIR_INTEL}."
-                ),
+                message=f"Template '{template_name}' carregado com sucesso.",
+                content=content,
+            ),
+            200,
+        )
+    except Exception as e:
+        return (
+            jsonify(
+                success=False,
+                message=f"Erro ao buscar template: {e}",
+                content="",
+            ),
+            500,
+        )
+    finally:
+        if ssh is not None:
+            ssh.close()
+
+
+@templates_bp.route("/upload", methods=["POST"])
+def upload_template():
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    template_name = (request.form.get("template_name") or "").strip()
+    template_content = request.form.get("template_content") or ""
+
+    errors: List[Dict[str, Any]] = []
+
+    if not eve_ip or not eve_user or not eve_pass:
+        return (
+            jsonify(
+                success=False,
+                message="Informe IP, usuário e senha do EVE-NG.",
                 errors=[],
             ),
-            200,
+            400,
         )
 
-    except Exception as e:
-        traceback.print_exc()
+    if not template_name:
         return (
             jsonify(
                 success=False,
-                message=f"Erro interno ao enviar template: {str(e)}",
+                message="Informe o nome do arquivo de template.",
+                errors=[],
             ),
-            500,
+            400,
         )
 
+    if not template_content.strip():
+        return (
+            jsonify(
+                success=False,
+                message="Conteúdo do template está vazio.",
+                errors=[],
+            ),
+            400,
+        )
 
-@templates_bp.route("/list", methods=["POST"])
-def list_templates():
+    template_name = _normalize_template_name(template_name)
+
+    ssh = None
     try:
-        eve_ip = request.form.get("eve_ip", "").strip()
-        eve_user = request.form.get("eve_user", "").strip()
-        eve_pass = request.form.get("eve_pass", "").strip()
+        ssh = _ssh_connect(eve_ip, eve_user, eve_pass)
+        sftp = ssh.open_sftp()
 
-        if not (eve_ip and eve_user and eve_pass):
-            return (
-                jsonify(
-                    success=False,
-                    message="Informe IP, usuário e senha para listar templates.",
-                ),
-                400,
-            )
+        for base_dir in (TEMPLATES_AMD_DIR, TEMPLATES_INTEL_DIR):
+            try:
+                # garante diretório (normalmente já existe, mas não custa)
+                try:
+                    sftp.listdir(base_dir)
+                except IOError:
+                    ssh.exec_command(f"mkdir -p '{base_dir}'")
 
-        dirs = {
-            "amd": TEMPLATES_BASE_DIR_AMD,
-            "intel": TEMPLATES_BASE_DIR_INTEL,
-        }
+                remote_path = f"{base_dir}/{template_name}"
 
-        templates = {"amd": [], "intel": [], "all": []}
-        errors = []
-        all_names = set()
-
-        for kind, base_dir in dirs.items():
-            cmd = (
-                f"if [ -d '{base_dir}' ]; then "
-                f"cd '{base_dir}' && "
-                f"for f in *.yml; do [ -f \"$f\" ] && echo \"$f\"; done; "
-                f"fi"
-            )
-            rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
-
-            entries = [line.strip() for line in out.splitlines() if line.strip()]
-            templates[kind] = sorted(set(entries))
-            for name in entries:
-                all_names.add(name)
-
-            cleaned_err = (err or "").strip()
-            if cleaned_err:
-                warning_phrase = "Permanently added"
-                only_warning = (
-                    warning_phrase in cleaned_err
-                    and all(
-                        (not line.strip()) or (warning_phrase in line)
-                        for line in cleaned_err.splitlines()
-                    )
+                with sftp.open(remote_path, "w") as f:
+                    f.write(template_content)
+            except Exception as e:
+                errors.append(
+                    {
+                        "target": base_dir,
+                        "step": "write_template",
+                        "stderr": str(e),
+                    }
                 )
-                if not only_warning:
-                    errors.append(
-                        {
-                            "context": kind,
-                            "stderr": cleaned_err,
-                        }
-                    )
 
-        templates["all"] = sorted(all_names)
+        sftp.close()
 
-        msg = "Templates listados com sucesso."
-        if errors:
-            msg += " Alguns diretórios retornaram erro, veja detalhes."
+        fix_ok = _run_fixpermissions(ssh, errors)
+
+        success = fix_ok and not errors
+        if success:
+            msg = f"Template '{template_name}' enviado e fixpermissions executado com sucesso."
+        elif fix_ok:
+            msg = f"Template '{template_name}' enviado, mas ocorreram alguns avisos. Veja os detalhes."
+        else:
+            msg = f"Template '{template_name}' enviado, porém o fixpermissions retornou erro. Veja os detalhes."
 
         return (
             jsonify(
-                success=(len(errors) == 0),
+                success=success,
                 message=msg,
-                templates=templates,
                 errors=errors,
             ),
-            200,
+            200 if fix_ok else 500,
         )
 
     except Exception as e:
-        traceback.print_exc()
+        errors.append(
+            {
+                "step": "upload_template_exception",
+                "stderr": str(e),
+            }
+        )
         return (
             jsonify(
                 success=False,
-                message=f"Erro interno ao listar templates: {str(e)}",
+                message=f"Erro ao enviar template: {e}",
+                errors=errors,
             ),
             500,
         )
+    finally:
+        if ssh is not None:
+            ssh.close()

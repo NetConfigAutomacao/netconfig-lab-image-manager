@@ -15,13 +15,18 @@
 
 import os
 
+# Upload temporário local (imagens/ícones, se precisar).
 UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "/tmp/eve_uploads")
 DEFAULT_EVE_BASE_DIR = os.getenv("DEFAULT_EVE_BASE_DIR", "/opt/unetlab/addons/qemu")
 ALLOWED_EXTENSIONS = {"qcow2", "img", "iso", "vmdk"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Templates do EVE
 TEMPLATES_AMD_DIR = "/opt/unetlab/html/templates/amd"
 TEMPLATES_INTEL_DIR = "/opt/unetlab/html/templates/intel"
-
 TEMPLATE_ALLOWED_EXT = {"yml", "yaml"}
+
+# Ícones do EVE
+ICONS_DIR = "/opt/unetlab/html/images/icons"
+ICON_ALLOWED_EXT = {"png"}

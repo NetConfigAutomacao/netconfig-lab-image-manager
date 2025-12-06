@@ -323,6 +323,7 @@
       display: flex;
       gap: 10px;
       margin-bottom: 14px;
+      flex-wrap: wrap;
     }
 
     .tab-button {
@@ -549,6 +550,59 @@
       background-color: rgba(37, 99, 235, 0.7);
     }
 
+    /* --- ÍCONES --- */
+
+    #iconsResult {
+      margin-top: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      border-radius: 10px;
+      padding: 8px;
+      border: 1px solid rgba(30, 64, 175, 0.4);
+      background-color: rgba(15, 23, 42, 0.95);
+    }
+
+    .icons-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .icon-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      background-color: rgba(15, 23, 42, 1);
+      max-width: 96px;
+    }
+
+    .icon-thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      object-fit: contain;
+      background-color: rgba(15, 23, 42, 0.9);
+    }
+
+    .icon-name {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .icon-preview-container {
+      margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
     @media (max-width: 600px) {
       .card {
         padding: 20px 18px 16px;
@@ -587,10 +641,6 @@
         margin-top: 4px;
         white-space: normal;
       }
-
-      .tabs {
-        flex-wrap: wrap;
-      }
     }
   </style>
 </head>
@@ -622,7 +672,7 @@
         <div id="messages" class="messages"></div>
 
         <form id="uploadForm" enctype="multipart/form-data">
-          <!-- CAMPOS COMUNS (USADOS EM IMAGES E TEMPLATES) -->
+          <!-- CAMPOS COMUNS (USADOS EM TODAS AS ABAS) -->
           <div class="field-group">
             <div class="field">
               <label>IP do EVE-NG</label>
@@ -643,6 +693,7 @@
           <div class="tabs">
             <button type="button" class="tab-button active" data-tab="images-tab">Images</button>
             <button type="button" class="tab-button" data-tab="templates-tab">Templates</button>
+            <button type="button" class="tab-button" data-tab="icons-tab">Icons</button>
           </div>
 
           <!-- ==================== ABA IMAGES ==================== -->
@@ -758,6 +809,34 @@
             </div>
           </div>
           <!-- ==================== FIM ABA TEMPLATES ==================== -->
+
+          <!-- ==================== ABA ICONS ==================== -->
+          <div id="icons-tab" class="tab-content">
+            <div class="field">
+              <label>Ícones (.png) para o EVE-NG</label>
+              <input type="file" id="icon_files" name="icons" multiple accept="image/png">
+              <div class="hint">
+                Os arquivos serão enviados para
+                <code>/opt/unetlab/html/images/icons</code> no EVE-NG.
+              </div>
+              <div id="iconPreview" class="icon-preview-container"></div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+              <button type="button" class="btn-secondary" id="listIconsBtn">
+                <span class="icon">🧾</span>
+                <span>Listar ícones existentes</span>
+              </button>
+
+              <button type="button" class="btn-primary" id="uploadIconsBtn">
+                <span class="icon">⬆</span>
+                <span>Enviar ícones</span>
+              </button>
+            </div>
+
+            <div id="iconsResult"></div>
+          </div>
+          <!-- ==================== FIM ABA ICONS ==================== -->
 
         </form>
       </div>

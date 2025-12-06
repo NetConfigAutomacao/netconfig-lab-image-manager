@@ -1,1 +1,2 @@
 Flask>=3.0.0
+paramiko==3.5.0

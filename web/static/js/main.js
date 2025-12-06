@@ -34,8 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const templateSearchInput = document.getElementById('template_search');
   const templatesListDiv = document.getElementById('templatesList');
 
-  let currentTemplates = []; // lista "all" vinda da API de templates
+  // ÍCONES
+  const iconFilesInput = document.getElementById('icon_files');
+  const iconPreview = document.getElementById('iconPreview');
+  const uploadIconsBtn = document.getElementById('uploadIconsBtn');
+  const listIconsBtn = document.getElementById('listIconsBtn');
+  const iconsResultDiv = document.getElementById('iconsResult');
 
+  let currentTemplates = []; // lista "all" vinda da API de templates
 
   // -------------------- FUNÇÕES DE UI --------------------
   function showMessage(type, text) {
@@ -88,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // -------------------- UPLOAD DE IMAGENS --------------------
+  // -------------------- UPLOAD DE IMAGENS (ABA IMAGES) --------------------
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     messages.innerHTML = '';
@@ -326,12 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
       pill.title = name;
 
       pill.addEventListener('click', () => {
-        // Visualmente marcar selecionado
         const allPills = templatesListDiv.querySelectorAll('.template-pill');
         allPills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
 
-        // Preencher campo de nome e carregar conteúdo
         if (templateNameInput) {
           templateNameInput.value = name;
         }
@@ -531,5 +535,206 @@ document.addEventListener('DOMContentLoaded', () => {
 
       xhr.send(fd);
     });
+  }
+
+  // ======================================================
+  // ===================== ÍCONES =========================
+  // ======================================================
+
+  function renderIconPreview(files) {
+    if (!iconPreview) return;
+    iconPreview.innerHTML = '';
+
+    if (!files || !files.length) {
+      return;
+    }
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = document.createElement('img');
+        img.className = 'icon-thumb';
+        img.src = e.target.result;
+        img.alt = file.name;
+        iconPreview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (iconFilesInput) {
+    iconFilesInput.addEventListener('change', () => {
+      renderIconPreview(iconFilesInput.files);
+    });
+  }
+
+  // Upload de ícones
+  if (uploadIconsBtn) {
+    uploadIconsBtn.addEventListener('click', () => {
+      messages.innerHTML = '';
+
+      const { eve_ip, eve_user, eve_pass } = getCommonCreds();
+      if (!eve_ip || !eve_user || !eve_pass) {
+        showMessage('error', 'Preencha IP, usuário e senha para enviar ícones.');
+        return;
+      }
+
+      if (!iconFilesInput || !iconFilesInput.files || !iconFilesInput.files.length) {
+        showMessage('error', 'Selecione ao menos um arquivo PNG para enviar.');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('eve_ip', eve_ip);
+      fd.append('eve_user', eve_user);
+      fd.append('eve_pass', eve_pass);
+
+      Array.from(iconFilesInput.files).forEach(file => {
+        fd.append('icons', file);
+      });
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/icons/upload', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          let resp = null;
+          try {
+            resp = JSON.parse(xhr.responseText || '{}');
+          } catch (e) {
+            showMessage('error', 'Erro ao interpretar resposta da API de ícones.<br><pre>' +
+              (xhr.responseText || String(e)) + '</pre>');
+            return;
+          }
+
+          if (resp.success) {
+            showMessage('success', resp.message || 'Ícones enviados com sucesso.');
+          } else {
+            showMessage('error', resp.message || 'Falha ao enviar ícones.');
+            if (resp.errors && resp.errors.length) {
+              resp.errors.forEach(err => {
+                const detail = [];
+                if (err.filename) detail.push('<b>' + err.filename + '</b>');
+                if (err.context) detail.push('<b>Contexto:</b> ' + err.context);
+                if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
+                showMessage('error', detail.join('<br>'));
+              });
+            }
+          }
+        }
+      };
+
+      xhr.onerror = function () {
+        showMessage('error', 'Falha na comunicação com o servidor ao enviar ícones.');
+      };
+
+      xhr.send(fd);
+    });
+  }
+
+  // Listar ícones existentes
+  if (listIconsBtn) {
+    listIconsBtn.addEventListener('click', () => {
+      messages.innerHTML = '';
+      if (iconsResultDiv) iconsResultDiv.innerHTML = '';
+
+      const { eve_ip, eve_user, eve_pass } = getCommonCreds();
+      if (!eve_ip || !eve_user || !eve_pass) {
+        showMessage('error', 'Preencha IP, usuário e senha para listar ícones.');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('eve_ip', eve_ip);
+      fd.append('eve_user', eve_user);
+      fd.append('eve_pass', eve_pass);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/icons/list', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          let resp = null;
+          try {
+            resp = JSON.parse(xhr.responseText || '{}');
+          } catch (e) {
+            showMessage('error', 'Erro ao interpretar resposta da API de ícones.<br><pre>' +
+              (xhr.responseText || String(e)) + '</pre>');
+            return;
+          }
+
+          if (!resp.success) {
+            showMessage('error', resp.message || 'Falha ao listar ícones.');
+            return;
+          }
+
+          showMessage('success', resp.message || 'Ícones listados com sucesso.');
+
+          const icons = resp.icons || [];
+          if (!iconsResultDiv) return;
+
+          if (!icons.length) {
+            iconsResultDiv.innerHTML = '<div class="templates-empty">Nenhum ícone encontrado em /opt/unetlab/html/images/icons.</div>';
+            return;
+          }
+
+          const grid = document.createElement('div');
+          grid.className = 'icons-grid';
+
+          icons.forEach(name => {
+            const card = document.createElement('div');
+            card.className = 'icon-card';
+
+            const img = document.createElement('img');
+            img.className = 'icon-thumb';
+            // Para conseguir o PNG, chamamos /api/icons/raw/<name> com POST (usando fetch)
+            // Aqui usamos um truque com URL.createObjectURL via fetch.
+            fetchIconImage(name, img, { eve_ip, eve_user, eve_pass });
+
+            const label = document.createElement('div');
+            label.className = 'icon-name';
+            label.textContent = name;
+
+            card.appendChild(img);
+            card.appendChild(label);
+            grid.appendChild(card);
+          });
+
+          iconsResultDiv.appendChild(grid);
+        }
+      };
+
+      xhr.onerror = function () {
+        showMessage('error', 'Falha na comunicação com o servidor ao listar ícones.');
+      };
+
+      xhr.send(fd);
+    });
+  }
+
+  // Busca o PNG vindo da API e coloca no <img>
+  function fetchIconImage(name, imgElement, creds) {
+    const formData = new FormData();
+    formData.append('eve_ip', creds.eve_ip);
+    formData.append('eve_user', creds.eve_user);
+    formData.append('eve_pass', creds.eve_pass);
+
+    fetch('/api/icons/raw/' + encodeURIComponent(name), {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.blob();
+      })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        imgElement.src = url;
+      })
+      .catch(() => {
+        imgElement.alt = name;
+      });
   }
 });

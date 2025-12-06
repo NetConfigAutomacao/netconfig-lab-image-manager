@@ -550,58 +550,51 @@
       background-color: rgba(37, 99, 235, 0.7);
     }
 
-    /* --- ÍCONES --- */
+    /* --- LISTA DE ÍCONES --- */
 
-    #iconsResult {
-      margin-top: 8px;
+    #iconsList {
+      margin-top: 6px;
       max-height: 220px;
       overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
       border-radius: 10px;
-      padding: 8px;
+      padding: 6px;
       border: 1px solid rgba(30, 64, 175, 0.4);
       background-color: rgba(15, 23, 42, 0.95);
     }
 
-    .icons-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+    .icons-empty {
+      font-size: 11px;
+      color: var(--text-muted);
     }
 
-    .icon-card {
-      display: flex;
-      flex-direction: column;
+    .icon-pill {
+      display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 6px;
-      border-radius: 8px;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
       border: 1px solid rgba(51, 65, 85, 0.9);
       background-color: rgba(15, 23, 42, 1);
-      max-width: 96px;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: var(--text-main);
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .icon-thumb {
-      width: 40px;
-      height: 40px;
-      border-radius: 6px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
+    .icon-pill img {
+      width: 24px;
+      height: 24px;
       object-fit: contain;
-      background-color: rgba(15, 23, 42, 0.9);
+      border-radius: 4px;
+      background-color: #020617;
     }
 
-    .icon-name {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-align: center;
-      word-break: break-all;
-    }
-
-    .icon-preview-container {
-      margin-top: 4px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
 
     @media (max-width: 600px) {
       .card {
@@ -641,6 +634,10 @@
         margin-top: 4px;
         white-space: normal;
       }
+
+      .tabs {
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
@@ -672,7 +669,7 @@
         <div id="messages" class="messages"></div>
 
         <form id="uploadForm" enctype="multipart/form-data">
-          <!-- CAMPOS COMUNS (USADOS EM TODAS AS ABAS) -->
+          <!-- CAMPOS COMUNS (USADOS EM IMAGES / TEMPLATES / ICONS) -->
           <div class="field-group">
             <div class="field">
               <label>IP do EVE-NG</label>
@@ -742,13 +739,21 @@
                 Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
               </div>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <!-- ORDEM: CHECK  -> ENVIAR -> FIX -->
                 <button type="button" class="btn-secondary" id="checkImagesBtn">
                   <span class="icon">🔍</span>
                   <span>Check Existent Images</span>
                 </button>
+
                 <button type="submit" class="btn-primary">
                   <span class="icon">⬆</span>
                   <span>Enviar imagens</span>
+                </button>
+
+                <!-- BOTÃO FIX PERMISSIONS -->
+                <button type="button" class="btn-secondary" id="fixPermissionsBtn">
+                  <span class="icon">🛠</span>
+                  <span>Fix Permissions</span>
                 </button>
               </div>
             </div>
@@ -812,31 +817,43 @@
 
           <!-- ==================== ABA ICONS ==================== -->
           <div id="icons-tab" class="tab-content">
+
             <div class="field">
-              <label>Ícones (.png) para o EVE-NG</label>
-              <input type="file" id="icon_files" name="icons" multiple accept="image/png">
-              <div class="hint">
-                Os arquivos serão enviados para
-                <code>/opt/unetlab/html/images/icons</code> no EVE-NG.
+              <label>Ícones existentes no EVE</label>
+              <div class="template-search-row">
+                <button type="button" class="btn-secondary" id="listIconsBtn">
+                  <span class="icon">🎨</span>
+                  <span>Listar ícones</span>
+                </button>
               </div>
-              <div id="iconPreview" class="icon-preview-container"></div>
+
+              <div id="iconsList"></div>
+
+              <div class="hint">
+                Lista de arquivos de ícones disponíveis no EVE-NG
+                (ex: <code>/opt/unetlab/html/images/icons</code>).
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Enviar novo ícone (PNG)</label>
+              <input type="file" id="icon_file" name="icon_file" accept=".png">
+              <div class="hint">
+                O arquivo será enviado para o diretório de ícones do EVE-NG.
+                Recomenda-se PNG com dimensões apropriadas (ex: 64x64).
+              </div>
             </div>
 
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-              <button type="button" class="btn-secondary" id="listIconsBtn">
-                <span class="icon">🧾</span>
-                <span>Listar ícones existentes</span>
-              </button>
-
-              <button type="button" class="btn-primary" id="uploadIconsBtn">
+              <button type="button" class="btn-secondary" id="uploadIconBtn">
                 <span class="icon">⬆</span>
-                <span>Enviar ícones</span>
+                <span>Enviar ícone</span>
               </button>
             </div>
 
-            <div id="iconsResult"></div>
           </div>
           <!-- ==================== FIM ABA ICONS ==================== -->
+
 
         </form>
       </div>

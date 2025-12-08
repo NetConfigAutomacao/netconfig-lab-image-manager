@@ -4,6 +4,13 @@
 
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
+## Features:
+
+- Upload de imagens;
+- Upload de templates .yaml;
+- Upload de icones;
+- Auto instalação de imagens no EVE-NG (iShare2 embarcado).
+
 ## Instalação do NetConfig Lab Image Manager
 
 ### 1. Instalar dependências

@@ -13,38 +13,37 @@
 # You should have received a copy of the GNU General Public License
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
-version: "3.9"
+FROM debian:12
 
-services:
-  api:
-    build: ./api
-    container_name: eveng-api
-    restart: unless-stopped
-    environment:
-      - PYTHONUNBUFFERED=1
-    networks:
-      - eveng-net
+ENV DEBIAN_FRONTEND=noninteractive
 
-  web:
-    build: ./web
-    container_name: eveng-web
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    depends_on:
-      - api
-    networks:
-      - eveng-net
+RUN apt-get update && \
+  apt-get install -y \
+  git \
+  curl \
+  wget \
+  jq \
+  tree \
+  unzip \
+  unrar-free \
+  ca-certificates \
+  bsdextrautils \
+  bsdmainutils \
+  && rm -rf /var/lib/apt/lists/*
 
-  ishare2:
-    build: ./ishare2
-    container_name: ishare2-cli
-    restart: unless-stopped
-    working_dir: /opt/ishare2/cli
-    command: ["tail", "-f", "/dev/null"]
-    networks:
-      - eveng-net
+# Alias unrar -> unrar-free
+RUN ln -s /usr/bin/unrar-free /usr/local/bin/unrar || true
 
-networks:
-  eveng-net:
-    driver: bridge
+WORKDIR /opt/
+
+# entrypoint customizado
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+#Clona o repositorio
+RUN git clone https://github.com/andrediashexa/ishare2-cli.git
+RUN chmod +x /opt/ishare2-cli/ishare2
+RUN /opt/ishare2-cli/ishare2
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["tail", "-f", "/dev/null"]

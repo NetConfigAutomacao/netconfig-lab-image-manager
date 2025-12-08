@@ -973,7 +973,6 @@
             <div class="field">
               <label>Busca no iShare2 (search all)</label>
               <div class="template-search-row">
-                <input type="text" id="ishare2_query" placeholder="Opcional: palavra-chave para filtrar (ex: mikrotik)">
                 <button type="button" class="btn-secondary" id="ishare2_search_btn">
                   <span class="icon">🌐</span>
                   <span>Buscar no iShare2</span>
@@ -987,6 +986,10 @@
 
             <div class="field">
               <label>Resultado</label>
+              <div class="field" id="ishare2FilterWrapper" style="display:none; margin-bottom:6px;">
+                <input type="text" id="ishare2_filter"
+                  placeholder="Filtrar pelos nomes das imagens (ex: mikrotik, juniper...)">
+              </div>
               <div class="progress-label" id="ishare2ProgressText" style="display:none;">Instalando...</div>
               <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
                 <div class="progress-bar" id="ishare2ProgressBar"></div>
@@ -995,19 +998,6 @@
               <div class="hint">
                 A saída abaixo é retornada diretamente pelo CLI do iShare2
                 (sem códigos de cor ANSI).
-              </div>
-            </div>
-
-          </div>
-          <!-- ==================== FIM ABA ISHARE2 ==================== -->
-
-          <!-- ==================== ABA ISHARE2 ==================== -->
-          <div id="ishare2-tab" class="tab-content">
-
-            <div class="field">
-              <label>Integração com iShare2</label>
-              <div class="hint">
-                Área reservada para a integração com o iShare2 (listagem e importação de imagens).
               </div>
             </div>
 

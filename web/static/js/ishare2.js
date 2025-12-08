@@ -9,17 +9,20 @@
 
 document.addEventListener('DOMContentLoaded', function () {
   const searchBtn = document.getElementById('ishare2_search_btn');
-  const queryInput = document.getElementById('ishare2_query');
   const outputDiv = document.getElementById('ishare2Output');
   const progressText = document.getElementById('ishare2ProgressText');
   const progressContainer = document.getElementById('ishare2ProgressContainer');
   const progressBar = document.getElementById('ishare2ProgressBar');
+  const filterWrapper = document.getElementById('ishare2FilterWrapper');
+  const filterInput = document.getElementById('ishare2_filter');
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+
+  let lastSections = [];
 
   if (!searchBtn || !outputDiv) {
     return;
@@ -132,14 +135,41 @@ document.addEventListener('DOMContentLoaded', function () {
     return sectionDiv;
   }
 
-  function renderStructuredSections(sections) {
+  function applyFilterToSections(sections, filterText) {
+    var term = (filterText || '').trim().toLowerCase();
+    if (!term) {
+      return sections;
+    }
+
+    var filtered = [];
+    sections.forEach(function (section) {
+      var items = Array.isArray(section.items) ? section.items : [];
+      var matchedItems = items.filter(function (item) {
+        var name = (item.name || '').toLowerCase();
+        return name.indexOf(term) !== -1;
+      });
+      if (matchedItems.length) {
+        filtered.push({
+          type: section.type,
+          label: section.label,
+          items: matchedItems
+        });
+      }
+    });
+
+    return filtered;
+  }
+
+  function renderStructuredSections(sections, filterText) {
     if (!Array.isArray(sections) || !sections.length) {
       return false;
     }
 
+    var filteredSections = applyFilterToSections(sections, filterText || '');
+
     // Mapeia por tipo para criar abas QEMU / IOL / DYNAMIPS
     var byType = {};
-    sections.forEach(function (s) {
+    filteredSections.forEach(function (s) {
       var t = (s.type || '').toUpperCase();
       if (!t) return;
       byType[t] = s;
@@ -153,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!availableTypes.length) {
       // fallback: mostra todas as seções em sequência
       outputDiv.innerHTML = '';
-      sections.forEach(function (section) {
+      filteredSections.forEach(function (section) {
         var panel = document.createElement('div');
         panel.className = 'ishare2-tab-panel active';
         panel.appendChild(buildSectionContent(section));
@@ -302,12 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     setLoading(true);
 
-    const query = queryInput ? queryInput.value.trim() : '';
-
     const fd = new FormData();
-    if (query) {
-      fd.append('query', query);
-    }
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/ishare2/search_all', true);
@@ -339,7 +364,12 @@ document.addEventListener('DOMContentLoaded', function () {
           showMessage('success', resp.message || 'Busca no iShare2 concluída com sucesso.');
         }
 
-        if (renderStructuredSections(resp.sections)) {
+        lastSections = Array.isArray(resp.sections) ? resp.sections : [];
+
+        if (lastSections.length && filterWrapper && filterInput) {
+          filterWrapper.style.display = 'block';
+          filterInput.value = '';
+          renderStructuredSections(lastSections, '');
           return;
         }
 
@@ -360,4 +390,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     xhr.send(fd);
   });
+
+  if (filterInput) {
+    filterInput.addEventListener('input', function () {
+      if (!lastSections.length) {
+        return;
+      }
+      renderStructuredSections(lastSections, filterInput.value || '');
+    });
+  }
 });

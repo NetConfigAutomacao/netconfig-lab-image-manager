@@ -20,6 +20,7 @@ from image_routes import images_bp
 from templates_routes import templates_bp
 from icons_routes import icons_bp
 from fix_routes import fix_bp
+from ishare2_routes import ishare2_bp
 
 
 def create_app() -> Flask:
@@ -38,6 +39,7 @@ def create_app() -> Flask:
     app.register_blueprint(templates_bp)
     app.register_blueprint(icons_bp)
     app.register_blueprint(fix_bp)
+    app.register_blueprint(ishare2_bp)
 
     @app.route("/health", methods=["GET"])
     def health():

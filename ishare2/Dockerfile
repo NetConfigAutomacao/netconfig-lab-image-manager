@@ -23,6 +23,8 @@ RUN apt-get update && \
   curl \
   wget \
   jq \
+  python3 \
+  python3-pip \
   tree \
   unzip \
   unrar-free \
@@ -45,5 +47,9 @@ RUN git clone https://github.com/andrediashexa/ishare2-cli.git
 RUN chmod +x /opt/ishare2-cli/ishare2
 RUN /opt/ishare2-cli/ishare2
 
+RUN pip3 install --no-cache-dir flask --break-system-packages
+
+COPY api.py /opt/ishare2-api.py
+
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["tail", "-f", "/dev/null"]
+CMD ["python3", "/opt/ishare2-api.py"]

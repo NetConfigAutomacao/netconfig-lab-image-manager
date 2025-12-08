@@ -40,8 +40,8 @@ services:
     build: ./ishare2
     container_name: ishare2-cli
     restart: unless-stopped
-    working_dir: /opt/ishare2/cli
-    command: ["tail", "-f", "/dev/null"]
+    working_dir: /opt
+    command: ["python3", "/opt/ishare2-api.py"]
     networks:
       - eveng-net
 

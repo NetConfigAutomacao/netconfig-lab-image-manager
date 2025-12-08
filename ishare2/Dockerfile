@@ -23,6 +23,8 @@ RUN apt-get update && \
   curl \
   wget \
   jq \
+  sshpass \
+  openssh-client \
   python3 \
   python3-pip \
   tree \

@@ -70,6 +70,88 @@ def ishare2_search_all():
             message=data.get("message", ""),
             output=data.get("output", ""),
             stderr=data.get("stderr", ""),
+            sections=data.get("sections", []),
+            status_code=resp.status_code,
+        ),
+        200,
+    )
+
+
+@ishare2_bp.route("/install", methods=["POST"])
+def ishare2_install():
+    """
+    Solicita ao serviço ishare2 que faça o download/instalação
+    de uma imagem específica (ishare2 pull <type> <id>).
+
+    Via Nginx: /api/ishare2/install
+    """
+    image_type = (request.form.get("type") or "").strip()
+    image_id = (request.form.get("id") or "").strip()
+
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+
+    if not image_type or not image_id:
+        return (
+            jsonify(
+                success=False,
+                message="Parâmetros 'type' e 'id' são obrigatórios para instalar uma imagem.",
+            ),
+            400,
+        )
+
+    if not eve_ip or not eve_user or not eve_pass:
+        return (
+            jsonify(
+                success=False,
+                message="Informe IP, usuário e senha do EVE-NG para instalar a imagem.",
+            ),
+            400,
+        )
+
+    payload = {
+        "type": image_type,
+        "id": image_id,
+        "eve_ip": eve_ip,
+        "eve_user": eve_user,
+        "eve_pass": eve_pass,
+    }
+
+    try:
+        resp = requests.post(
+            "http://ishare2:8080/install",
+            json=payload,
+            timeout=3600,
+        )
+    except requests.RequestException as exc:
+        return (
+            jsonify(
+                success=False,
+                message=f"Falha ao contatar o serviço ishare2 para instalação: {exc}",
+            ),
+            502,
+        )
+
+    try:
+        data = resp.json()
+    except ValueError:
+        return (
+            jsonify(
+                success=False,
+                message="Resposta inválida do serviço ishare2 (não é JSON) ao instalar.",
+                status_code=resp.status_code,
+                raw_text=resp.text,
+            ),
+            502,
+        )
+
+    return (
+        jsonify(
+            success=bool(data.get("success")),
+            message=data.get("message", ""),
+            output=data.get("output", ""),
+            stderr=data.get("stderr", ""),
             status_code=resp.status_code,
         ),
         200,

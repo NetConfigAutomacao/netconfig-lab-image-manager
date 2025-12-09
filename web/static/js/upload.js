@@ -58,10 +58,23 @@ document.addEventListener('DOMContentLoaded', function () {
       xhr.upload.addEventListener('progress', function (event) {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
+          var loadedMB = event.loaded / (1024 * 1024);
+          var totalMB = event.total / (1024 * 1024);
+
           progressContainer.style.display = 'block';
           progressText.style.display = 'block';
           progressBar.style.width = percent + '%';
-          progressText.textContent = 'Enviando arquivos... ' + percent + '%';
+          progressText.textContent =
+            'Enviando arquivos... ' +
+            percent + '% (' +
+            loadedMB.toFixed(1) + ' MB de ' +
+            totalMB.toFixed(1) + ' MB)';
+        } else {
+          // Não foi possível calcular o tamanho total: mostra progresso indeterminado
+          progressContainer.style.display = 'block';
+          progressText.style.display = 'block';
+          progressBar.style.width = '100%';
+          progressText.textContent = 'Enviando arquivos...';
         }
       });
     }
@@ -109,4 +122,3 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.send(formData);
   });
 });
-

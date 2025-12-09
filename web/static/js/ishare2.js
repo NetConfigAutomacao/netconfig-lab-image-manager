@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   let lastSections = [];
+  let installProgressInterval = null;
 
   if (!searchBtn || !outputDiv) {
     return;
@@ -39,19 +40,117 @@ document.addEventListener('DOMContentLoaded', function () {
   function startInstallProgress() {
     if (!progressContainer || !progressBar || !progressText) return;
     progressText.style.display = 'block';
-    progressText.textContent = 'Instalando no EVE...';
+    progressText.textContent = 'Iniciando instalação no EVE...';
     progressContainer.style.display = 'block';
-    progressBar.style.width = '20%';
+    progressBar.style.width = '0%';
   }
 
   function finishInstallProgress() {
     if (!progressContainer || !progressBar || !progressText) return;
+    if (installProgressInterval) {
+      clearInterval(installProgressInterval);
+      installProgressInterval = null;
+    }
     progressBar.style.width = '100%';
     setTimeout(function () {
       progressText.style.display = 'none';
       progressContainer.style.display = 'none';
       progressBar.style.width = '0%';
     }, 800);
+  }
+
+  function startInstallPolling(jobId) {
+    if (!jobId) {
+      return;
+    }
+
+    if (installProgressInterval) {
+      clearInterval(installProgressInterval);
+      installProgressInterval = null;
+    }
+
+    function poll() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/ishare2/install_progress?job_id=' + encodeURIComponent(jobId), true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          var status = xhr.status || 0;
+
+          if (status === 0) {
+            // Falha de rede temporária; não finaliza o job de imediato.
+            return;
+          }
+
+          if (status === 404) {
+            clearInterval(installProgressInterval);
+            installProgressInterval = null;
+            setLoading(false);
+            finishInstallProgress();
+            showMessage('error', 'Job de instalação do iShare2 não foi encontrado.');
+            return;
+          }
+
+          var resp = null;
+          try {
+            resp = JSON.parse(xhr.responseText || '{}');
+          } catch (err) {
+            // Não interrompe imediatamente, apenas ignora essa iteração.
+            return;
+          }
+
+          if (!resp) {
+            return;
+          }
+
+          var progress = typeof resp.progress === 'number' ? resp.progress : 0;
+          var phase = resp.phase || '';
+          var msg = resp.message || '';
+
+          if (progressContainer && progressBar && progressText) {
+            progressContainer.style.display = 'block';
+            progressText.style.display = 'block';
+            progressBar.style.width = progress + '%';
+
+            if (phase === 'pull') {
+              progressText.textContent = 'Baixando imagem via iShare2... ' + progress + '%';
+            } else if (phase === 'copy') {
+              progressText.textContent = 'Enviando imagem para o EVE... ' + progress + '%';
+            } else if (phase === 'fix') {
+              progressText.textContent = 'Aplicando fixpermissions no EVE... ' + progress + '%';
+            } else {
+              progressText.textContent = msg || ('Instalando no EVE... ' + progress + '%');
+            }
+          }
+
+          var jobStatus = resp.status || '';
+          if (jobStatus === 'success' || jobStatus === 'error') {
+            clearInterval(installProgressInterval);
+            installProgressInterval = null;
+            setLoading(false);
+            finishInstallProgress();
+
+            if (jobStatus === 'success') {
+              showMessage('success', msg || 'Imagem instalada com sucesso via iShare2.');
+            } else {
+              var errText = resp.error || resp.stderr || msg || 'Falha ao instalar imagem via iShare2.';
+              showMessage('error', errText);
+            }
+          }
+        }
+      };
+
+      xhr.onerror = function () {
+        // Falha pontual na consulta de progresso; a próxima iteração tentará novamente.
+      };
+
+      xhr.send(null);
+    }
+
+    // Dispara uma primeira consulta imediata e depois em intervalo.
+    poll();
+    installProgressInterval = setInterval(poll, 2000);
   }
 
   function buildSectionContent(section) {
@@ -281,35 +380,66 @@ document.addEventListener('DOMContentLoaded', function () {
     fd.append('eve_pass', creds.eve_pass);
 
     var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/ishare2/install', true);
+    xhr.open('POST', '/api/ishare2/install_async', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
-        setLoading(false);
-        finishInstallProgress();
+        var status = xhr.status || 0;
+
+        if (status === 504) {
+          showMessage(
+            'error',
+            'O servidor demorou muito para responder ao pedido de instalação (erro 504 - Gateway Timeout). ' +
+              'A instalação de imagens grandes pode levar vários minutos. ' +
+              'Verifique os logs do EVE/iShare2 para confirmar o estado da instalação e tente novamente se necessário.'
+          );
+          setLoading(false);
+          finishInstallProgress();
+          return;
+        }
+
+        if (status === 0) {
+          showMessage(
+            'error',
+            'Não foi possível contatar o servidor ao executar install no iShare2. ' +
+              'Verifique sua conexão ou se o serviço está em execução.'
+          );
+          setLoading(false);
+          finishInstallProgress();
+          return;
+        }
+
         var resp = null;
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
-          showMessage('error', 'Erro ao interpretar resposta do install do iShare2.<br><pre>' +
-            (xhr.responseText || String(err)) + '</pre>');
+          showMessage(
+            'error',
+            'Erro ao interpretar resposta do install do iShare2 (HTTP ' + status + '). ' +
+              'A resposta do servidor não está no formato esperado.'
+          );
+          setLoading(false);
+          finishInstallProgress();
           return;
         }
 
         if (!resp) {
           showMessage('error', 'Resposta vazia da API de install do iShare2.');
+          setLoading(false);
+          finishInstallProgress();
           return;
         }
 
-        if (resp.success) {
-          showMessage('success', resp.message || 'Instalação iniciada/realizada com sucesso pelo iShare2.');
-        } else {
-          showMessage('error', resp.message || 'Falha ao executar install via iShare2.');
-          if (resp.stderr) {
-            showMessage('error', '<pre>' + resp.stderr + '</pre>');
-          }
+        if (!resp.success || !resp.job_id) {
+          showMessage('error', resp.message || 'Falha ao iniciar instalação via iShare2.');
+          setLoading(false);
+          finishInstallProgress();
+          return;
         }
+
+        showMessage('success', resp.message || 'Instalação iniciada via iShare2. Acompanhe o progresso abaixo.');
+        startInstallPolling(resp.job_id);
       }
     };
 
@@ -341,12 +471,35 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
         setLoading(false);
+        var status = xhr.status || 0;
+
+        if (status === 504) {
+          showMessage(
+            'error',
+            'O servidor demorou muito para responder à consulta do iShare2 (erro 504 - Gateway Timeout). ' +
+              'Tente novamente em alguns instantes ou verifique os logs do backend.'
+          );
+          return;
+        }
+
+        if (status === 0) {
+          showMessage(
+            'error',
+            'Não foi possível contatar o servidor ao consultar o iShare2. ' +
+              'Verifique sua conexão ou se o serviço está em execução.'
+          );
+          return;
+        }
+
         let resp = null;
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
-          showMessage('error', 'Erro ao interpretar resposta da API do iShare2.<br><pre>' +
-            (xhr.responseText || String(err)) + '</pre>');
+          showMessage(
+            'error',
+            'Erro ao interpretar resposta da API do iShare2 (HTTP ' + status + '). ' +
+              'A resposta do servidor não está no formato esperado.'
+          );
           return;
         }
 

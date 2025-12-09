@@ -11,6 +11,10 @@ Suporta tanto EVE-NG, quanto PNETLAB :)
 - Upload de icones;
 - Auto instalação de imagens no EVE-NG (iShare2 embarcado).
 
+### iShare2
+
+Este projeto utiliza o [iShare2](https://ishare2.sh/), projeto open source para automatizar downloads e instalações de imagens no EVE-NG/PNETLab. O NetConfig Lab Image Manager embarca a versão CLI do iShare2 dentro da plataforma para o download das imagens.
+
 ## Instalação do NetConfig Lab Image Manager
 
 ### 1. Instalar dependências
@@ -36,7 +40,7 @@ cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
 
-### 4. Habilitar IPv6 (containers com endereços v6)
+### 4. Habilitar IPv6 na aplicação:
 
 O compose cria a rede `eveng-net` com IPv6 (`fd00:dead:beef::/64`), mas o daemon do Docker precisa estar com IPv6 ligado antes de subir os containers:
 
@@ -44,8 +48,8 @@ O compose cria a rede `eveng-net` com IPv6 (`fd00:dead:beef::/64`), mas o daemon
 
 ```json
 {
-  "ipv6": true,
-  "fixed-cidr-v6": "fd00:dead:beef::/48"
+  "experimental": true,
+  "ip6tables": true
 }
 ```
 

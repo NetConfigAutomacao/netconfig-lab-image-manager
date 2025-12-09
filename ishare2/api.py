@@ -60,6 +60,78 @@ def _append_job_logs(job_id: str, stdout: str = "", stderr: str = "") -> None:
     job["stderr"] = (job.get("stderr") or "") + stderr
 
 
+def _is_ipv6(addr: str) -> bool:
+  cleaned = (addr or "").strip()
+  # Remove colchetes caso o usuário já tenha passado [::1]
+  if cleaned.startswith("[") and cleaned.endswith("]"):
+    cleaned = cleaned[1:-1]
+  return ":" in cleaned
+
+
+def _normalize_host(addr: str, *, brackets: bool = False) -> str:
+  if not addr:
+    return ""
+  cleaned = addr.strip()
+  if cleaned.startswith("[") and cleaned.endswith("]"):
+    cleaned = cleaned[1:-1]
+  if brackets and _is_ipv6(cleaned):
+    return f"[{cleaned}]"
+  return cleaned
+
+
+def _format_target(user: str, addr: str, *, brackets: bool = False) -> str:
+  host = _normalize_host(addr, brackets=brackets)
+  return f"{user}@{host}" if user and host else host
+
+
+def _base_ssh_cmd(eve_ip: str, eve_pass: str) -> List[str]:
+  cmd = [
+    "sshpass",
+    "-p",
+    eve_pass,
+    "ssh",
+  ]
+  if _is_ipv6(eve_ip):
+    cmd.append("-6")
+  cmd.extend(
+    [
+      "-o",
+      "StrictHostKeyChecking=no",
+      "-o",
+      "UserKnownHostsFile=/dev/null",
+      "-o",
+      "PreferredAuthentications=password",
+      "-o",
+      "PubkeyAuthentication=no",
+    ]
+  )
+  return cmd
+
+
+def _base_scp_cmd(eve_ip: str, eve_pass: str) -> List[str]:
+  cmd = [
+    "sshpass",
+    "-p",
+    eve_pass,
+    "scp",
+  ]
+  if _is_ipv6(eve_ip):
+    cmd.append("-6")
+  cmd.extend(
+    [
+      "-o",
+      "StrictHostKeyChecking=no",
+      "-o",
+      "UserKnownHostsFile=/dev/null",
+      "-o",
+      "PreferredAuthentications=password",
+      "-o",
+      "PubkeyAuthentication=no",
+    ]
+  )
+  return cmd
+
+
 def _parse_search_output(text: str) -> List[Dict[str, Any]]:
   """
   Converte a saída de `ishare2 search all` em uma
@@ -289,40 +361,15 @@ def install():
   copy_ok = True
   copy_err = ""
   if eve_ip and eve_user and eve_pass and install_path:
-    base_ssh = [
-      "sshpass",
-      "-p",
-      eve_pass,
-      "ssh",
-      "-o",
-      "StrictHostKeyChecking=no",
-      "-o",
-      "UserKnownHostsFile=/dev/null",
-      "-o",
-      "PreferredAuthentications=password",
-      "-o",
-      "PubkeyAuthentication=no",
-    ]
-
-    base_scp = [
-      "sshpass",
-      "-p",
-      eve_pass,
-      "scp",
-      "-o",
-      "StrictHostKeyChecking=no",
-      "-o",
-      "UserKnownHostsFile=/dev/null",
-      "-o",
-      "PreferredAuthentications=password",
-      "-o",
-      "PubkeyAuthentication=no",
-    ]
+    base_ssh = _base_ssh_cmd(eve_ip, eve_pass)
+    base_scp = _base_scp_cmd(eve_ip, eve_pass)
+    target_ssh = _format_target(eve_user, eve_ip, brackets=False)
+    target_scp = _format_target(eve_user, eve_ip, brackets=True)
 
     try:
       # Garante diretório remoto
       mkdir_cmd = base_ssh + [
-        f"{eve_user}@{eve_ip}",
+        target_ssh,
         f"mkdir -p '{install_path}'",
       ]
       subprocess.run(mkdir_cmd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -331,7 +378,7 @@ def install():
       scp_cmd = base_scp + [
         "-r",
         f"{install_path}/.",
-        f"{eve_user}@{eve_ip}:{install_path}",
+        f"{target_scp}:{install_path}",
       ]
       scp_proc = subprocess.run(
         scp_cmd,
@@ -347,7 +394,7 @@ def install():
       # Executa fixpermissions no EVE
       if copy_ok:
         fix_cmd = base_ssh + [
-          f"{eve_user}@{eve_ip}",
+          target_ssh,
           "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions",
         ]
         fix_proc = subprocess.run(
@@ -458,37 +505,13 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     )
     return
 
-  base_ssh = [
-    "sshpass",
-    "-p",
-    eve_pass,
-    "ssh",
-    "-o",
-    "StrictHostKeyChecking=no",
-    "-o",
-    "UserKnownHostsFile=/dev/null",
-    "-o",
-    "PreferredAuthentications=password",
-    "-o",
-    "PubkeyAuthentication=no",
-  ]
-
-  base_scp = [
-    "sshpass",
-    "-p",
-    eve_pass,
-    "scp",
-    "-o",
-    "StrictHostKeyChecking=no",
-    "-o",
-    "UserKnownHostsFile=/dev/null",
-    "-o",
-    "PreferredAuthentications=password",
-    "-o",
-    "PubkeyAuthentication=no",
-  ]
+  base_ssh = _base_ssh_cmd(eve_ip, eve_pass)
+  base_scp = _base_scp_cmd(eve_ip, eve_pass)
 
   try:
+    target_ssh = _format_target(eve_user, eve_ip, brackets=False)
+    target_scp = _format_target(eve_user, eve_ip, brackets=True)
+
     # Garante diretório remoto
     _update_job(
       job_id,
@@ -497,7 +520,7 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
       message="Criando diretório de destino no EVE...",
     )
     mkdir_cmd = base_ssh + [
-      f"{eve_user}@{eve_ip}",
+      target_ssh,
       f"mkdir -p '{install_path}'",
     ]
     mkdir_proc = subprocess.run(
@@ -531,7 +554,7 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     scp_cmd = base_scp + [
       "-r",
       f"{install_path}/.",
-      f"{eve_user}@{eve_ip}:{install_path}",
+      f"{target_scp}:{install_path}",
     ]
     proc = subprocess.Popen(
       scp_cmd,
@@ -579,7 +602,7 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
       message="Aplicando fixpermissions no EVE...",
     )
     fix_cmd = base_ssh + [
-      f"{eve_user}@{eve_ip}",
+      target_ssh,
       "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions",
     ]
     fix_proc = subprocess.run(
@@ -708,4 +731,4 @@ def install_progress():
 
 
 if __name__ == "__main__":
-  app.run(host="0.0.0.0", port=8080)
+  app.run(host="::", port=8080)

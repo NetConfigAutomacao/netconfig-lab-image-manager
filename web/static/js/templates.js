@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
 
   let currentTemplates = [];
 
@@ -38,7 +40,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!filtered.length) {
       const div = document.createElement('div');
       div.className = 'templates-empty';
-      div.textContent = 'Nenhum template encontrado.';
+      div.textContent = t('templates.none');
       templatesListDiv.appendChild(div);
       return;
     }
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const eve_pass = creds.eve_pass;
 
       if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP, usuário e senha para listar templates.');
+        showMessage('error', t('templates.missingCreds'));
         return;
       }
 
@@ -96,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/templates/list', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -103,20 +106,20 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', 'Erro ao interpretar resposta da API de templates.<br><pre>' +
+            showMessage('error', t('templates.parseError') + '<br><pre>' +
               (xhr.responseText || String(err)) + '</pre>');
             return;
           }
 
           if (!resp) {
-            showMessage('error', 'Resposta vazia da API de templates.');
+            showMessage('error', t('templates.emptyResponse'));
             return;
           }
 
           if (!resp.success) {
-            showMessage('error', resp.message || 'Falha ao listar templates.');
+            showMessage('error', resp.message || t('templates.requestFail'));
           } else {
-            showMessage('success', resp.message || 'Templates listados com sucesso.');
+            showMessage('success', resp.message || t('templates.successList'));
           }
 
           const templates = (resp.templates && resp.templates.all) || [];
@@ -126,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
       };
 
       xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor ao listar templates.');
+        showMessage('error', t('msg.networkError'));
       };
 
       xhr.send(fd);
@@ -155,11 +158,11 @@ document.addEventListener('DOMContentLoaded', function () {
         : '';
 
       if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP, usuário e senha para carregar o template.');
+        showMessage('error', t('templates.missingCreds'));
         return;
       }
       if (!templateName) {
-        showMessage('error', 'Informe o nome do arquivo do template (ex: huaweine40.yml).');
+        showMessage('error', t('templates.missingName'));
         return;
       }
 
@@ -172,6 +175,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/templates/get', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -179,25 +183,25 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', 'Erro ao interpretar resposta.<br><pre>' +
+            showMessage('error', t('templates.parseError') + '<br><pre>' +
               (xhr.responseText || String(err)) + '</pre>');
             return;
           }
 
           if (!resp.success) {
-            showMessage('error', resp.message || 'Falha ao buscar template.');
+            showMessage('error', resp.message || t('templates.loadFail'));
             return;
           }
 
           if (templateContentInput) {
             templateContentInput.value = resp.content || '';
           }
-          showMessage('success', resp.message || 'Template carregado.');
+          showMessage('success', resp.message || t('templates.loadSuccess'));
         }
       };
 
       xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor.');
+        showMessage('error', t('msg.networkError'));
       };
 
       xhr.send(fd);
@@ -221,15 +225,15 @@ document.addEventListener('DOMContentLoaded', function () {
       const templateContent = templateContentInput ? templateContentInput.value : '';
 
       if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP, usuário e senha para salvar o template.');
+        showMessage('error', t('templates.saveMissingCreds'));
         return;
       }
       if (!templateName) {
-        showMessage('error', 'Informe o nome do arquivo do template.');
+        showMessage('error', t('templates.saveMissingName'));
         return;
       }
       if (!templateContent.trim()) {
-        showMessage('error', 'Preencha o conteúdo YAML antes de salvar.');
+        showMessage('error', t('templates.saveMissingContent'));
         return;
       }
 
@@ -243,6 +247,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/templates/upload', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -250,20 +255,20 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', 'Erro ao interpretar resposta.<br><pre>' +
+            showMessage('error', t('templates.parseError') + '<br><pre>' +
               (xhr.responseText || String(err)) + '</pre>');
             return;
           }
 
           if (resp.success) {
-            showMessage('success', resp.message || 'Template enviado com sucesso.');
+            showMessage('success', resp.message || t('templates.saveSuccess'));
           } else {
-            showMessage('error', resp.message || 'Falha ao enviar template.');
+            showMessage('error', resp.message || t('templates.saveFail'));
             if (resp.errors && resp.errors.length) {
               resp.errors.forEach(function (err) {
                 const detail = [];
-                if (err.target) detail.push('<b>Destino:</b> ' + err.target);
-                if (err.step) detail.push('<b>Etapa:</b> ' + err.step);
+                if (err.target) detail.push('<b>' + t('labels.target') + '</b> ' + err.target);
+                if (err.step) detail.push('<b>' + t('labels.step') + '</b> ' + err.step);
                 if (err.stdout) detail.push('<pre>' + err.stdout + '</pre>');
                 if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
                 showMessage('error', detail.join('<br>'));
@@ -274,11 +279,14 @@ document.addEventListener('DOMContentLoaded', function () {
       };
 
       xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor.');
+        showMessage('error', t('msg.networkError'));
       };
 
       xhr.send(fd);
     });
   }
-});
 
+  window.addEventListener('netconfig:language-changed', function () {
+    renderTemplateList(templateSearchInput ? templateSearchInput.value : '');
+  });
+});

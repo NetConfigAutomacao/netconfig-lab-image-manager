@@ -21,6 +21,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
 
   let lastSections = [];
   let installProgressInterval = null;
@@ -40,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function startInstallProgress() {
     if (!progressContainer || !progressBar || !progressText) return;
     progressText.style.display = 'block';
-    progressText.textContent = 'Iniciando instalação no EVE...';
+    progressText.textContent = t('ishare2.install.start');
     progressContainer.style.display = 'block';
     progressBar.style.width = '0%';
   }
@@ -73,6 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', '/api/ishare2/install_progress?job_id=' + encodeURIComponent(jobId), true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -88,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function () {
             installProgressInterval = null;
             setLoading(false);
             finishInstallProgress();
-            showMessage('error', 'Job de instalação do iShare2 não foi encontrado.');
+            showMessage('error', t('ishare2.install.notFound'));
             return;
           }
 
@@ -114,13 +117,13 @@ document.addEventListener('DOMContentLoaded', function () {
             progressBar.style.width = progress + '%';
 
             if (phase === 'pull') {
-              progressText.textContent = 'Baixando imagem via iShare2... ' + progress + '%';
+              progressText.textContent = t('ishare2.install.pull', { progress: progress });
             } else if (phase === 'copy') {
-              progressText.textContent = 'Enviando imagem para o EVE... ' + progress + '%';
+              progressText.textContent = t('ishare2.install.copy', { progress: progress });
             } else if (phase === 'fix') {
-              progressText.textContent = 'Aplicando fixpermissions no EVE... ' + progress + '%';
+              progressText.textContent = t('ishare2.install.fix', { progress: progress });
             } else {
-              progressText.textContent = msg || ('Instalando no EVE... ' + progress + '%');
+              progressText.textContent = msg || t('ishare2.install.generic', { progress: progress });
             }
           }
 
@@ -132,9 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
             finishInstallProgress();
 
             if (jobStatus === 'success') {
-              showMessage('success', msg || 'Imagem instalada com sucesso via iShare2.');
+              showMessage('success', msg || t('ishare2.install.success'));
             } else {
-              var errText = resp.error || resp.stderr || msg || 'Falha ao instalar imagem via iShare2.';
+              var errText = resp.error || resp.stderr || msg || t('ishare2.install.fail');
               showMessage('error', errText);
             }
           }
@@ -170,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var countSpan = document.createElement('span');
     countSpan.className = 'images-section-count';
-    countSpan.textContent = items.length + ' item' + (items.length === 1 ? '' : 's');
+    countSpan.textContent = t('ishare2.list.count', { count: items.length });
 
     headerDiv.appendChild(titleSpan);
     headerDiv.appendChild(countSpan);
@@ -179,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!items.length) {
       var emptyDiv = document.createElement('div');
       emptyDiv.className = 'images-empty';
-      emptyDiv.textContent = 'Nenhuma imagem encontrada para este tipo.';
+      emptyDiv.textContent = t('ishare2.list.none');
       sectionDiv.appendChild(emptyDiv);
       return sectionDiv;
     }
@@ -187,7 +190,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var headerRow = document.createElement('div');
     headerRow.className = 'ishare2-items-header';
 
-    ['ID', 'Nome', 'Tamanho', ''].forEach(function (h) {
+    var headers = (t('ishare2.list.headers') || 'ID,Name,Size,').split(',');
+    headers.forEach(function (h) {
       var span = document.createElement('span');
       span.textContent = h;
       headerRow.appendChild(span);
@@ -214,7 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn-secondary ishare2-install-btn';
-      btn.innerHTML = '<span class="icon">⬇</span><span>Install</span>';
+      btn.innerHTML = '<span class="icon">⬇</span><span>' + t('ishare2.installButton') + '</span>';
       btn.dataset.type = section.type || '';
       btn.dataset.id = String(item.id);
       btn.dataset.name = item.name || '';
@@ -328,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
       }
 
       var selectedType = target.dataset.type;
-      if (!selectedType) return;
+    if (!selectedType) return;
 
       var buttons = tabsRow.querySelectorAll('.ishare2-tab-button');
       buttons.forEach(function (b) {
@@ -351,13 +355,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function handleInstallClick(type, id, name) {
     if (!type || !id) {
-      showMessage('error', 'Não foi possível identificar o tipo ou ID da imagem.');
+      showMessage('error', t('ishare2.install.missingIds'));
       return;
     }
 
-    var confirmMsg = 'Deseja iniciar a instalação da imagem'
-      + (name ? ' "' + name + '"' : '')
-      + ' (' + type + ' #' + id + ')?';
+    var confirmMsg = t('ishare2.install.confirm', {
+      namePart: name ? '"' + name + '" ' : '',
+      type: type,
+      id: id
+    });
 
     if (!window.confirm(confirmMsg)) {
       return;
@@ -365,7 +371,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var creds = getCommonCreds();
     if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
-      showMessage('error', 'Preencha IP, usuário e senha do EVE-NG antes de instalar uma imagem pelo iShare2.');
+      showMessage('error', t('ishare2.install.missingCreds'));
       return;
     }
 
@@ -382,6 +388,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/ishare2/install_async', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
@@ -390,9 +397,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (status === 504) {
           showMessage(
             'error',
-            'O servidor demorou muito para responder ao pedido de instalação (erro 504 - Gateway Timeout). ' +
-              'A instalação de imagens grandes pode levar vários minutos. ' +
-              'Verifique os logs do EVE/iShare2 para confirmar o estado da instalação e tente novamente se necessário.'
+            t('ishare2.install.timeout')
           );
           setLoading(false);
           finishInstallProgress();
@@ -402,8 +407,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (status === 0) {
           showMessage(
             'error',
-            'Não foi possível contatar o servidor ao executar install no iShare2. ' +
-              'Verifique sua conexão ou se o serviço está em execução.'
+            t('ishare2.install.noServer')
           );
           setLoading(false);
           finishInstallProgress();
@@ -416,8 +420,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (err) {
           showMessage(
             'error',
-            'Erro ao interpretar resposta do install do iShare2 (HTTP ' + status + '). ' +
-              'A resposta do servidor não está no formato esperado.'
+            t('ishare2.install.parseError', { status: status })
           );
           setLoading(false);
           finishInstallProgress();
@@ -425,20 +428,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!resp) {
-          showMessage('error', 'Resposta vazia da API de install do iShare2.');
+          showMessage('error', t('ishare2.install.empty'));
           setLoading(false);
           finishInstallProgress();
           return;
         }
 
         if (!resp.success || !resp.job_id) {
-          showMessage('error', resp.message || 'Falha ao iniciar instalação via iShare2.');
+          showMessage('error', resp.message || t('ishare2.install.failStart'));
           setLoading(false);
           finishInstallProgress();
           return;
         }
 
-        showMessage('success', resp.message || 'Instalação iniciada via iShare2. Acompanhe o progresso abaixo.');
+        showMessage('success', resp.message || t('ishare2.install.started'));
         startInstallPolling(resp.job_id);
       }
     };
@@ -446,7 +449,7 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.onerror = function () {
       setLoading(false);
       finishInstallProgress();
-      showMessage('error', 'Falha na comunicação com o servidor ao executar install no iShare2.');
+      showMessage('error', t('ishare2.install.commFail'));
     };
 
     xhr.send(fd);
@@ -467,6 +470,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/ishare2/search_all', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
@@ -476,8 +480,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (status === 504) {
           showMessage(
             'error',
-            'O servidor demorou muito para responder à consulta do iShare2 (erro 504 - Gateway Timeout). ' +
-              'Tente novamente em alguns instantes ou verifique os logs do backend.'
+            t('ishare2.search.timeout')
           );
           return;
         }
@@ -485,8 +488,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (status === 0) {
           showMessage(
             'error',
-            'Não foi possível contatar o servidor ao consultar o iShare2. ' +
-              'Verifique sua conexão ou se o serviço está em execução.'
+            t('ishare2.search.noServer')
           );
           return;
         }
@@ -497,24 +499,23 @@ document.addEventListener('DOMContentLoaded', function () {
         } catch (err) {
           showMessage(
             'error',
-            'Erro ao interpretar resposta da API do iShare2 (HTTP ' + status + '). ' +
-              'A resposta do servidor não está no formato esperado.'
+            t('ishare2.search.parseError', { status: status })
           );
           return;
         }
 
         if (!resp) {
-          showMessage('error', 'Resposta vazia da API do iShare2.');
+          showMessage('error', t('ishare2.search.empty'));
           return;
         }
 
         if (!resp.success) {
-          showMessage('error', resp.message || 'Falha ao executar ishare2 search all.');
+          showMessage('error', resp.message || t('ishare2.search.fail'));
           if (resp.stderr) {
             showMessage('error', '<pre>' + resp.stderr + '</pre>');
           }
         } else {
-          showMessage('success', resp.message || 'Busca no iShare2 concluída com sucesso.');
+          showMessage('success', resp.message || t('ishare2.search.success'));
         }
 
         lastSections = Array.isArray(resp.sections) ? resp.sections : [];
@@ -531,14 +532,14 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (resp.stdout) {
           outputDiv.textContent = resp.stdout;
         } else {
-          outputDiv.textContent = 'Nenhuma saída retornada pelo ishare2.';
+          outputDiv.textContent = t('ishare2.search.noOutput');
         }
       }
     };
 
     xhr.onerror = function () {
       setLoading(false);
-      showMessage('error', 'Falha na comunicação com o servidor ao consultar o iShare2.');
+      showMessage('error', t('ishare2.search.noServer'));
     };
 
     xhr.send(fd);
@@ -552,4 +553,10 @@ document.addEventListener('DOMContentLoaded', function () {
       renderStructuredSections(lastSections, filterInput.value || '');
     });
   }
+
+  window.addEventListener('netconfig:language-changed', function () {
+    if (lastSections.length) {
+      renderStructuredSections(lastSections, filterInput ? filterInput.value : '');
+    }
+  });
 });

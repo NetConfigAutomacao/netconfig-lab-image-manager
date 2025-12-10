@@ -20,6 +20,7 @@ from flask import Blueprint, request, jsonify
 import paramiko
 
 from config import UPLOAD_FOLDER, DEFAULT_EVE_BASE_DIR, ALLOWED_EXTENSIONS
+from i18n import translate, get_request_lang
 
 upload_bp = Blueprint("upload_bp", __name__)
 
@@ -84,6 +85,7 @@ def upload_images():
     Recebe imagens via HTTP, envia para o EVE-NG via SSH/SFTP e
     ao final executa o fixpermissions no host de destino.
     """
+    lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
     eve_pass = (request.form.get("eve_pass") or "").strip()
@@ -96,7 +98,7 @@ def upload_images():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG.",
+                message=translate("errors.missing_credentials", lang),
                 errors=[],
             ),
             400,
@@ -106,7 +108,7 @@ def upload_images():
         return (
             jsonify(
                 success=False,
-                message="Informe o nome do template (diretório).",
+                message=translate("errors.missing_template_dir", lang),
                 errors=[],
             ),
             400,
@@ -117,7 +119,7 @@ def upload_images():
         return (
             jsonify(
                 success=False,
-                message="Nenhuma imagem foi enviada.",
+                message=translate("errors.no_images", lang),
                 errors=[],
             ),
             400,
@@ -145,7 +147,7 @@ def upload_images():
                 errors.append(
                     {
                         "filename": filename,
-                        "context": "Extensão não permitida",
+                        "context": translate("errors.disallowed_extension", lang),
                     }
                 )
                 continue
@@ -164,7 +166,7 @@ def upload_images():
                 errors.append(
                     {
                         "filename": filename,
-                        "context": "Falha ao enviar via SFTP para o EVE",
+                        "context": translate("errors.sftp_failed", lang),
                         "stderr": str(e),
                     }
                 )
@@ -186,18 +188,18 @@ def upload_images():
             errors.append(
                 {
                     "step": "upload",
-                    "stderr": "Nenhuma imagem foi efetivamente enviada para o EVE.",
+                    "stderr": translate("errors.none_sent", lang),
                 }
             )
 
         # Decide sucesso geral
         success = uploaded_any and fix_ok
         if success:
-            msg = "Upload concluído e fixpermissions executado com sucesso."
+            msg = translate("upload.success", lang)
         elif uploaded_any and not fix_ok:
-            msg = "Imagens enviadas, mas o comando fixpermissions retornou erro. Verifique os detalhes."
+            msg = translate("upload.fix_failed", lang)
         else:
-            msg = "Falha ao enviar as imagens para o EVE. Veja os detalhes."
+            msg = translate("upload.failed", lang)
 
         return (
             jsonify(
@@ -218,7 +220,7 @@ def upload_images():
         return (
             jsonify(
                 success=False,
-                message="Erro inesperado ao enviar as imagens para o EVE.",
+                message=translate("upload.unexpected_error", lang),
                 errors=errors,
             ),
             500,

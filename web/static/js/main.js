@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const form = document.getElementById('uploadForm');
   const dependentButtons = document.querySelectorAll('[data-requires-load="true"]');
   const featureArea = document.getElementById('featureArea');
+  const platformBadge = document.getElementById('platformBadge');
+  const platformLogo = document.getElementById('platformLogo');
 
   function setDependentButtons(enabled) {
     dependentButtons.forEach(function (btn) {
@@ -34,9 +36,50 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function setPlatformInfo(platform) {
+    if (!platformBadge) return;
+    if (!platform || !platform.name) {
+      platformBadge.style.display = 'none';
+      platformBadge.textContent = '';
+      platformBadge.title = '';
+      if (platformLogo) {
+        platformLogo.style.display = 'none';
+        platformLogo.src = '';
+        platformLogo.alt = '';
+      }
+      return;
+    }
+
+    var nameKey = 'platform.unknown';
+    if (platform.name === 'eve-ng') nameKey = 'platform.eve';
+    if (platform.name === 'pnetlab') nameKey = 'platform.pnetlab';
+
+    const label = t('platform.label', { name: t(nameKey) });
+    platformBadge.textContent = label;
+    platformBadge.style.display = 'inline-flex';
+    platformBadge.title = platform.raw ? platform.raw : '';
+
+    if (platformLogo) {
+      if (platform.name === 'eve-ng') {
+        platformLogo.src = '/static/img/eve-ng-logo.png';
+        platformLogo.alt = 'EVE-NG';
+        platformLogo.style.display = 'inline-block';
+      } else if (platform.name === 'pnetlab') {
+        platformLogo.src = '/static/img/pnetlab-logo.png';
+        platformLogo.alt = 'PNETLab';
+        platformLogo.style.display = 'inline-block';
+      } else {
+        platformLogo.style.display = 'none';
+        platformLogo.src = '';
+        platformLogo.alt = '';
+      }
+    }
+  }
+
   function markDirty() {
     setDependentButtons(false);
     setFeatureAreaVisible(false);
+    setPlatformInfo(null);
   }
 
   ['eve_ip', 'eve_user', 'eve_pass'].forEach(function (fieldName) {
@@ -100,6 +143,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }).length;
         const total = results.length;
         const anySuccess = fulfilled > 0;
+
+        const platformResult = results.find(function (r) {
+          return r.status === 'fulfilled' && r.value && r.value.platform;
+        });
+        if (platformResult && platformResult.value) {
+          setPlatformInfo(platformResult.value.platform);
+        } else {
+          setPlatformInfo(null);
+        }
 
         if (fulfilled === total) {
           showMessage('success', t('load.success'));

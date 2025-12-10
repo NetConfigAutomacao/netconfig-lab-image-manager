@@ -125,7 +125,11 @@ document.addEventListener('DOMContentLoaded', function () {
           const images = resp.images || {};
           lastImages = images;
           renderImages(images);
-          return resolve({ success: !!resp.success, images: images });
+          return resolve({
+            success: !!resp.success,
+            images: images,
+            platform: resp.platform || null
+          });
         }
       };
 

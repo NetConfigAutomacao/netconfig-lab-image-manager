@@ -332,6 +332,13 @@
       font-size: 13px;
     }
 
+    .language-row {
+      display: flex;
+      justify-content: flex-end;
+      margin: 4px 0 4px;
+      flex-wrap: wrap;
+    }
+
     .language-switcher {
       display: flex;
       align-items: center;
@@ -339,8 +346,10 @@
       background-color: rgba(15, 23, 42, 0.7);
       border: 1px solid rgba(51, 65, 85, 0.9);
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 6px 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      min-width: 240px;
+      justify-content: space-between;
     }
 
     .language-switcher label {
@@ -348,6 +357,7 @@
       color: var(--text-muted);
       font-weight: 600;
       letter-spacing: 0.02em;
+      white-space: nowrap;
     }
 
     .language-select {
@@ -358,6 +368,7 @@
       padding: 5px 10px;
       font-size: 12px;
       outline: none;
+      min-width: 130px;
     }
 
     /* --- TABS --- */
@@ -789,6 +800,11 @@
         white-space: normal;
       }
 
+      .language-row {
+        justify-content: center;
+        margin: 8px 0;
+      }
+
       .tabs {
         flex-wrap: wrap;
       }
@@ -815,15 +831,18 @@
             <a href="https://www.netconfig.com.br" target="_blank" rel="noopener noreferrer">
               <img src="/static/img/netconfig-logo.png" alt="NetConfig" class="brand-logo">
             </a>
-            <div class="language-switcher">
-              <label for="languageSelect" data-i18n="ui.language.label">Idioma</label>
-              <select id="languageSelect" class="language-select">
-                <option value="auto" data-i18n="ui.language.auto">Automático</option>
-                <option value="pt" data-i18n="ui.language.pt">Português</option>
-                <option value="en" data-i18n="ui.language.en">English</option>
-                <option value="es" data-i18n="ui.language.es">Español</option>
-              </select>
-            </div>
+          </div>
+        </div>
+
+        <div class="language-row">
+          <div class="language-switcher">
+            <label for="languageSelect" data-i18n="ui.language.label">Idioma</label>
+            <select id="languageSelect" class="language-select">
+              <option value="auto" data-i18n="ui.language.auto">Automático</option>
+              <option value="pt" data-i18n="ui.language.pt">Português</option>
+              <option value="en" data-i18n="ui.language.en">English</option>
+              <option value="es" data-i18n="ui.language.es">Español</option>
+            </select>
           </div>
         </div>
 

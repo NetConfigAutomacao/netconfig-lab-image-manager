@@ -21,6 +21,18 @@ document.addEventListener('DOMContentLoaded', function () {
   const t = app.t || function (key) { return key; };
   const setLangHeader = app.setLanguageHeader || function () {};
 
+  function setLoading(isLoading) {
+    try {
+      document.body.style.cursor = isLoading ? 'wait' : '';
+    } catch (e) {
+      // ignore style errors
+    }
+    if (fixPermissionsBtn instanceof HTMLButtonElement) {
+      fixPermissionsBtn.disabled = isLoading;
+      fixPermissionsBtn.classList.toggle('btn-disabled', isLoading);
+    }
+  }
+
   fixPermissionsBtn.addEventListener('click', function () {
     const messages = document.getElementById('messages');
     if (messages) {
@@ -37,24 +49,35 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
+    setLoading(true);
+
     const fd = new FormData();
     fd.append('eve_ip', eve_ip);
     fd.append('eve_user', eve_user);
     fd.append('eve_pass', eve_pass);
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/fix-permissions', true);
+    xhr.open('POST', '/api/fixpermissions', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     setLangHeader(xhr);
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
+        const status = xhr.status || 0;
+
+        if (status === 404) {
+          showMessage('error', t('fix.notFound'));
+          setLoading(false);
+          return;
+        }
+
         let resp = null;
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
           showMessage('error', t('fix.parseError') + '<br><pre>' +
             (xhr.responseText || String(err)) + '</pre>');
+          setLoading(false);
           return;
         }
 
@@ -63,11 +86,13 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
           showMessage('error', resp.message || t('fix.fail'));
         }
+        setLoading(false);
       }
     };
 
     xhr.onerror = function () {
       showMessage('error', t('msg.networkError'));
+      setLoading(false);
     };
 
     xhr.send(fd);

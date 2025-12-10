@@ -73,10 +73,11 @@ def _run_fixpermissions(ssh: paramiko.SSHClient, errors: List[Dict[str, Any]]) -
 
 
 @fix_bp.route("/fixpermissions", methods=["POST"])
+@fix_bp.route("/fix-permissions", methods=["POST"])
 def fix_permissions():
     """
     Endpoint manual para executar o comando fixpermissions no EVE-NG.
-    Via Nginx: /api/fixpermissions
+    Via Nginx: /api/fixpermissions (principal) e /api/fix-permissions (alias legada)
     """
     lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()

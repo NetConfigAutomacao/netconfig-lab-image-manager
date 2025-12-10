@@ -128,7 +128,8 @@ document.addEventListener('DOMContentLoaded', function () {
           return resolve({
             success: !!resp.success,
             images: images,
-            platform: resp.platform || null
+            platform: resp.platform || null,
+            resources: resp.resources || null
           });
         }
       };

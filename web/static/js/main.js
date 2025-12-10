@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const featureArea = document.getElementById('featureArea');
   const platformBadge = document.getElementById('platformBadge');
   const platformLogo = document.getElementById('platformLogo');
+  const resourceBox = document.getElementById('resourceBox');
+  const resourceCpu = document.getElementById('resourceCpu');
+  const resourceMem = document.getElementById('resourceMem');
+  const resourceDisk = document.getElementById('resourceDisk');
+  const resourceCpuBar = document.getElementById('resourceCpuBar');
+  const resourceMemBar = document.getElementById('resourceMemBar');
+  const resourceDiskBar = document.getElementById('resourceDiskBar');
+  const systemReloadBtn = document.getElementById('systemReloadBtn');
 
   function setDependentButtons(enabled) {
     dependentButtons.forEach(function (btn) {
@@ -76,10 +84,55 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function formatPercent(val) {
+    if (typeof val !== 'number' || isNaN(val)) return 'N/A';
+    return val.toFixed(0) + '%';
+  }
+
+  function formatMem(valMb) {
+    if (typeof valMb !== 'number' || isNaN(valMb)) return 'N/A';
+    if (valMb >= 1024) return (valMb / 1024).toFixed(1) + ' GB';
+    return valMb.toFixed(0) + ' MB';
+  }
+
+  function formatDisk(valKb) {
+    if (typeof valKb !== 'number' || isNaN(valKb)) return 'N/A';
+    const gb = valKb / (1024 * 1024);
+    if (gb >= 1) return gb.toFixed(1) + ' GB';
+    const mb = valKb / 1024;
+    return mb.toFixed(0) + ' MB';
+  }
+
+  function setResources(resources) {
+    if (!resourceBox) return;
+    if (!resources) {
+      resourceBox.style.display = 'none';
+      return;
+    }
+    resourceBox.style.display = 'grid';
+    if (resourceCpu) resourceCpu.textContent = formatPercent(resources.cpu_percent);
+    if (resourceCpuBar) resourceCpuBar.style.width = Math.min(100, Math.max(0, resources.cpu_percent || 0)) + '%';
+    if (resourceMem) {
+      var used = formatMem(resources.mem_used_mb);
+      var total = formatMem(resources.mem_total_mb);
+      var perc = formatPercent(resources.mem_percent);
+      resourceMem.textContent = used + ' / ' + total + ' (' + perc + ')';
+      if (resourceMemBar) resourceMemBar.style.width = Math.min(100, Math.max(0, resources.mem_percent || 0)) + '%';
+    }
+    if (resourceDisk) {
+      var usedD = formatDisk(resources.disk_used_kb);
+      var totalD = formatDisk(resources.disk_total_kb);
+      var percD = formatPercent(resources.disk_percent);
+      resourceDisk.textContent = usedD + ' / ' + totalD + ' (' + percD + ')';
+      if (resourceDiskBar) resourceDiskBar.style.width = Math.min(100, Math.max(0, resources.disk_percent || 0)) + '%';
+    }
+  }
+
   function markDirty() {
     setDependentButtons(false);
     setFeatureAreaVisible(false);
     setPlatformInfo(null);
+    setResources(null);
   }
 
   ['eve_ip', 'eve_user', 'eve_pass'].forEach(function (fieldName) {
@@ -92,6 +145,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // Inicialmente os botões que dependem do carregamento ficam desativados.
   setDependentButtons(false);
   setFeatureAreaVisible(false);
+  setResources(null);
 
   function setLoadBtnState(isLoading) {
     if (!loadBtn) return;
@@ -149,8 +203,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         if (platformResult && platformResult.value) {
           setPlatformInfo(platformResult.value.platform);
+          setResources(platformResult.value.resources || null);
         } else {
           setPlatformInfo(null);
+          setResources(null);
         }
 
         if (fulfilled === total) {
@@ -176,5 +232,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (loadBtn) {
     loadBtn.addEventListener('click', handleLoadAll);
+  }
+
+  function reloadSystemInfo() {
+    const loader = app.loadImages;
+    if (!loader) return;
+    if (systemReloadBtn) {
+      systemReloadBtn.disabled = true;
+      systemReloadBtn.classList.add('btn-disabled');
+      systemReloadBtn.textContent = t('ui.system.reloadLoading');
+    }
+    loader({ skipClearMessages: false }).then(function (resp) {
+      if (resp && resp.platform) setPlatformInfo(resp.platform);
+      if (resp && resp.resources) setResources(resp.resources);
+      if (resp && resp.success) {
+        showMessage('success', t('load.success'));
+      }
+    }).catch(function () {
+      showMessage('error', t('load.failed'));
+    }).finally(function () {
+      if (systemReloadBtn) {
+        systemReloadBtn.disabled = false;
+        systemReloadBtn.classList.remove('btn-disabled');
+        systemReloadBtn.textContent = t('ui.system.reload');
+      }
+    });
+  }
+
+  if (systemReloadBtn) {
+    systemReloadBtn.addEventListener('click', reloadSystemInfo);
   }
 });

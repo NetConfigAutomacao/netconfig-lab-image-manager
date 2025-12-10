@@ -16,7 +16,7 @@
 import traceback
 from flask import Blueprint, request, jsonify
 
-from utils import run_ssh_command
+from utils import run_ssh_command, detect_platform, get_resource_usage
 from i18n import translate, get_request_lang
 
 images_bp = Blueprint("images_bp", __name__)
@@ -45,6 +45,9 @@ def list_images():
 
         images = {}
         errors = []
+
+        platform_name, platform_raw, platform_source = detect_platform(eve_ip, eve_user, eve_pass)
+        resources = get_resource_usage(eve_ip, eve_user, eve_pass)
 
         for kind, base_dir in base_dirs.items():
             cmd = (
@@ -81,7 +84,18 @@ def list_images():
             msg_ok += translate("images.partial_warning", lang)
 
         print(f"[API] Resultado /images: {images}", flush=True)
-        return jsonify(success=(len(errors) == 0), message=msg_ok, images=images, errors=errors), 200
+        return jsonify(
+            success=(len(errors) == 0),
+            message=msg_ok,
+            images=images,
+            errors=errors,
+            platform={
+                "name": platform_name,
+                "raw": platform_raw,
+                "source": platform_source,
+            },
+            resources=resources,
+        ), 200
 
     except Exception as e:
         traceback.print_exc()

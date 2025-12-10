@@ -20,6 +20,10 @@ document.addEventListener('DOMContentLoaded', function () {
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
+
+  let lastImages = null;
 
   function groupByVendor(list) {
     const groups = {};
@@ -55,6 +59,78 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function renderImages(images) {
+    if (!imagesResult) return;
+
+    if (!images) {
+      imagesResult.style.display = 'none';
+      imagesResult.innerHTML = '';
+      return;
+    }
+
+    const sections = [
+      ['qemu', 'QEMU', '/opt/unetlab/addons/qemu'],
+      ['iol', 'IOL', '/opt/unetlab/addons/iol/bin'],
+      ['dynamips', 'Dynamips', '/opt/unetlab/addons/dynamips']
+    ];
+
+    let html = ''
+      + '<div class="images-title-row">'
+      + '<span><strong>' + t('images.title') + '</strong></span>'
+      + '<span>' + t('images.updated') + '</span>'
+      + '</div>'
+      + '<div class="images-sections">';
+
+    sections.forEach(function (section) {
+      const key = section[0];
+      const label = section[1];
+      const path = section[2];
+
+      const list = images[key] || [];
+      const totalCount = list.length;
+
+      const templateCountText = t('images.templateCount', { count: totalCount });
+
+      html += ''
+        + '<div class="images-section">'
+        + '  <div class="images-section-header">'
+        + '    <div class="images-section-main">'
+        + '      <span class="images-section-title">' + label + '</span>'
+        + '      <span class="images-section-path">' + path + '</span>'
+        + '    </div>'
+        + '    <span class="images-section-count">' + templateCountText + '</span>'
+        + '  </div>';
+
+      if (totalCount === 0) {
+        html += '<div class="images-empty">' + t('images.none') + '</div>';
+      } else {
+        const groups = groupByVendor(list);
+        groups.forEach(function (group) {
+          const count = group.items.length;
+          html += ''
+            + '<div class="vendor-group">'
+            + '  <div class="vendor-header">'
+            + '    <span class="vendor-name">' + group.vendor + '</span>'
+            + '    <span class="vendor-count">' + t('images.vendorCount', { count: count }) + '</span>'
+            + '  </div>'
+            + '  <div class="vendor-tags">';
+
+          group.items.forEach(function (entry) {
+            html += '<span class="tag-pill" title="' + entry.full + '">' + entry.version + '</span>';
+          });
+
+          html += '</div></div>';
+        });
+      }
+
+      html += '</div>';
+    });
+
+    html += '</div>';
+    imagesResult.innerHTML = html;
+    imagesResult.style.display = 'block';
+  }
+
   checkBtn.addEventListener('click', function () {
     const messages = document.getElementById('messages');
     if (messages) {
@@ -70,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eve_pass = creds.eve_pass;
 
     if (!eve_ip || !eve_user || !eve_pass) {
-      showMessage('error', 'Preencha IP do EVE, usuário e senha para listar as imagens.');
+      showMessage('error', t('images.missingCreds'));
       return;
     }
 
@@ -82,6 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/images', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
@@ -89,90 +166,38 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
-          showMessage('error', 'Erro ao interpretar resposta do servidor.<br><pre>' +
+          showMessage('error', t('images.parseError') + '<br><pre>' +
             (xhr.responseText || String(err)) + '</pre>');
           return;
         }
 
         if (!resp) {
-          showMessage('error', 'Resposta vazia da API.');
+          showMessage('error', t('images.emptyResponse'));
           return;
         }
 
         if (!resp.success) {
-          showMessage('error', resp.message || 'Falha ao listar imagens.');
+          showMessage('error', resp.message || t('images.requestFail'));
         } else {
-          showMessage('success', resp.message || 'Imagens listadas com sucesso.');
+          showMessage('success', resp.message || t('images.success'));
         }
 
         const images = resp.images || {};
-        const sections = [
-          ['qemu', 'QEMU', '/opt/unetlab/addons/qemu'],
-          ['iol', 'IOL', '/opt/unetlab/addons/iol/bin'],
-          ['dynamips', 'Dynamips', '/opt/unetlab/addons/dynamips']
-        ];
-
-        let html = ''
-          + '<div class="images-title-row">'
-          + '<span><strong>Imagens existentes no EVE-NG</strong></span>'
-          + '<span>Atualizado agora</span>'
-          + '</div>'
-          + '<div class="images-sections">';
-
-        sections.forEach(function (section) {
-          const key = section[0];
-          const label = section[1];
-          const path = section[2];
-
-          const list = images[key] || [];
-          const totalCount = list.length;
-
-          html += ''
-            + '<div class="images-section">'
-            + '  <div class="images-section-header">'
-            + '    <div class="images-section-main">'
-            + '      <span class="images-section-title">' + label + '</span>'
-            + '      <span class="images-section-path">' + path + '</span>'
-            + '    </div>'
-            + '    <span class="images-section-count">' + totalCount + ' template' + (totalCount === 1 ? '' : 's') + '</span>'
-            + '  </div>';
-
-          if (totalCount === 0) {
-            html += '<div class="images-empty">Nenhum template encontrado.</div>';
-          } else {
-            const groups = groupByVendor(list);
-            groups.forEach(function (group) {
-              const count = group.items.length;
-              html += ''
-                + '<div class="vendor-group">'
-                + '  <div class="vendor-header">'
-                + '    <span class="vendor-name">' + group.vendor + '</span>'
-                + '    <span class="vendor-count">' + count + ' versão' + (count === 1 ? '' : 'es') + '</span>'
-                + '  </div>'
-                + '  <div class="vendor-tags">';
-
-              group.items.forEach(function (entry) {
-                html += '<span class="tag-pill" title="' + entry.full + '">' + entry.version + '</span>';
-              });
-
-              html += '</div></div>';
-            });
-          }
-
-          html += '</div>';
-        });
-
-        html += '</div>';
-        imagesResult.innerHTML = html;
-        imagesResult.style.display = 'block';
+        lastImages = images;
+        renderImages(images);
       }
     };
 
     xhr.onerror = function () {
-      showMessage('error', 'Falha na comunicação com o servidor.');
+      showMessage('error', t('msg.networkError'));
     };
 
     xhr.send(fd);
   });
-});
 
+  window.addEventListener('netconfig:language-changed', function () {
+    if (lastImages) {
+      renderImages(lastImages);
+    }
+  });
+});

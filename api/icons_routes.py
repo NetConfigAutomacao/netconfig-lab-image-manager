@@ -19,6 +19,7 @@ import io
 import paramiko
 
 from config import ICONS_DIR, ICON_ALLOWED_EXT
+from i18n import translate, get_request_lang
 
 icons_bp = Blueprint("icons_bp", __name__)
 
@@ -32,16 +33,17 @@ def _get_ssh_client(eve_ip: str, eve_user: str, eve_pass: str) -> paramiko.SSHCl
 
 @icons_bp.route("/icons/upload", methods=["POST"])
 def upload_icons():
+  lang = get_request_lang()
   eve_ip = request.form.get("eve_ip", "").strip()
   eve_user = request.form.get("eve_user", "").strip()
   eve_pass = request.form.get("eve_pass", "").strip()
 
   if not eve_ip or not eve_user or not eve_pass:
-    return jsonify(success=False, message="IP, usuário e senha do EVE são obrigatórios."), 400
+    return jsonify(success=False, message=translate("icons.missing_creds", lang)), 400
 
   files = request.files.getlist("icons")
   if not files:
-    return jsonify(success=False, message="Nenhum arquivo de ícone enviado."), 400
+    return jsonify(success=False, message=translate("icons.no_files", lang)), 400
 
   errors = []
   uploaded = []
@@ -60,7 +62,7 @@ def upload_icons():
         errors.append(
           {
             "filename": filename,
-            "context": "Extensão inválida. Somente PNG é permitido.",
+            "context": translate("icons.invalid_ext", lang),
           }
         )
         continue
@@ -86,29 +88,30 @@ def upload_icons():
   except Exception as e:
     return jsonify(
       success=False,
-      message="Erro ao conectar no EVE para envio de ícones.",
+      message=translate("icons.connect_upload_error", lang),
       errors=[{"context": "SSH/SFTP", "stderr": str(e)}],
     ), 500
 
   if uploaded:
-    msg = f"Ícones enviados com sucesso: {', '.join(uploaded)}"
+    msg = translate("icons.upload_success", lang, names=", ".join(uploaded))
     return jsonify(success=True, message=msg, uploaded=uploaded, errors=errors), 200
   else:
     return jsonify(
       success=False,
-      message="Nenhum ícone foi enviado com sucesso.",
+      message=translate("icons.upload_none", lang),
       errors=errors,
     ), 400
 
 
 @icons_bp.route("/icons/list", methods=["POST"])
 def list_icons():
+  lang = get_request_lang()
   eve_ip = request.form.get("eve_ip", "").strip()
   eve_user = request.form.get("eve_user", "").strip()
   eve_pass = request.form.get("eve_pass", "").strip()
 
   if not eve_ip or not eve_user or not eve_pass:
-    return jsonify(success=False, message="IP, usuário e senha do EVE são obrigatórios."), 400
+    return jsonify(success=False, message=translate("icons.missing_creds", lang)), 400
 
   try:
     client = _get_ssh_client(eve_ip, eve_user, eve_pass)
@@ -128,11 +131,11 @@ def list_icons():
   except Exception as e:
     return jsonify(
       success=False,
-      message="Erro ao conectar no EVE para listar ícones.",
+      message=translate("icons.connect_list_error", lang),
       errors=[{"context": "SSH/SFTP", "stderr": str(e)}],
     ), 500
 
-  return jsonify(success=True, message="Ícones listados com sucesso.", icons=icons), 200
+  return jsonify(success=True, message=translate("icons.list_success", lang), icons=icons), 200
 
 
 @icons_bp.route("/icons/raw/<path:icon_name>", methods=["POST"])
@@ -141,16 +144,17 @@ def get_icon_raw(icon_name: str):
   Retorna o conteúdo do ícone (PNG) vindo do EVE para poder
   exibir no front-end via <img src="/api/icons/raw/...">.
   """
+  lang = get_request_lang()
   eve_ip = request.form.get("eve_ip", "").strip()
   eve_user = request.form.get("eve_user", "").strip()
   eve_pass = request.form.get("eve_pass", "").strip()
 
   if not eve_ip or not eve_user or not eve_pass:
-    return jsonify(success=False, message="IP, usuário e senha do EVE são obrigatórios."), 400
+    return jsonify(success=False, message=translate("icons.missing_creds", lang)), 400
 
   safe_name = secure_filename(icon_name)
   if not safe_name.lower().endswith(".png"):
-    return jsonify(success=False, message="Somente arquivos PNG são permitidos."), 400
+    return jsonify(success=False, message=translate("icons.only_png", lang)), 400
 
   remote_path = f"{ICONS_DIR}/{safe_name}"
 
@@ -167,7 +171,7 @@ def get_icon_raw(icon_name: str):
   except Exception as e:
     return jsonify(
       success=False,
-      message="Erro ao buscar ícone no EVE.",
+      message=translate("icons.fetch_error", lang),
       errors=[{"filename": safe_name, "stderr": str(e)}],
     ), 500
 

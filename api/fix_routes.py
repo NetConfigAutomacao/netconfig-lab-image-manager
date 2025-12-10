@@ -18,6 +18,8 @@ from typing import List, Dict, Any
 from flask import Blueprint, request, jsonify
 import paramiko
 
+from i18n import translate, get_request_lang
+
 fix_bp = Blueprint("fix_bp", __name__)
 
 
@@ -76,6 +78,7 @@ def fix_permissions():
     Endpoint manual para executar o comando fixpermissions no EVE-NG.
     Via Nginx: /api/fixpermissions
     """
+    lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
     eve_pass = (request.form.get("eve_pass") or "").strip()
@@ -86,7 +89,7 @@ def fix_permissions():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG.",
+                message=translate("errors.missing_credentials", lang),
                 errors=[],
             ),
             400,
@@ -98,10 +101,10 @@ def fix_permissions():
         ok = _run_fixpermissions(ssh, errors)
 
         if ok:
-            msg = "fixpermissions executado com sucesso no EVE-NG."
+            msg = translate("fix.success", lang)
             status_code = 200
         else:
-            msg = "O comando fixpermissions retornou erro. Verifique os detalhes."
+            msg = translate("fix.fail", lang)
             status_code = 500
 
         return (
@@ -123,7 +126,7 @@ def fix_permissions():
         return (
             jsonify(
                 success=False,
-                message="Erro inesperado ao executar fixpermissions.",
+                message=translate("fix.unexpected", lang),
                 errors=errors,
             ),
             500,

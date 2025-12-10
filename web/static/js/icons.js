@@ -18,6 +18,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
+
+  let lastIcons = null;
+  let lastIconsEveIp = '';
 
   function buildIconUrl(eve_ip, name) {
     if (!eve_ip) return '';
@@ -37,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!icons || !icons.length) {
       const div = document.createElement('div');
       div.className = 'icons-empty';
-      div.textContent = 'Nenhum ícone encontrado.';
+      div.textContent = t('icons.none');
       iconsListDiv.appendChild(div);
       return;
     }
@@ -77,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const eve_pass = creds.eve_pass;
 
       if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP, usuário e senha para listar ícones.');
+        showMessage('error', t('icons.missingCreds'));
         return;
       }
 
@@ -89,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/icons/list', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -96,29 +102,31 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', 'Erro ao interpretar resposta da API de ícones.<br><pre>' +
+            showMessage('error', t('icons.parseError') + '<br><pre>' +
               (xhr.responseText || String(err)) + '</pre>');
             return;
           }
 
           if (!resp) {
-            showMessage('error', 'Resposta vazia da API de ícones.');
+            showMessage('error', t('icons.emptyResponse'));
             return;
           }
 
           if (!resp.success) {
-            showMessage('error', resp.message || 'Falha ao listar ícones.');
+            showMessage('error', resp.message || t('icons.requestFail'));
           } else {
-            showMessage('success', resp.message || 'Ícones listados com sucesso.');
+            showMessage('success', resp.message || t('icons.successList'));
           }
 
           const icons = resp.icons || [];
+          lastIcons = icons;
+          lastIconsEveIp = eve_ip;
           renderIconsList(icons, eve_ip);
         }
       };
 
       xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor ao listar ícones.');
+        showMessage('error', t('msg.networkError'));
       };
 
       xhr.send(fd);
@@ -139,12 +147,12 @@ document.addEventListener('DOMContentLoaded', function () {
       const file = iconFileInput && iconFileInput.files ? iconFileInput.files[0] : null;
 
       if (!eve_ip || !eve_user || !eve_pass) {
-        showMessage('error', 'Preencha IP, usuário e senha para enviar o ícone.');
+        showMessage('error', t('icons.uploadMissingCreds'));
         return;
       }
 
       if (!file) {
-        showMessage('error', 'Selecione um arquivo PNG para enviar.');
+        showMessage('error', t('icons.uploadSelectFile'));
         return;
       }
 
@@ -157,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/icons/upload', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
@@ -164,24 +173,30 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', 'Erro ao interpretar resposta do upload de ícone.<br><pre>' +
+            showMessage('error', t('icons.uploadParseError') + '<br><pre>' +
               (xhr.responseText || String(err)) + '</pre>');
             return;
           }
 
           if (resp.success) {
-            showMessage('success', resp.message || 'Ícone enviado com sucesso.');
+            showMessage('success', resp.message || t('icons.uploadSuccess'));
           } else {
-            showMessage('error', resp.message || 'Falha ao enviar ícone.');
+            showMessage('error', resp.message || t('icons.uploadFail'));
           }
         }
       };
 
       xhr.onerror = function () {
-        showMessage('error', 'Falha na comunicação com o servidor ao enviar ícone.');
+        showMessage('error', t('msg.networkError'));
       };
 
       xhr.send(fd);
     });
   }
+
+  window.addEventListener('netconfig:language-changed', function () {
+    if (lastIcons !== null) {
+      renderIconsList(lastIcons, lastIconsEveIp);
+    }
+  });
 });

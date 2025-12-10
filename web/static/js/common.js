@@ -8,6 +8,9 @@
  */
 
 document.addEventListener('DOMContentLoaded', function () {
+  const app = window.NetConfigApp || {};
+  const t = app.t || function (key) { return key; };
+
   function showMessage(type, text) {
     const messages = document.getElementById('messages');
     if (!messages) {
@@ -35,5 +38,11 @@ document.addEventListener('DOMContentLoaded', function () {
   window.NetConfigApp = window.NetConfigApp || {};
   window.NetConfigApp.showMessage = showMessage;
   window.NetConfigApp.getCommonCreds = getCommonCreds;
+  window.NetConfigApp.t = window.NetConfigApp.t || t;
+  window.NetConfigApp.getLanguage = window.NetConfigApp.getLanguage || function () { return 'en'; };
+  window.NetConfigApp.setLanguageHeader = function (xhr) {
+    if (xhr && xhr.setRequestHeader) {
+      xhr.setRequestHeader('X-Language', (window.NetConfigApp.getLanguage && window.NetConfigApp.getLanguage()) || 'en');
+    }
+  };
 });
-

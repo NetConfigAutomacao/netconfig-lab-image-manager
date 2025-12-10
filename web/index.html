@@ -209,6 +209,161 @@
       margin-bottom: 8px;
     }
 
+    .load-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background-color: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.15);
+    }
+
+    .load-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .load-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .load-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .platform-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-main);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .platform-pill::before {
+      content: "●";
+      font-size: 10px;
+      color: var(--accent);
+    }
+
+    .platform-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .platform-logo {
+      display: none;
+      height: 32px;
+      max-width: 110px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 6px rgba(15, 23, 42, 0.9));
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 8px;
+      padding: 4px 6px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .resource-box {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background-color: rgba(15, 23, 42, 0.85);
+    }
+
+    .resource-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .resource-label {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .resource-value {
+      font-size: 13px;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .resource-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .resource-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.15);
+      overflow: hidden;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .resource-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #0ea5e9, #2563eb);
+      transition: width 0.25s ease-out;
+      border-radius: 999px;
+    }
+
+    .system-card {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.92) 0, #020617 70%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 35px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .system-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .system-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .system-title::before {
+      content: "🖥";
+      font-size: 14px;
+    }
+
     .alert {
       border-radius: 10px;
       padding: 8px 10px;
@@ -312,6 +467,13 @@
       font-size: 14px;
     }
 
+    button:disabled,
+    .btn-disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      filter: grayscale(0.2);
+    }
+
     .btn-secondary {
       border-radius: 999px;
       padding: 7px 14px;
@@ -402,6 +564,14 @@
     }
 
     .tab-content.active {
+      display: block;
+    }
+
+    #featureArea[data-state="locked"] {
+      display: none;
+    }
+
+    #featureArea[data-state="ready"] {
       display: block;
     }
 
@@ -868,210 +1038,261 @@
             <input type="password" name="eve_pass" placeholder="Senha do usuário no EVE" data-i18n-placeholder="ui.evePassPlaceholder" required>
           </div>
 
-          <!-- ABAS -->
-          <div class="tabs">
-            <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
-            <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
-            <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
-            <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
+          <div class="load-row">
+            <div class="load-info">
+              <div class="load-title" data-i18n="ui.loadDataTitle">Carregar dados do EVE</div>
+              <div class="load-hint" data-i18n="ui.loadDataHint">
+                Preencha IP, usuário e senha e clique para listar imagens, ícones e templates existentes no servidor.
+              </div>
+            </div>
+            <button type="button" class="btn-primary" id="loadDataBtn">
+              <span class="icon">⚡</span>
+              <span data-i18n="ui.loadDataBtn">Carregar dados</span>
+            </button>
           </div>
 
-          <!-- ==================== ABA IMAGES ==================== -->
-          <div id="images-tab" class="tab-content active">
-            <div class="field">
-              <label data-i18n="ui.images.typeLabel">Tipo de imagem (Destino)</label>
-              <div class="radio-group">
-                <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
-                <label><input type="radio" name="image_type" value="iol"> IOL</label>
-                <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
-              </div>
-              <div class="hint" data-i18n="ui.images.typeHint">
-                Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
-              </div>
+          <div id="featureArea" data-state="locked">
+            <!-- ABAS -->
+            <div class="tabs">
+              <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
+              <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
+              <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
+              <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
+              <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
             </div>
 
-            <div class="field">
-              <label data-i18n="ui.images.baseDirLabel">Diretório base no EVE</label>
-              <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
-              <div class="hint" data-i18n-html="ui.images.baseDirHint">
-                QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
-                <code>/opt/unetlab/addons/dynamips</code>.
+            <!-- ==================== ABA IMAGES ==================== -->
+            <div id="images-tab" class="tab-content active">
+              <div class="field">
+                <label data-i18n="ui.images.typeLabel">Tipo de imagem (Destino)</label>
+                <div class="radio-group">
+                  <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
+                  <label><input type="radio" name="image_type" value="iol"> IOL</label>
+                  <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
+                </div>
+                <div class="hint" data-i18n="ui.images.typeHint">
+                  Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
+                </div>
+              </div>
+
+              <div class="field">
+                <label data-i18n="ui.images.baseDirLabel">Diretório base no EVE</label>
+                <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
+                <div class="hint" data-i18n-html="ui.images.baseDirHint">
+                  QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
+                  <code>/opt/unetlab/addons/dynamips</code>.
+                </div>
+              </div>
+
+              <div class="field">
+                <label data-i18n="ui.images.templateLabel">Nome do Template (diretório)</label>
+                <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" data-i18n-placeholder="ui.images.templatePlaceholder" required>
+              </div>
+
+              <div class="field">
+                <label data-i18n="ui.images.filesLabel">Imagens (pode selecionar várias)</label>
+                <input type="file" name="image" multiple required aria-label="Upload images">
+                <div class="hint" data-i18n-html="ui.images.filesHint">
+                  Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+                </div>
+              </div>
+
+              <div class="progress-label" id="progressText" data-i18n="ui.images.progressShort">Enviando...</div>
+              <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar"></div>
+              </div>
+
+              <div class="footer">
+                <div class="small-info" data-i18n="ui.images.footerInfo">
+                  Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
+                </div>
+                <div class="actions-row">
+                  <!-- ORDEM: CHECK  -> ENVIAR -> FIX -->
+                  <button type="button" class="btn-secondary" id="checkImagesBtn" data-requires-load="true">
+                    <span class="icon">🔍</span>
+                    <span data-i18n="ui.images.checkBtn">Check Existent Images</span>
+                  </button>
+
+                  <button type="submit" class="btn-primary">
+                    <span class="icon">⬆</span>
+                    <span data-i18n="ui.images.uploadBtn">Enviar imagens</span>
+                  </button>
+
+                  <!-- BOTÃO FIX PERMISSIONS -->
+                  <button type="button" class="btn-secondary" id="fixPermissionsBtn">
+                    <span class="icon">🛠</span>
+                    <span data-i18n="ui.images.fixBtn">Fix Permissions</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="imagesResultWrapper">
+                <div id="imagesResult"></div>
               </div>
             </div>
+            <!-- ==================== FIM ABA IMAGES ==================== -->
 
-            <div class="field">
-              <label data-i18n="ui.images.templateLabel">Nome do Template (diretório)</label>
-              <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" data-i18n-placeholder="ui.images.templatePlaceholder" required>
-            </div>
-
-            <div class="field">
-              <label data-i18n="ui.images.filesLabel">Imagens (pode selecionar várias)</label>
-              <input type="file" name="image" multiple required aria-label="Upload images">
-              <div class="hint" data-i18n-html="ui.images.filesHint">
-                Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+            <!-- ==================== ABA TEMPLATES ==================== -->
+            <div id="templates-tab" class="tab-content">
+              <div class="field">
+                <label data-i18n="ui.templates.existingLabel">Templates existentes no EVE</label>
+                <div class="template-search-row">
+                  <input type="text" id="template_search"
+                    placeholder="Filtrar por nome (ex: huawei, juniper, mikrotik...)" data-i18n-placeholder="ui.templates.searchPlaceholder">
+                  <button type="button" class="btn-secondary" id="listTemplatesBtn" data-requires-load="true">
+                    <span class="icon">📂</span>
+                    <span data-i18n="ui.templates.listBtn">Listar templates</span>
+                  </button>
+                </div>
+                <div id="templatesList"></div>
+                <div class="hint" data-i18n="ui.templates.listHint">
+                  Clique em um template da lista para carregar o conteúdo no editor abaixo.
+                </div>
               </div>
-            </div>
 
-            <div class="progress-label" id="progressText" data-i18n="ui.images.progressShort">Enviando...</div>
-            <div class="progress-container" id="progressContainer">
-              <div class="progress-bar" id="progressBar"></div>
-            </div>
-
-            <div class="footer">
-              <div class="small-info" data-i18n="ui.images.footerInfo">
-                Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
+              <div class="field">
+                <label data-i18n="ui.templates.fileLabel">Nome do arquivo de template</label>
+                <input type="text" name="template_yaml_name" id="template_yaml_name" placeholder="Ex: huaweine40.yml" data-i18n-placeholder="ui.templates.filePlaceholder">
+                <div class="hint" data-i18n-html="ui.templates.fileHint">
+                  Se não informar a extensão, será usado <code>.yml</code> automaticamente.
+                </div>
               </div>
-              <div class="actions-row">
-                <!-- ORDEM: CHECK  -> ENVIAR -> FIX -->
-                <button type="button" class="btn-secondary" id="checkImagesBtn">
-                  <span class="icon">🔍</span>
-                  <span data-i18n="ui.images.checkBtn">Check Existent Images</span>
+
+              <div class="field">
+                <label data-i18n="ui.templates.contentLabel">Conteúdo do template YAML</label>
+                <textarea id="template_content" name="template_content"
+                  placeholder="# Cole ou edite aqui o conteúdo YAML do template..." data-i18n-placeholder="ui.templates.contentPlaceholder"></textarea>
+                <div class="hint" data-i18n-html="ui.templates.contentHint">
+                  O arquivo será enviado para:
+                  <code>/opt/unetlab/html/templates/amd</code> e
+                  <code>/opt/unetlab/html/templates/intel</code>.
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button type="button" class="btn-secondary" id="loadTemplateBtn">
+                  <span class="icon">📥</span>
+                  <span data-i18n="ui.templates.loadBtn">Carregar template do EVE</span>
                 </button>
 
-                <button type="submit" class="btn-primary">
+                <button type="button" class="btn-secondary" id="saveTemplateBtn">
+                  <span class="icon">💾</span>
+                  <span data-i18n="ui.templates.saveBtn">Salvar template no EVE</span>
+                </button>
+              </div>
+            </div>
+            <!-- ==================== FIM ABA TEMPLATES ==================== -->
+
+            <!-- ==================== ABA ICONS ==================== -->
+            <div id="icons-tab" class="tab-content">
+
+              <div class="field">
+                <label data-i18n="ui.icons.existingLabel">Ícones existentes no EVE</label>
+                <div class="template-search-row">
+                  <button type="button" class="btn-secondary" id="listIconsBtn" data-requires-load="true">
+                    <span class="icon">🎨</span>
+                    <span data-i18n="ui.icons.listBtn">Listar ícones</span>
+                  </button>
+                </div>
+
+                <div id="iconsList"></div>
+
+                <div class="hint" data-i18n-html="ui.icons.hint">
+                  Lista de arquivos de ícones disponíveis no EVE-NG
+                  (ex: <code>/opt/unetlab/html/images/icons</code>).
+                </div>
+              </div>
+
+              <div class="field">
+                <label data-i18n="ui.icons.uploadLabel">Enviar novo ícone (PNG)</label>
+                <input type="file" id="icon_file" name="icon_file" accept=".png">
+                <div class="hint" data-i18n="ui.icons.uploadHint">
+                  O arquivo será enviado para o diretório de ícones do EVE-NG.
+                  Recomenda-se PNG com dimensões apropriadas (ex: 64x64).
+                </div>
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button type="button" class="btn-secondary" id="uploadIconBtn">
                   <span class="icon">⬆</span>
-                  <span data-i18n="ui.images.uploadBtn">Enviar imagens</span>
-                </button>
-
-                <!-- BOTÃO FIX PERMISSIONS -->
-                <button type="button" class="btn-secondary" id="fixPermissionsBtn">
-                  <span class="icon">🛠</span>
-                  <span data-i18n="ui.images.fixBtn">Fix Permissions</span>
-                </button>
-              </div>
-            </div>
-
-            <div id="imagesResultWrapper">
-              <div id="imagesResult"></div>
-            </div>
-          </div>
-          <!-- ==================== FIM ABA IMAGES ==================== -->
-
-          <!-- ==================== ABA TEMPLATES ==================== -->
-          <div id="templates-tab" class="tab-content">
-            <div class="field">
-              <label data-i18n="ui.templates.existingLabel">Templates existentes no EVE</label>
-              <div class="template-search-row">
-                <input type="text" id="template_search"
-                  placeholder="Filtrar por nome (ex: huawei, juniper, mikrotik...)" data-i18n-placeholder="ui.templates.searchPlaceholder">
-                <button type="button" class="btn-secondary" id="listTemplatesBtn">
-                  <span class="icon">📂</span>
-                  <span data-i18n="ui.templates.listBtn">Listar templates</span>
-                </button>
-              </div>
-              <div id="templatesList"></div>
-              <div class="hint" data-i18n="ui.templates.listHint">
-                Clique em um template da lista para carregar o conteúdo no editor abaixo.
-              </div>
-            </div>
-
-            <div class="field">
-              <label data-i18n="ui.templates.fileLabel">Nome do arquivo de template</label>
-              <input type="text" name="template_yaml_name" id="template_yaml_name" placeholder="Ex: huaweine40.yml" data-i18n-placeholder="ui.templates.filePlaceholder">
-              <div class="hint" data-i18n-html="ui.templates.fileHint">
-                Se não informar a extensão, será usado <code>.yml</code> automaticamente.
-              </div>
-            </div>
-
-            <div class="field">
-              <label data-i18n="ui.templates.contentLabel">Conteúdo do template YAML</label>
-              <textarea id="template_content" name="template_content"
-                placeholder="# Cole ou edite aqui o conteúdo YAML do template..." data-i18n-placeholder="ui.templates.contentPlaceholder"></textarea>
-              <div class="hint" data-i18n-html="ui.templates.contentHint">
-                O arquivo será enviado para:
-                <code>/opt/unetlab/html/templates/amd</code> e
-                <code>/opt/unetlab/html/templates/intel</code>.
-              </div>
-            </div>
-
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-              <button type="button" class="btn-secondary" id="loadTemplateBtn">
-                <span class="icon">📥</span>
-                <span data-i18n="ui.templates.loadBtn">Carregar template do EVE</span>
-              </button>
-
-              <button type="button" class="btn-secondary" id="saveTemplateBtn">
-                <span class="icon">💾</span>
-                <span data-i18n="ui.templates.saveBtn">Salvar template no EVE</span>
-              </button>
-            </div>
-          </div>
-          <!-- ==================== FIM ABA TEMPLATES ==================== -->
-
-          <!-- ==================== ABA ICONS ==================== -->
-          <div id="icons-tab" class="tab-content">
-
-            <div class="field">
-              <label data-i18n="ui.icons.existingLabel">Ícones existentes no EVE</label>
-              <div class="template-search-row">
-                <button type="button" class="btn-secondary" id="listIconsBtn">
-                  <span class="icon">🎨</span>
-                  <span data-i18n="ui.icons.listBtn">Listar ícones</span>
+                  <span data-i18n="ui.icons.uploadBtn">Enviar ícone</span>
                 </button>
               </div>
 
-              <div id="iconsList"></div>
-
-              <div class="hint" data-i18n-html="ui.icons.hint">
-                Lista de arquivos de ícones disponíveis no EVE-NG
-                (ex: <code>/opt/unetlab/html/images/icons</code>).
-              </div>
             </div>
+            <!-- ==================== FIM ABA ICONS ==================== -->
 
-            <div class="field">
-              <label data-i18n="ui.icons.uploadLabel">Enviar novo ícone (PNG)</label>
-              <input type="file" id="icon_file" name="icon_file" accept=".png">
-              <div class="hint" data-i18n="ui.icons.uploadHint">
-                O arquivo será enviado para o diretório de ícones do EVE-NG.
-                Recomenda-se PNG com dimensões apropriadas (ex: 64x64).
+
+            <!-- ==================== ABA ISHARE2 ==================== -->
+            <div id="ishare2-tab" class="tab-content">
+
+              <div class="field">
+                <label data-i18n="ui.ishare2.searchLabel">Busca no iShare2 (search all)</label>
+                <div class="template-search-row">
+                  <button type="button" class="btn-secondary" id="ishare2_search_btn">
+                    <span class="icon">🌐</span>
+                    <span data-i18n="ui.ishare2.searchBtn">Buscar no iShare2</span>
+                  </button>
+                </div>
+                <div class="hint" data-i18n-html="ui.ishare2.searchHint">
+                  Esta busca usa o comando <code>ishare2 search all</code> para listar imagens disponíveis
+                  nos mirrors do projeto iShare2.
+                </div>
               </div>
-            </div>
 
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-              <button type="button" class="btn-secondary" id="uploadIconBtn">
-                <span class="icon">⬆</span>
-                <span data-i18n="ui.icons.uploadBtn">Enviar ícone</span>
-              </button>
-            </div>
-
-          </div>
-          <!-- ==================== FIM ABA ICONS ==================== -->
-
-
-          <!-- ==================== ABA ISHARE2 ==================== -->
-          <div id="ishare2-tab" class="tab-content">
-
-            <div class="field">
-              <label data-i18n="ui.ishare2.searchLabel">Busca no iShare2 (search all)</label>
-              <div class="template-search-row">
-                <button type="button" class="btn-secondary" id="ishare2_search_btn">
-                  <span class="icon">🌐</span>
-                  <span data-i18n="ui.ishare2.searchBtn">Buscar no iShare2</span>
-                </button>
-              </div>
-              <div class="hint" data-i18n-html="ui.ishare2.searchHint">
-                Esta busca usa o comando <code>ishare2 search all</code> para listar imagens disponíveis
-                nos mirrors do projeto iShare2.
-              </div>
-            </div>
-
-            <div class="field">
-              <label data-i18n="ui.ishare2.resultLabel">Resultado</label>
-              <div class="field" id="ishare2FilterWrapper" style="display:none; margin-bottom:6px;">
-                <input type="text" id="ishare2_filter"
-                  placeholder="Filtrar pelos nomes das imagens (ex: mikrotik, juniper...)" data-i18n-placeholder="ui.ishare2.filterPlaceholder">
-              </div>
-              <div class="progress-label" id="ishare2ProgressText" style="display:none;" data-i18n="ui.ishare2.progressLabel">Instalando...</div>
-              <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
-                <div class="progress-bar" id="ishare2ProgressBar"></div>
-              </div>
+              <div class="field">
+                <label data-i18n="ui.ishare2.resultLabel">Resultado</label>
+                <div class="field" id="ishare2FilterWrapper" style="display:none; margin-bottom:6px;">
+                  <input type="text" id="ishare2_filter"
+                    placeholder="Filtrar pelos nomes das imagens (ex: mikrotik, juniper...)" data-i18n-placeholder="ui.ishare2.filterPlaceholder">
+                </div>
+                <div class="progress-label" id="ishare2ProgressText" style="display:none;" data-i18n="ui.ishare2.progressLabel">Instalando...</div>
+                <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
+                  <div class="progress-bar" id="ishare2ProgressBar"></div>
+                </div>
               <div id="ishare2Output"></div>
             </div>
 
           </div>
           <!-- ==================== FIM ABA ISHARE2 ==================== -->
 
-
+          <!-- ==================== ABA SISTEMA ==================== -->
+          <div id="system-tab" class="tab-content">
+            <div class="system-card">
+              <div class="system-header">
+                <div class="system-title" data-i18n="ui.system.resourcesTitle">Recursos do servidor</div>
+                <button type="button" class="btn-secondary" id="systemReloadBtn">
+                  <span class="icon">🔄</span>
+                  <span data-i18n="ui.system.reload">Recarregar</span>
+                </button>
+              </div>
+              <div class="platform-identity">
+                <div class="platform-pill" id="platformBadge"></div>
+                <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
+              </div>
+              <div class="resource-box" id="resourceBox">
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.cpu">CPU</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceCpuBar"></div></div>
+                  <span class="resource-value" id="resourceCpu">--</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.ram">RAM</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceMemBar"></div></div>
+                  <span class="resource-value" id="resourceMem">--</span>
+                  <span class="resource-sub" data-i18n="ui.system.ramHint">Uso de memória</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.disk">DISK</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceDiskBar"></div></div>
+                  <span class="resource-value" id="resourceDisk">--</span>
+                  <span class="resource-sub" data-i18n="ui.system.diskHint">Partição raiz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ==================== FIM ABA SISTEMA ==================== -->
+        </div>
         </form>
       </div>
     </div>

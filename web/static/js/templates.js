@@ -70,31 +70,38 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  if (listTemplatesBtn) {
-    listTemplatesBtn.addEventListener('click', function () {
+  function loadTemplatesList(options) {
+    options = options || {};
+    if (!templatesListDiv) {
+      return Promise.resolve({ success: false, reason: 'no-target' });
+    }
+
+    if (!options.skipClearMessages) {
       const messages = document.getElementById('messages');
       if (messages) {
         messages.innerHTML = '';
       }
-      if (templatesListDiv) {
-        templatesListDiv.innerHTML = '';
-      }
+    }
+    templatesListDiv.innerHTML = '';
 
-      const creds = getCommonCreds();
-      const eve_ip = creds.eve_ip;
-      const eve_user = creds.eve_user;
-      const eve_pass = creds.eve_pass;
+    const creds = getCommonCreds();
+    const eve_ip = creds.eve_ip;
+    const eve_user = creds.eve_user;
+    const eve_pass = creds.eve_pass;
 
-      if (!eve_ip || !eve_user || !eve_pass) {
+    if (!eve_ip || !eve_user || !eve_pass) {
+      if (!options.silent) {
         showMessage('error', t('templates.missingCreds'));
-        return;
       }
+      return Promise.resolve({ success: false, reason: 'missing-creds' });
+    }
 
-      const fd = new FormData();
-      fd.append('eve_ip', eve_ip);
-      fd.append('eve_user', eve_user);
-      fd.append('eve_pass', eve_pass);
+    const fd = new FormData();
+    fd.append('eve_ip', eve_ip);
+    fd.append('eve_user', eve_user);
+    fd.append('eve_pass', eve_pass);
 
+    return new Promise(function (resolve) {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/templates/list', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -106,33 +113,49 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
-            showMessage('error', t('templates.parseError') + '<br><pre>' +
-              (xhr.responseText || String(err)) + '</pre>');
-            return;
+            if (!options.silent) {
+              showMessage('error', t('templates.parseError') + '<br><pre>' +
+                (xhr.responseText || String(err)) + '</pre>');
+            }
+            return resolve({ success: false, reason: 'parse' });
           }
 
           if (!resp) {
-            showMessage('error', t('templates.emptyResponse'));
-            return;
+            if (!options.silent) {
+              showMessage('error', t('templates.emptyResponse'));
+            }
+            return resolve({ success: false, reason: 'empty' });
           }
 
           if (!resp.success) {
-            showMessage('error', resp.message || t('templates.requestFail'));
-          } else {
+            if (!options.silent) {
+              showMessage('error', resp.message || t('templates.requestFail'));
+            }
+          } else if (!options.silent) {
             showMessage('success', resp.message || t('templates.successList'));
           }
 
           const templates = (resp.templates && resp.templates.all) || [];
           currentTemplates = templates;
           renderTemplateList(templateSearchInput ? templateSearchInput.value : '');
+          return resolve({ success: !!resp.success, templates: templates });
         }
       };
 
       xhr.onerror = function () {
-        showMessage('error', t('msg.networkError'));
+        if (!options.silent) {
+          showMessage('error', t('msg.networkError'));
+        }
+        return resolve({ success: false, reason: 'network' });
       };
 
       xhr.send(fd);
+    });
+  }
+
+  if (listTemplatesBtn) {
+    listTemplatesBtn.addEventListener('click', function () {
+      loadTemplatesList();
     });
   }
 
@@ -289,4 +312,7 @@ document.addEventListener('DOMContentLoaded', function () {
   window.addEventListener('netconfig:language-changed', function () {
     renderTemplateList(templateSearchInput ? templateSearchInput.value : '');
   });
+
+  window.NetConfigApp = window.NetConfigApp || {};
+  window.NetConfigApp.loadTemplates = loadTemplatesList;
 });

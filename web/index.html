@@ -50,6 +50,11 @@
       padding: 20px;
     }
 
+    body.is-loading,
+    body.is-loading * {
+      cursor: progress !important;
+    }
+
     .container {
       width: 100%;
       max-width: 640px;
@@ -693,6 +698,7 @@
     .tag-pill {
       display: inline-flex;
       align-items: center;
+      gap: 6px;
       padding: 2px 7px;
       border-radius: 999px;
       background-color: rgba(15, 23, 42, 1);
@@ -704,6 +710,38 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .pill-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pill-action {
+      border: 1px solid rgba(248, 113, 113, 0.6);
+      background: rgba(248, 113, 113, 0.12);
+      color: #fecaca;
+      border-radius: 999px;
+      padding: 2px 9px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.12s ease-out;
+      flex-shrink: 0;
+    }
+
+    .pill-action:hover {
+      background: rgba(248, 113, 113, 0.2);
+      border-color: rgba(248, 113, 113, 0.8);
+      color: #fecdd3;
+    }
+
+    .pill-action:active {
+      transform: translateY(1px);
     }
 
     .tag-pill::before {

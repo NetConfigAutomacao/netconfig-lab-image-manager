@@ -46,6 +46,32 @@ def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str):
     return proc.returncode, stdout, stderr
 
 
+def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
+    """
+    Detecta se o host é EVE-NG ou PNETLab lendo /etc/issue (ou arquivos relacionados).
+    Retorna (name, raw_output, source_file).
+    name: "eve-ng" | "pnetlab" | "unknown"
+    """
+    detect_cmd = (
+        "if [ -f /etc/issue ]; then "
+        "echo '---FILE:/etc/issue---'; cat /etc/issue; "
+        "fi; "
+        "if [ -f /etc/pnetlab-release ]; then "
+        "echo '---FILE:/etc/pnetlab-release---'; cat /etc/pnetlab-release; "
+        "fi"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, detect_cmd)
+    raw = (out or "").strip()
+    content_lower = raw.lower()
+
+    if "eve-ng" in content_lower or "eve ng" in content_lower:
+        return "eve-ng", raw, "/etc/issue"
+    if "pnetlab" in content_lower or "pnet lab" in content_lower:
+        return "pnetlab", raw, "/etc/pnetlab-release or /etc/issue"
+
+    return "unknown", raw, "/etc/issue"
+
+
 def scp_upload(eve_ip: str, eve_user: str, eve_pass: str, local_path: str, remote_path: str):
     cmd = [
         "sshpass",

@@ -238,6 +238,44 @@
       color: var(--text-muted);
     }
 
+    .platform-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-main);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .platform-pill::before {
+      content: "●";
+      font-size: 10px;
+      color: var(--accent);
+    }
+
+    .platform-identity {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .platform-logo {
+      display: none;
+      height: 32px;
+      max-width: 110px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 6px rgba(15, 23, 42, 0.9));
+      background: rgba(15, 23, 42, 0.7);
+      border-radius: 8px;
+      padding: 4px 6px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
     .alert {
       border-radius: 10px;
       padding: 8px 10px;
@@ -917,6 +955,10 @@
               <div class="load-title" data-i18n="ui.loadDataTitle">Carregar dados do EVE</div>
               <div class="load-hint" data-i18n="ui.loadDataHint">
                 Preencha IP, usuário e senha e clique para listar imagens, ícones e templates existentes no servidor.
+              </div>
+              <div class="platform-identity">
+                <div class="platform-pill" id="platformBadge"></div>
+                <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
               </div>
             </div>
             <button type="button" class="btn-primary" id="loadDataBtn">

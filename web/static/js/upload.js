@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
 
   function resetProgress() {
     setTimeout(function () {
@@ -53,6 +55,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
 
     if (xhr.upload && progressContainer && progressBar && progressText) {
       xhr.upload.addEventListener('progress', function (event) {
@@ -64,17 +67,17 @@ document.addEventListener('DOMContentLoaded', function () {
           progressContainer.style.display = 'block';
           progressText.style.display = 'block';
           progressBar.style.width = percent + '%';
-          progressText.textContent =
-            'Enviando arquivos... ' +
-            percent + '% (' +
-            loadedMB.toFixed(1) + ' MB de ' +
-            totalMB.toFixed(1) + ' MB)';
+          progressText.textContent = t('upload.progress', {
+            percent: percent,
+            loaded: loadedMB.toFixed(1),
+            total: totalMB.toFixed(1)
+          });
         } else {
           // Não foi possível calcular o tamanho total: mostra progresso indeterminado
           progressContainer.style.display = 'block';
           progressText.style.display = 'block';
           progressBar.style.width = '100%';
-          progressText.textContent = 'Enviando arquivos...';
+          progressText.textContent = t('upload.progress.indeterminate');
         }
       });
     }
@@ -85,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
-          showMessage('error', 'Erro ao interpretar resposta do servidor.<br><pre>' +
+          showMessage('error', t('msg.parseError') + '<br><pre>' +
             (xhr.responseText || String(err)) + '</pre>');
           resetProgress();
           return;
@@ -94,16 +97,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (xhr.status === 200 && resp && resp.success) {
           if (progressBar && progressText) {
             progressBar.style.width = '100%';
-            progressText.textContent = 'Processando no servidor...';
+            progressText.textContent = t('upload.processing');
           }
-          showMessage('success', resp.message || 'Upload concluído com sucesso.');
+          showMessage('success', resp.message || t('upload.success'));
         } else {
-          showMessage('error', (resp && resp.message) || 'Erro ao processar upload.');
+          showMessage('error', (resp && resp.message) || t('upload.error'));
           if (resp && resp.errors && resp.errors.length) {
             resp.errors.forEach(function (err) {
               const detail = [];
               if (err.filename) detail.push('<b>' + err.filename + '</b>');
-              if (err.context) detail.push('<b>Contexto:</b> ' + err.context);
+              if (err.context) detail.push('<b>' + t('labels.context') + '</b> ' + err.context);
               if (err.stdout) detail.push('<pre>' + err.stdout + '</pre>');
               if (err.stderr) detail.push('<pre>' + err.stderr + '</pre>');
               showMessage('error', detail.join('<br>'));
@@ -115,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     xhr.onerror = function () {
-      showMessage('error', 'Falha na comunicação com o servidor.');
+      showMessage('error', t('msg.networkError'));
       resetProgress();
     };
 

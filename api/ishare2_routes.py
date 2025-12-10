@@ -18,6 +18,8 @@ from __future__ import annotations
 import requests
 from flask import Blueprint, jsonify, request
 
+from i18n import translate, get_request_lang
+
 ishare2_bp = Blueprint("ishare2_bp", __name__, url_prefix="/ishare2")
 
 
@@ -28,6 +30,7 @@ def ishare2_search_all():
 
     Via Nginx: /api/ishare2/search_all
     """
+    lang = get_request_lang()
     query = (request.form.get("query") or "").strip()
 
     payload = {"query": query} if query else {}
@@ -44,7 +47,7 @@ def ishare2_search_all():
         return (
             jsonify(
                 success=False,
-                message=f"Falha ao contatar o serviço ishare2: {exc}",
+                message=translate("ishare2.contact_error", lang, error=exc),
             ),
             502,
         )
@@ -55,7 +58,7 @@ def ishare2_search_all():
         return (
             jsonify(
                 success=False,
-                message="Resposta inválida do serviço ishare2 (não é JSON).",
+                message=translate("ishare2.invalid_json", lang),
                 status_code=resp.status_code,
                 raw_text=resp.text,
             ),
@@ -85,6 +88,7 @@ def ishare2_install():
 
     Via Nginx: /api/ishare2/install
     """
+    lang = get_request_lang()
     image_type = (request.form.get("type") or "").strip()
     image_id = (request.form.get("id") or "").strip()
 
@@ -96,7 +100,7 @@ def ishare2_install():
         return (
             jsonify(
                 success=False,
-                message="Parâmetros 'type' e 'id' são obrigatórios para instalar uma imagem.",
+                message=translate("ishare2.missing_type", lang),
             ),
             400,
         )
@@ -105,7 +109,7 @@ def ishare2_install():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG para instalar a imagem.",
+                message=translate("ishare2.missing_creds", lang),
             ),
             400,
         )
@@ -128,7 +132,7 @@ def ishare2_install():
         return (
             jsonify(
                 success=False,
-                message=f"Falha ao contatar o serviço ishare2 para instalação: {exc}",
+                message=translate("ishare2.install_contact_error", lang, error=exc),
             ),
             502,
         )
@@ -139,7 +143,7 @@ def ishare2_install():
         return (
             jsonify(
                 success=False,
-                message="Resposta inválida do serviço ishare2 (não é JSON) ao instalar.",
+                message=translate("ishare2.install_invalid_json", lang),
                 status_code=resp.status_code,
                 raw_text=resp.text,
             ),
@@ -166,6 +170,7 @@ def ishare2_install_async():
 
     Via Nginx: /api/ishare2/install_async
     """
+    lang = get_request_lang()
     image_type = (request.form.get("type") or "").strip()
     image_id = (request.form.get("id") or "").strip()
 
@@ -177,7 +182,7 @@ def ishare2_install_async():
         return (
             jsonify(
                 success=False,
-                message="Parâmetros 'type' e 'id' são obrigatórios para instalar uma imagem.",
+                message=translate("ishare2.missing_type", lang),
             ),
             400,
         )
@@ -186,7 +191,7 @@ def ishare2_install_async():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG para instalar a imagem.",
+                message=translate("ishare2.missing_creds", lang),
             ),
             400,
         )
@@ -209,7 +214,7 @@ def ishare2_install_async():
         return (
             jsonify(
                 success=False,
-                message=f"Falha ao contatar o serviço ishare2 para iniciar a instalação: {exc}",
+                message=translate("ishare2.install_start_error", lang, error=exc),
             ),
             502,
         )
@@ -220,7 +225,7 @@ def ishare2_install_async():
         return (
             jsonify(
                 success=False,
-                message="Resposta inválida do serviço ishare2 (não é JSON) ao iniciar instalação.",
+                message=translate("ishare2.install_start_invalid_json", lang),
                 status_code=resp.status_code,
                 raw_text=resp.text,
             ),
@@ -246,12 +251,13 @@ def ishare2_install_progress():
 
     Via Nginx: /api/ishare2/install_progress?job_id=...
     """
+    lang = get_request_lang()
     job_id = (request.args.get("job_id") or "").strip()
     if not job_id:
         return (
             jsonify(
                 success=False,
-                message="Parâmetro 'job_id' é obrigatório.",
+                message=translate("ishare2.job_required", lang),
             ),
             400,
         )
@@ -266,7 +272,7 @@ def ishare2_install_progress():
         return (
             jsonify(
                 success=False,
-                message=f"Falha ao consultar progresso no serviço ishare2: {exc}",
+                message=translate("ishare2.progress_contact_error", lang, error=exc),
             ),
             502,
         )
@@ -277,7 +283,7 @@ def ishare2_install_progress():
         return (
             jsonify(
                 success=False,
-                message="Resposta inválida do serviço ishare2 (não é JSON) ao consultar progresso.",
+                message=translate("ishare2.progress_invalid_json", lang),
                 status_code=resp.status_code,
                 raw_text=resp.text,
             ),

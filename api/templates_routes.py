@@ -22,6 +22,7 @@ from flask import Blueprint, request, jsonify
 import paramiko
 
 from config import TEMPLATES_AMD_DIR, TEMPLATES_INTEL_DIR, TEMPLATE_ALLOWED_EXT
+from i18n import translate, get_request_lang
 
 templates_bp = Blueprint("templates_bp", __name__, url_prefix="/templates")
 
@@ -92,6 +93,7 @@ def _normalize_template_name(name: str) -> str:
 
 @templates_bp.route("/list", methods=["POST"])
 def list_templates():
+    lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
     eve_pass = (request.form.get("eve_pass") or "").strip()
@@ -100,7 +102,7 @@ def list_templates():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG.",
+                message=translate("templates.missing_creds", lang),
                 templates={"amd": [], "intel": [], "all": []},
             ),
             400,
@@ -128,7 +130,7 @@ def list_templates():
         return (
             jsonify(
                 success=True,
-                message="Templates listados com sucesso.",
+                message=translate("templates.list_success", lang),
                 templates={
                     "amd": amd_list,
                     "intel": intel_list,
@@ -141,7 +143,7 @@ def list_templates():
         return (
             jsonify(
                 success=False,
-                message=f"Erro ao listar templates: {e}",
+                message=translate("templates.list_error", lang, error=e),
                 templates={"amd": [], "intel": [], "all": []},
             ),
             500,
@@ -153,6 +155,7 @@ def list_templates():
 
 @templates_bp.route("/get", methods=["POST"])
 def get_template():
+    lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
     eve_pass = (request.form.get("eve_pass") or "").strip()
@@ -162,7 +165,7 @@ def get_template():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG.",
+                message=translate("templates.missing_creds", lang),
                 content="",
             ),
             400,
@@ -172,7 +175,7 @@ def get_template():
         return (
             jsonify(
                 success=False,
-                message="Informe o nome do arquivo de template.",
+                message=translate("templates.missing_name", lang),
                 content="",
             ),
             400,
@@ -208,7 +211,7 @@ def get_template():
             return (
                 jsonify(
                     success=False,
-                    message=f"Template '{template_name}' não encontrado. Erro: {last_error}",
+                    message=translate("templates.not_found", lang, name=template_name, error=last_error),
                     content="",
                 ),
                 404,
@@ -217,7 +220,7 @@ def get_template():
         return (
             jsonify(
                 success=True,
-                message=f"Template '{template_name}' carregado com sucesso.",
+                message=translate("templates.load_success", lang, name=template_name),
                 content=content,
             ),
             200,
@@ -226,7 +229,7 @@ def get_template():
         return (
             jsonify(
                 success=False,
-                message=f"Erro ao buscar template: {e}",
+                message=translate("templates.load_error", lang, error=e),
                 content="",
             ),
             500,
@@ -238,6 +241,7 @@ def get_template():
 
 @templates_bp.route("/upload", methods=["POST"])
 def upload_template():
+    lang = get_request_lang()
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
     eve_pass = (request.form.get("eve_pass") or "").strip()
@@ -250,7 +254,7 @@ def upload_template():
         return (
             jsonify(
                 success=False,
-                message="Informe IP, usuário e senha do EVE-NG.",
+                message=translate("templates.missing_creds", lang),
                 errors=[],
             ),
             400,
@@ -260,7 +264,7 @@ def upload_template():
         return (
             jsonify(
                 success=False,
-                message="Informe o nome do arquivo de template.",
+                message=translate("templates.missing_name", lang),
                 errors=[],
             ),
             400,
@@ -270,7 +274,7 @@ def upload_template():
         return (
             jsonify(
                 success=False,
-                message="Conteúdo do template está vazio.",
+                message=translate("templates.empty_content", lang),
                 errors=[],
             ),
             400,
@@ -310,11 +314,11 @@ def upload_template():
 
         success = fix_ok and not errors
         if success:
-            msg = f"Template '{template_name}' enviado e fixpermissions executado com sucesso."
+            msg = translate("templates.upload_success", lang, name=template_name)
         elif fix_ok:
-            msg = f"Template '{template_name}' enviado, mas ocorreram alguns avisos. Veja os detalhes."
+            msg = translate("templates.upload_warn", lang, name=template_name)
         else:
-            msg = f"Template '{template_name}' enviado, porém o fixpermissions retornou erro. Veja os detalhes."
+            msg = translate("templates.upload_fix_error", lang, name=template_name)
 
         return (
             jsonify(
@@ -335,7 +339,7 @@ def upload_template():
         return (
             jsonify(
                 success=False,
-                message=f"Erro ao enviar template: {e}",
+                message=translate("templates.upload_error", lang, error=e),
                 errors=errors,
             ),
             500,

@@ -2,78 +2,110 @@
 
 ![ScreenShot](images/screenshot-lab-image-manager.png)
 
-Suporta tanto EVE-NG, quanto PNETLAB :)
+Multilingual UI (Portuguese, English, Spanish) with automatic browser detection and an in-app language switcher. Works with both EVE-NG and PNETLab.
 
-## Features:
+---
 
-- Upload de imagens;
-- Upload de templates .yaml;
-- Upload de icones;
-- Auto instalação de imagens no EVE-NG (iShare2 embarcado).
+## English
 
-### iShare2
+### Features
+- Image uploads (qcow2, img, iso, vmdk) with progress bar
+- YAML template upload/list/load
+- Icon upload/list
+- Automatic image installation via embedded iShare2 CLI
 
-Este projeto utiliza o [iShare2](https://ishare2.sh/), projeto open source para automatizar downloads e instalações de imagens no EVE-NG/PNETLab. O NetConfig Lab Image Manager embarca a versão CLI do iShare2 dentro da plataforma para o download das imagens.
+### About iShare2
+The project embeds the [iShare2](https://ishare2.sh/) CLI to automate downloads and installations of images on EVE-NG/PNETLab.
 
-## Instalação do NetConfig Lab Image Manager
-
-### 1. Instalar dependências
-
-No Debian 12 ou 13:
-
+### Install
+Tested on Debian 12/13.
 ```bash
 apt-get update
 apt-get install curl -y
 curl -fsSL https://get.docker.com | sh
-```
 
-### 2. Clonar o repositório
-
-```bash
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
-```
-
-### 3. Iniciar o sistema
-
-```bash
 cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
 
-### 4. Habilitar IPv6 na aplicação:
-
-O compose cria a rede `eveng-net` com IPv6 (`fd00:dead:beef::/64`), mas o daemon do Docker precisa estar com IPv6 ligado antes de subir os containers:
-
-1. Crie/edite `/etc/docker/daemon.json` habilitando IPv6:
-
+### Enable IPv6
+The compose file creates the `eveng-net` network with IPv6 (`fd00:dead:beef::/64`). Docker must have IPv6 enabled before starting the stack:
+1. Edit `/etc/docker/daemon.json`:
 ```json
 {
   "experimental": true,
   "ip6tables": true
 }
 ```
-
-2. Reinicie o serviço Docker:
-
+2. Restart Docker:
 ```bash
 systemctl restart docker
 ```
-
-3. Recrie a stack para que a rede receba IPv6 (remova a rede antiga se existir):
-
+3. Recreate the stack (remove old network if needed):
 ```bash
 docker compose down
 docker network rm netconfig-lab-image-manager_eveng-net 2>/dev/null || true
 docker compose up -d --build
 ```
+> The default network name is `<dir>_eveng-net` (e.g., `eve-image-manager_eveng-net`). Adjust commands and IPv6 prefix if it conflicts with your network.
 
-> O nome padrão da rede é `<diretorio>_eveng-net` (ex.: `eve-image-manager_eveng-net`). Ajuste o comando acima conforme seu diretório. Também altere o prefixo IPv6 em `docker-compose.yml` se `fd00:dead:beef::/64` conflitar com sua rede.
+### Change the port (optional)
+Edit `docker-compose.yml` and adjust the port mapping, e.g.:
+```yaml
+ports:
+  - "80:8080"
+```
 
-### 5. Alterar porta (opcional)
+---
 
-Caso precise modificar a porta de acesso, edite o arquivo docker-compose.yml e ajuste o mapeamento de porta, por exemplo:
+## Español
 
+### Funciones
+- Carga de imágenes (qcow2, img, iso, vmdk) con barra de progreso
+- Carga/listado/carga en vivo de plantillas YAML
+- Carga/listado de íconos
+- Instalación automática de imágenes con el CLI de iShare2 integrado
+
+### Sobre iShare2
+El proyecto integra el CLI de [iShare2](https://ishare2.sh/) para automatizar descargas e instalaciones de imágenes en EVE-NG/PNETLab.
+
+### Instalación
+Probado en Debian 12/13.
 ```bash
+apt-get update
+apt-get install curl -y
+curl -fsSL https://get.docker.com | sh
+
+git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
+cd /opt/netconfig-lab-image-manager
+docker compose up -d --build
+```
+
+### Habilitar IPv6
+El compose crea la red `eveng-net` con IPv6 (`fd00:dead:beef::/64`). Activa IPv6 en Docker antes de subir los contenedores:
+1. Edita `/etc/docker/daemon.json`:
+```json
+{
+  "experimental": true,
+  "ip6tables": true
+}
+```
+2. Reinicia Docker:
+```bash
+systemctl restart docker
+```
+3. Recrea el stack (elimina la red vieja si existe):
+```bash
+docker compose down
+docker network rm netconfig-lab-image-manager_eveng-net 2>/dev/null || true
+docker compose up -d --build
+```
+> El nombre por defecto de la red es `<directorio>_eveng-net` (ej.: `eve-image-manager_eveng-net`). Ajusta los comandos y el prefijo IPv6 si hay conflicto con tu red.
+
+### Cambiar el puerto (opcional)
+Edita `docker-compose.yml` y ajusta el mapeo de puertos, por ejemplo:
+```yaml
 ports:
   - "80:8080"
 ```

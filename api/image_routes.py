@@ -17,12 +17,14 @@ import traceback
 from flask import Blueprint, request, jsonify
 
 from utils import run_ssh_command
+from i18n import translate, get_request_lang
 
 images_bp = Blueprint("images_bp", __name__)
 
 
 @images_bp.route("/images", methods=["POST"])
 def list_images():
+    lang = get_request_lang()
     try:
         print("[API] Requisição /images recebida", flush=True)
 
@@ -33,7 +35,7 @@ def list_images():
         print(f"[API] Dados recebidos para /images: eve_ip={eve_ip}, eve_user={eve_user}", flush=True)
 
         if not (eve_ip and eve_user and eve_pass):
-            return jsonify(success=False, message="Preencha IP, usuário e senha para listar imagens."), 400
+            return jsonify(success=False, message=translate("images.missing_creds", lang)), 400
 
         base_dirs = {
             "qemu": "/opt/unetlab/addons/qemu",
@@ -74,9 +76,9 @@ def list_images():
                         }
                     )
 
-        msg_ok = "Imagens listadas com sucesso."
+        msg_ok = translate("images.success", lang)
         if errors:
-            msg_ok += " Alguns diretórios retornaram erro, veja detalhes."
+            msg_ok += translate("images.partial_warning", lang)
 
         print(f"[API] Resultado /images: {images}", flush=True)
         return jsonify(success=(len(errors) == 0), message=msg_ok, images=images, errors=errors), 200
@@ -85,5 +87,5 @@ def list_images():
         traceback.print_exc()
         return jsonify(
             success=False,
-            message=f"Erro interno na API ao listar imagens: {str(e)}",
+            message=translate("images.internal_error", lang, error=str(e)),
         ), 500

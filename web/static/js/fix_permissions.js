@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const getCommonCreds = app.getCommonCreds || function () {
     return { eve_ip: '', eve_user: '', eve_pass: '' };
   };
+  const t = app.t || function (key) { return key; };
+  const setLangHeader = app.setLanguageHeader || function () {};
 
   fixPermissionsBtn.addEventListener('click', function () {
     const messages = document.getElementById('messages');
@@ -31,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eve_pass = creds.eve_pass;
 
     if (!eve_ip || !eve_user || !eve_pass) {
-      showMessage('error', 'Preencha IP, usuário e senha para executar o fix permissions.');
+      showMessage('error', t('fix.missingCreds'));
       return;
     }
 
@@ -43,6 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/fix-permissions', true);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
 
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
@@ -50,24 +53,23 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
           resp = JSON.parse(xhr.responseText || '{}');
         } catch (err) {
-          showMessage('error', 'Erro ao interpretar resposta do fix permissions.<br><pre>' +
+          showMessage('error', t('fix.parseError') + '<br><pre>' +
             (xhr.responseText || String(err)) + '</pre>');
           return;
         }
 
         if (resp.success) {
-          showMessage('success', resp.message || 'Fix permissions executado com sucesso.');
+          showMessage('success', resp.message || t('fix.success'));
         } else {
-          showMessage('error', resp.message || 'Falha ao executar fix permissions.');
+          showMessage('error', resp.message || t('fix.fail'));
         }
       }
     };
 
     xhr.onerror = function () {
-      showMessage('error', 'Falha na comunicação com o servidor ao executar fix permissions.');
+      showMessage('error', t('msg.networkError'));
     };
 
     xhr.send(fd);
   });
 });
-

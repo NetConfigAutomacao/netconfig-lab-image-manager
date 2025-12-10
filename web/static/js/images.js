@@ -18,8 +18,40 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   const t = app.t || function (key) { return key; };
   const setLangHeader = app.setLanguageHeader || function () {};
+  const IMAGE_LABELS = {
+    qemu: 'QEMU',
+    iol: 'IOL',
+    dynamips: 'Dynamips'
+  };
 
   let lastImages = null;
+  let loadingOps = 0;
+
+  function setLoadingCursor(active) {
+    if (active) {
+      loadingOps += 1;
+      document.body.classList.add('is-loading');
+    } else {
+      loadingOps = Math.max(0, loadingOps - 1);
+      if (loadingOps === 0) {
+        document.body.classList.remove('is-loading');
+      }
+    }
+  }
+
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[&<>"']/g, function (c) {
+      switch (c) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return c;
+      }
+    });
+  }
 
   function groupByVendor(list) {
     const groups = {};
@@ -89,6 +121,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fd.append('eve_pass', eve_pass);
 
     return new Promise(function (resolve) {
+      setLoadingCursor(true);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/api/images', true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -138,11 +171,73 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!options.silent) {
           showMessage('error', t('msg.networkError'));
         }
+        setLoadingCursor(false);
         return resolve({ success: false, reason: 'network' });
+      };
+
+      xhr.onloadend = function () {
+        setLoadingCursor(false);
       };
 
       xhr.send(fd);
     });
+  }
+
+  function deleteImage(imageType, templateName) {
+    const creds = getCommonCreds();
+    const eve_ip = creds.eve_ip;
+    const eve_user = creds.eve_user;
+    const eve_pass = creds.eve_pass;
+
+    if (!eve_ip || !eve_user || !eve_pass) {
+      showMessage('error', t('images.missingCreds'));
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append('eve_ip', eve_ip);
+    fd.append('eve_user', eve_user);
+    fd.append('eve_pass', eve_pass);
+    fd.append('image_type', imageType);
+    fd.append('template_name', templateName);
+
+    setLoadingCursor(true);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/images/delete', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        let resp = null;
+        try {
+          resp = JSON.parse(xhr.responseText || '{}');
+        } catch (err) {
+          showMessage('error', t('images.parseError') + '<br><pre>' +
+            (xhr.responseText || String(err)) + '</pre>');
+          return;
+        }
+
+        if (resp.success) {
+          showMessage('success', resp.message || t('images.deleteSuccess'));
+        } else {
+          showMessage('error', resp.message || t('images.deleteFail'));
+        }
+
+        loadImagesList({ skipClearMessages: true, silent: true });
+      }
+    };
+
+    xhr.onerror = function () {
+      showMessage('error', t('msg.networkError'));
+      setLoadingCursor(false);
+    };
+
+    xhr.onloadend = function () {
+      setLoadingCursor(false);
+    };
+
+    xhr.send(fd);
   }
 
   function renderImages(images) {
@@ -171,6 +266,8 @@ document.addEventListener('DOMContentLoaded', function () {
       const key = section[0];
       const label = section[1];
       const path = section[2];
+      const safeLabel = escapeHtml(label);
+      const safePath = escapeHtml(path);
 
       const list = images[key] || [];
       const totalCount = list.length;
@@ -181,8 +278,8 @@ document.addEventListener('DOMContentLoaded', function () {
         + '<div class="images-section">'
         + '  <div class="images-section-header">'
         + '    <div class="images-section-main">'
-        + '      <span class="images-section-title">' + label + '</span>'
-        + '      <span class="images-section-path">' + path + '</span>'
+        + '      <span class="images-section-title">' + safeLabel + '</span>'
+        + '      <span class="images-section-path">' + safePath + '</span>'
         + '    </div>'
         + '    <span class="images-section-count">' + templateCountText + '</span>'
         + '  </div>';
@@ -193,16 +290,25 @@ document.addEventListener('DOMContentLoaded', function () {
         const groups = groupByVendor(list);
         groups.forEach(function (group) {
           const count = group.items.length;
+          const vendorName = escapeHtml(group.vendor);
           html += ''
             + '<div class="vendor-group">'
             + '  <div class="vendor-header">'
-            + '    <span class="vendor-name">' + group.vendor + '</span>'
+            + '    <span class="vendor-name">' + vendorName + '</span>'
             + '    <span class="vendor-count">' + t('images.vendorCount', { count: count }) + '</span>'
             + '  </div>'
             + '  <div class="vendor-tags">';
 
           group.items.forEach(function (entry) {
-            html += '<span class="tag-pill" title="' + entry.full + '">' + entry.version + '</span>';
+            const fullEsc = escapeHtml(entry.full);
+            const versionEsc = escapeHtml(entry.version);
+            html += ''
+              + '<div class="tag-pill" title="' + fullEsc + '">'
+              + '  <span class="pill-name">' + versionEsc + '</span>'
+              + '  <button type="button" class="pill-action delete-image-btn" data-type="' + key + '" data-name="' + fullEsc + '">'
+              + t('images.deleteAction')
+              + '</button>'
+              + '</div>';
           });
 
           html += '</div></div>';
@@ -220,6 +326,28 @@ document.addEventListener('DOMContentLoaded', function () {
   if (checkBtn) {
     checkBtn.addEventListener('click', function () {
       loadImagesList();
+    });
+  }
+
+  if (imagesResult) {
+    imagesResult.addEventListener('click', function (evt) {
+      const btn = evt.target.closest('.delete-image-btn');
+      if (!btn) return;
+
+      const type = btn.getAttribute('data-type') || '';
+      const name = btn.getAttribute('data-name') || '';
+      if (!type || !name) {
+        showMessage('error', t('images.deleteFail'));
+        return;
+      }
+
+      const typeLabel = IMAGE_LABELS[type] || type.toUpperCase();
+      const confirmText = t('images.deleteConfirm', { name: name, type: typeLabel });
+      if (!window.confirm(confirmText)) {
+        return;
+      }
+
+      deleteImage(type, name);
     });
   }
 

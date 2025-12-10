@@ -16,7 +16,7 @@
 import traceback
 from flask import Blueprint, request, jsonify
 
-from utils import run_ssh_command, detect_platform
+from utils import run_ssh_command, detect_platform, get_resource_usage
 from i18n import translate, get_request_lang
 
 images_bp = Blueprint("images_bp", __name__)
@@ -47,6 +47,7 @@ def list_images():
         errors = []
 
         platform_name, platform_raw, platform_source = detect_platform(eve_ip, eve_user, eve_pass)
+        resources = get_resource_usage(eve_ip, eve_user, eve_pass)
 
         for kind, base_dir in base_dirs.items():
             cmd = (
@@ -93,6 +94,7 @@ def list_images():
                 "raw": platform_raw,
                 "source": platform_source,
             },
+            resources=resources,
         ), 200
 
     except Exception as e:

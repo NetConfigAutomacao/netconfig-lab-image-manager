@@ -276,6 +276,94 @@
       border: 1px solid rgba(56, 189, 248, 0.2);
     }
 
+    .resource-box {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background-color: rgba(15, 23, 42, 0.85);
+    }
+
+    .resource-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .resource-label {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .resource-value {
+      font-size: 13px;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .resource-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .resource-bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.15);
+      overflow: hidden;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .resource-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #0ea5e9, #2563eb);
+      transition: width 0.25s ease-out;
+      border-radius: 999px;
+    }
+
+    .system-card {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.92) 0, #020617 70%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 35px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .system-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .system-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.02em;
+    }
+
+    .system-title::before {
+      content: "🖥";
+      font-size: 14px;
+    }
+
     .alert {
       border-radius: 10px;
       padding: 8px 10px;
@@ -956,10 +1044,6 @@
               <div class="load-hint" data-i18n="ui.loadDataHint">
                 Preencha IP, usuário e senha e clique para listar imagens, ícones e templates existentes no servidor.
               </div>
-              <div class="platform-identity">
-                <div class="platform-pill" id="platformBadge"></div>
-                <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
-              </div>
             </div>
             <button type="button" class="btn-primary" id="loadDataBtn">
               <span class="icon">⚡</span>
@@ -974,6 +1058,7 @@
               <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
               <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
               <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
+              <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
             </div>
 
             <!-- ==================== ABA IMAGES ==================== -->
@@ -1165,12 +1250,49 @@
                 <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
                   <div class="progress-bar" id="ishare2ProgressBar"></div>
                 </div>
-                <div id="ishare2Output"></div>
-              </div>
-
+              <div id="ishare2Output"></div>
             </div>
-            <!-- ==================== FIM ABA ISHARE2 ==================== -->
+
           </div>
+          <!-- ==================== FIM ABA ISHARE2 ==================== -->
+
+          <!-- ==================== ABA SISTEMA ==================== -->
+          <div id="system-tab" class="tab-content">
+            <div class="system-card">
+              <div class="system-header">
+                <div class="system-title" data-i18n="ui.system.resourcesTitle">Recursos do servidor</div>
+                <button type="button" class="btn-secondary" id="systemReloadBtn">
+                  <span class="icon">🔄</span>
+                  <span data-i18n="ui.system.reload">Recarregar</span>
+                </button>
+              </div>
+              <div class="platform-identity">
+                <div class="platform-pill" id="platformBadge"></div>
+                <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
+              </div>
+              <div class="resource-box" id="resourceBox">
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.cpu">CPU</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceCpuBar"></div></div>
+                  <span class="resource-value" id="resourceCpu">--</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.ram">RAM</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceMemBar"></div></div>
+                  <span class="resource-value" id="resourceMem">--</span>
+                  <span class="resource-sub" data-i18n="ui.system.ramHint">Uso de memória</span>
+                </div>
+                <div class="resource-item">
+                  <span class="resource-label" data-i18n="ui.system.disk">DISK</span>
+                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceDiskBar"></div></div>
+                  <span class="resource-value" id="resourceDisk">--</span>
+                  <span class="resource-sub" data-i18n="ui.system.diskHint">Partição raiz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- ==================== FIM ABA SISTEMA ==================== -->
+        </div>
         </form>
       </div>
     </div>

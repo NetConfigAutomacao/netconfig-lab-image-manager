@@ -1,3 +1,5 @@
+![Logo-NetConfig-Lab-Image-Manager](web/static/img/Logotipo horizontal negativo.png)
+
 # NetConfig Lab Image Manager
 Esse é um projeto OpenSource desenvolvido pela equipe do [NetConfig](https://netconfig.com.br/), software de automação de redes.
 Quer saber mais sobre o NetConfig? Entre já e conheça!

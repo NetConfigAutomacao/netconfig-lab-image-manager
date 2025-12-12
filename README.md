@@ -12,23 +12,25 @@ Ah, suporta tanto EVE-NG, quanto PNETLAB :)
 
 ![ScreenShot](images/screenshot-lab-image-manager.png)
 
-Multilingual UI (Portuguese, English, Spanish) with automatic browser detection and an in-app language switcher. Works with both EVE-NG and PNETLab.
+Suporta tanto EVE-NG, quanto PNETLAB :)
 
----
+## Features:
 
-## English
+- Upload de imagens;
+- Upload de templates .yaml;
+- Upload de icones;
+- Auto instalação de imagens no EVE-NG (iShare2 embarcado).
 
-### Features
-- Image uploads (qcow2, img, iso, vmdk) with progress bar
-- YAML template upload/list/load
-- Icon upload/list
-- Automatic image installation via embedded iShare2 CLI
+### iShare2
 
-### About iShare2
-The project embeds the [iShare2](https://ishare2.sh/) CLI to automate downloads and installations of images on EVE-NG/PNETLab.
+Este projeto utiliza o [iShare2](https://ishare2.sh/), projeto open source para automatizar downloads e instalações de imagens no EVE-NG/PNETLab. O NetConfig Lab Image Manager embarca a versão CLI do iShare2 dentro da plataforma para o download das imagens.
 
-### Install
-Tested on Debian 12/13.
+## Instalação do NetConfig Lab Image Manager
+
+### 1. Instalar dependências
+
+No Debian 12 ou 13:
+
 ```bash
 apt-get update
 apt-get install curl -y

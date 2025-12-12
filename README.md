@@ -6,6 +6,8 @@ Quer saber mais sobre o NetConfig? Entre já e conheça!
 
 O NetConfig - Lab Image Manager é um projeto que vem com a intenção de auxiliar aqueles que estudam redes, tirando a complexidade para subir imagens em laboratorios (EVE-NG / PNETLAB) de forma que o usuario possa focar no seu estudo.
 
+Não tente instalar direto no EVE/PNETLAB!  A instalação é para ser em uma VM separada!
+
 Ah, suporta tanto EVE-NG, quanto PNETLAB :)
 
 ![ScreenShot](images/screenshot-lab-image-manager.png)

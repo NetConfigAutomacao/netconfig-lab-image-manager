@@ -14,6 +14,8 @@ Ah, suporta tanto EVE-NG, quanto PNETLAB :)
 
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
+A instalação precisa ser em um linux a parte! Não instale no proprio EVE / PNETLAB ou esse poderá crashar feio!
+
 ## Features:
 
 - Upload de imagens;

@@ -25,7 +25,7 @@ Suporta tanto EVE-NG, quanto PNETLAB :)
 
 Este projeto segue **SemVer** no formato `x.y.z`.
 
-- Versão atual: `1.0.0` (fonte: arquivo `VERSION`)
+- Versão atual: `1.0.1` (fonte: arquivo `VERSION`)
 - Ver versão no repositório: `cat VERSION`
 - Ver versão pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Ver em qualquer resposta da API: confira o header `X-App-Version`
@@ -54,6 +54,15 @@ curl -fsSL https://get.docker.com | sh
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
+```
+
+## Testes unitários
+
+Os testes unitários ficam em `tests/` e usam `unittest` (stdlib do Python).
+
+Para rodar localmente:
+```bash
+python3 -m unittest discover -s tests -v
 ```
 
 ### Enable IPv6
@@ -98,7 +107,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.0.0` (archivo `VERSION`)
+- Versión actual: `1.0.1` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 

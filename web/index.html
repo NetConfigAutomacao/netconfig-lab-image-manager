@@ -107,6 +107,25 @@
       gap: 10px;
     }
 
+    .version-pill {
+      display: none;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-muted);
+      font-size: 11px;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .version-pill strong {
+      color: var(--text-main);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
     .brand-logo {
       height: 32px;
       max-width: 110px;
@@ -530,9 +549,12 @@
 
     .language-row {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
       margin: 4px 0 4px;
       flex-wrap: wrap;
+      width: 100%;
     }
 
     .language-switcher {
@@ -1038,7 +1060,7 @@
       }
 
       .language-row {
-        justify-content: center;
+        justify-content: space-between;
         margin: 8px 0;
       }
 
@@ -1073,6 +1095,9 @@
         </div>
 
         <div class="language-row">
+          <div class="version-pill" id="appVersionPill" title="">
+            <strong>v</strong><span id="appVersionValue">--</span>
+          </div>
           <div class="language-switcher">
             <label for="languageSelect" data-i18n="ui.language.label">Idioma</label>
             <select id="languageSelect" class="language-select">

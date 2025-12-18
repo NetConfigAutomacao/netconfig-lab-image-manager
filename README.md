@@ -21,6 +21,21 @@ Suporta tanto EVE-NG, quanto PNETLAB :)
 - Upload de icones;
 - Auto instalação de imagens no EVE-NG (iShare2 embarcado).
 
+## Versão
+
+Este projeto segue **SemVer** no formato `x.y.z`.
+
+- Versão atual: `1.0.0` (fonte: arquivo `VERSION`)
+- Ver versão no repositório: `cat VERSION`
+- Ver versão pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
+- Ver em qualquer resposta da API: confira o header `X-App-Version`
+
+### Regras de versionamento (SemVer)
+
+- **MAJOR** (`x.0.0`): mudanças incompatíveis (breaking changes) na API/UX/fluxo.
+- **MINOR** (`0.y.0`): novas features compatíveis (sem quebrar o que já existe).
+- **PATCH** (`0.0.z`): correções e melhorias internas compatíveis.
+
 ### iShare2
 
 Este projeto utiliza o [iShare2](https://ishare2.sh/), projeto open source para automatizar downloads e instalações de imagens no EVE-NG/PNETLab. O NetConfig Lab Image Manager embarca a versão CLI do iShare2 dentro da plataforma para o download das imagens.
@@ -78,6 +93,14 @@ ports:
 - Carga/listado/carga en vivo de plantillas YAML
 - Carga/listado de íconos
 - Instalación automática de imágenes con el CLI de iShare2 integrado
+
+### Versión
+
+Este proyecto usa **SemVer** (`x.y.z`).
+
+- Versión actual: `1.0.0` (archivo `VERSION`)
+- Ver en el repo: `cat VERSION`
+- Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 
 ### Sobre iShare2
 El proyecto integra el CLI de [iShare2](https://ishare2.sh/) para automatizar descargas e instalaciones de imágenes en EVE-NG/PNETLab.

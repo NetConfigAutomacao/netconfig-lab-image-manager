@@ -23,11 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # copia TODOS os .py (app, rotas, utils, etc)
-COPY . /app/
+COPY api/ /app/
+COPY VERSION /app/VERSION
 
 EXPOSE 8080
 

@@ -15,8 +15,6 @@
 
 from __future__ import annotations
 
-from flask import request
-
 TRANSLATIONS = {
     "pt": {
         "errors.missing_credentials": "Informe IP, usuário e senha do EVE-NG.",
@@ -215,6 +213,13 @@ def _normalize_lang(lang: str | None) -> str:
 
 
 def get_request_lang() -> str:
+    # Import local para permitir que este módulo seja importado em contextos
+    # fora do Flask (ex.: testes unitários), sem exigir a dependência instalada.
+    try:
+        from flask import request  # type: ignore
+    except Exception:
+        return "pt"
+
     header = request.headers.get("X-Language") or request.headers.get("Accept-Language") or ""
     param = request.values.get("lang") or ""
     candidate = param or header

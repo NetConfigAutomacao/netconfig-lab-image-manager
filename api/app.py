@@ -21,6 +21,7 @@ from templates_routes import templates_bp
 from icons_routes import icons_bp
 from fix_routes import fix_bp
 from ishare2_routes import ishare2_bp
+from version import get_app_version, check_for_update
 
 
 def create_app() -> Flask:
@@ -44,6 +45,19 @@ def create_app() -> Flask:
     @app.route("/health", methods=["GET"])
     def health():
         return jsonify(status="ok"), 200
+
+    @app.route("/version", methods=["GET"])
+    def version():
+        return jsonify(version=get_app_version()), 200
+
+    @app.route("/update", methods=["GET"])
+    def update():
+        return jsonify(check_for_update()), 200
+
+    @app.after_request
+    def add_version_header(response):
+        response.headers["X-App-Version"] = get_app_version()
+        return response
 
     return app
 

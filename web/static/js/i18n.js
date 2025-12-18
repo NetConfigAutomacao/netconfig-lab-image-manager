@@ -21,6 +21,9 @@
   const translations = {
     pt: {
       'ui.projectTitle': 'NetConfig Lab Image Manager',
+      'ui.version.tooltip': 'Versão: {version}',
+      'ui.version.updateTooltip': 'Versão: {current} (nova: {latest})',
+      'ui.version.updateHint': 'Clique para abrir a release',
       'ui.language.label': 'Idioma',
       'ui.language.auto': 'Automático',
       'ui.language.pt': 'Português',
@@ -182,6 +185,9 @@
     },
     en: {
       'ui.projectTitle': 'NetConfig Lab Image Manager',
+      'ui.version.tooltip': 'Version: {version}',
+      'ui.version.updateTooltip': 'Version: {current} (new: {latest})',
+      'ui.version.updateHint': 'Click to open the release',
       'ui.language.label': 'Language',
       'ui.language.auto': 'Automatic',
       'ui.language.pt': 'Portuguese',
@@ -343,6 +349,9 @@
     },
     es: {
       'ui.projectTitle': 'NetConfig Lab Image Manager',
+      'ui.version.tooltip': 'Versión: {version}',
+      'ui.version.updateTooltip': 'Versión: {current} (nueva: {latest})',
+      'ui.version.updateHint': 'Haz clic para abrir la release',
       'ui.language.label': 'Idioma',
       'ui.language.auto': 'Automático',
       'ui.language.pt': 'Portugués',

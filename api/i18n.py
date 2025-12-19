@@ -78,7 +78,12 @@ TRANSLATIONS = {
         "vrnetlab.missing_creds": "Informe IP, usuário e senha do host ContainerLab.",
         "vrnetlab.status.ok": "Ambiente VRNETLAB consultado com sucesso.",
         "vrnetlab.status.no_runtime": "Runtime de containers (docker/podman) não encontrado. Instale ou configure para usar VRNETLAB.",
+        "vrnetlab.status.no_repo": "Repositório /opt/vrnetlab não encontrado. Você pode instalá-lo pelo botão abaixo.",
         "vrnetlab.status.fail": "Falha ao consultar VRNETLAB (código {rc}).",
+        "vrnetlab.install.success": "VRNETLAB instalado em /opt/vrnetlab.",
+        "vrnetlab.install.already": "VRNETLAB já está presente em /opt/vrnetlab.",
+        "vrnetlab.install.git_missing": "Git não está instalado no host remoto. Instale git para prosseguir com o VRNETLAB.",
+        "vrnetlab.install.fail": "Falha ao instalar o VRNETLAB (código {rc}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -142,7 +147,12 @@ TRANSLATIONS = {
         "vrnetlab.missing_creds": "Provide IP, user and password for the ContainerLab host.",
         "vrnetlab.status.ok": "VRNETLAB environment inspected successfully.",
         "vrnetlab.status.no_runtime": "Container runtime (docker/podman) not found. Install or configure one to use VRNETLAB.",
+        "vrnetlab.status.no_repo": "Repository /opt/vrnetlab not found. You can install it using the button below.",
         "vrnetlab.status.fail": "Failed to query VRNETLAB (exit code {rc}).",
+        "vrnetlab.install.success": "VRNETLAB installed at /opt/vrnetlab.",
+        "vrnetlab.install.already": "VRNETLAB is already present at /opt/vrnetlab.",
+        "vrnetlab.install.git_missing": "Git is not installed on the remote host. Install git to proceed with VRNETLAB.",
+        "vrnetlab.install.fail": "Failed to install VRNETLAB (exit code {rc}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -206,7 +216,12 @@ TRANSLATIONS = {
         "vrnetlab.missing_creds": "Informa IP, usuario y contraseña del host ContainerLab.",
         "vrnetlab.status.ok": "Entorno VRNETLAB consultado con éxito.",
         "vrnetlab.status.no_runtime": "Runtime de contenedores (docker/podman) no encontrado. Instala o configura uno para usar VRNETLAB.",
+        "vrnetlab.status.no_repo": "Repositorio /opt/vrnetlab no encontrado. Puedes instalarlo con el botón abajo.",
         "vrnetlab.status.fail": "Fallo al consultar VRNETLAB (código {rc}).",
+        "vrnetlab.install.success": "VRNETLAB instalado en /opt/vrnetlab.",
+        "vrnetlab.install.already": "VRNETLAB ya está presente en /opt/vrnetlab.",
+        "vrnetlab.install.git_missing": "Git no está instalado en el host remoto. Instala git para continuar con VRNETLAB.",
+        "vrnetlab.install.fail": "Fallo al instalar VRNETLAB (código {rc}).",
     },
 }
 

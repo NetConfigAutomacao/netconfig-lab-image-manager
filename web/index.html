@@ -1405,8 +1405,15 @@
                   <span class="icon">🔍</span>
                   <span data-i18n="ui.vrnetlab.statusBtn">Checar ambiente</span>
                 </button>
+                <button type="button" class="btn-secondary" id="vrnetlabInstallBtn" data-requires-load="true" style="display:none;">
+                  <span class="icon">⬇</span>
+                  <span data-i18n="ui.vrnetlab.installBtn">Instalar VRNETLAB</span>
+                </button>
                 <div class="small-info" data-i18n="ui.vrnetlab.statusHint">
                   Consulta runtime de container e imagens com prefixo vrnetlab no host remoto.
+                </div>
+                <div class="small-info" id="vrnetlabInstallHint" style="display:none;" data-i18n="ui.vrnetlab.installHint">
+                  Se /opt/vrnetlab não existe no host, será feito git clone do repositório oficial.
                 </div>
               </div>
 

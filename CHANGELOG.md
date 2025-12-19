@@ -12,6 +12,11 @@ Este projeto segue **SemVer** (x.y.z).
 - VRNETLAB e Container Images auto-carregam ao detectar ContainerLab; iShare2, Images, Templates e Icons são ocultadas nesse cenário.
 - Caminho padrão do VRNETLAB ajustado para /opt/containerlab/vrnetlab sem fallback.
 
+## 1.0.4
+
+- Aba "Laboratórios" exclusiva para ContainerLab, listando automaticamente os diretórios em /opt/containerlab/labs.
+- Carregamento automático de Container Images, VRNETLAB e Laboratórios ao identificar ContainerLab.
+
 ## 1.0.0
 
 - Release inicial do NetConfig Lab Image Manager.

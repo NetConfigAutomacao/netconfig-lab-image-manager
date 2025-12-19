@@ -1223,6 +1223,7 @@
               <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
               <button type="button" class="tab-button" data-tab="vrnetlab-tab" data-i18n="ui.tabs.vrnetlab" style="display:none;">VRNETLAB</button>
               <button type="button" class="tab-button" data-tab="container-images-tab" data-i18n="ui.tabs.containerImages" style="display:none;">Container Images</button>
+              <button type="button" class="tab-button" data-tab="labs-tab" data-i18n="ui.tabs.labs" style="display:none;">Laboratorios</button>
               <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
               <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
               <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
@@ -1476,6 +1477,46 @@
             </div>
             <!-- ==================== FIM ABA CONTAINER IMAGES ==================== -->
 
+            <!-- ==================== ABA LABORATORIOS ==================== -->
+            <div id="labs-tab" class="tab-content" style="display:none;">
+              <div class="field">
+                <label data-i18n="ui.labs.title">Laboratórios do ContainerLab</label>
+                <div class="hint" data-i18n="ui.labs.hint">
+                  Lista os diretórios existentes em <code>/opt/containerlab/labs</code> no host remoto.
+                </div>
+                <input type="text" id="labsDirInput" placeholder="/opt/containerlab/labs" value="/opt/containerlab/labs" style="margin-top:6px;">
+              </div>
+
+              <div class="vrnetlab-actions">
+                <button type="button" class="btn-primary" id="labsListBtn" data-requires-load="true">
+                  <span class="icon">📂</span>
+                  <span data-i18n="ui.labs.loadBtn">Listar laboratórios</span>
+                </button>
+                <button type="button" class="btn-secondary" id="labsCreateBtn" data-requires-load="true" style="display:none;">
+                  <span class="icon">➕</span>
+                  <span data-i18n="ui.labs.createBtn">Criar diretório de labs</span>
+                </button>
+                <div class="small-info" data-i18n="ui.labs.loadHint">
+                  Executa uma listagem simples dos diretórios de labs.
+                </div>
+                <div class="small-info" id="labsCreateHint" style="display:none;" data-i18n="ui.labs.createHint">
+                  Cria /opt/containerlab/labs no host remoto.
+                </div>
+              </div>
+
+              <div class="images-section">
+                <div class="images-section-header">
+                  <div class="images-section-main">
+                    <div class="images-section-title" data-i18n="ui.labs.listTitle">Labs encontrados</div>
+                  </div>
+                  <div class="images-section-count" id="labsCount">0</div>
+                </div>
+
+                <div class="vrnetlab-images" id="labsList"></div>
+              </div>
+            </div>
+            <!-- ==================== FIM ABA LABORATORIOS ==================== -->
+
 
             <!-- ==================== ABA ISHARE2 ==================== -->
             <div id="ishare2-tab" class="tab-content">
@@ -1561,6 +1602,7 @@
   <script src="/static/js/icons.js"></script>
   <script src="/static/js/vrnetlab.js"></script>
   <script src="/static/js/container_images.js"></script>
+  <script src="/static/js/container_labs.js"></script>
   <script src="/static/js/ishare2.js"></script>
   <script src="/static/js/fix_permissions.js"></script>
   <script src="/static/js/main.js"></script>

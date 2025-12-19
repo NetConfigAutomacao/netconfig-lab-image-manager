@@ -28,6 +28,7 @@ A instalação precisa ser em um linux a parte! Não instale no proprio EVE / PN
 Este projeto segue **SemVer** no formato `x.y.z`.
 
 - Versão atual: `1.0.2` (fonte: arquivo `VERSION`)
+- Versão atual: `1.0.3` (fonte: arquivo `VERSION`)
 - Ver versão no repositório: `cat VERSION`
 - Ver versão pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Ver em qualquer resposta da API: confira o header `X-App-Version`
@@ -110,6 +111,7 @@ ports:
 Este proyecto usa **SemVer** (`x.y.z`).
 
 - Versión actual: `1.0.2` (archivo `VERSION`)
+- Versión actual: `1.0.3` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 

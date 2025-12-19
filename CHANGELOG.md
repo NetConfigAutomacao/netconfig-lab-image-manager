@@ -6,6 +6,12 @@ Este projeto segue **SemVer** (x.y.z).
 
 - Suporte inicial ao VRNETLAB em hosts ContainerLab, com detecção do diretório /opt/vrnetlab e instalação automática via git clone quando ausente.
 
+## 1.0.3
+
+- Nova aba "Container Images" para hosts ContainerLab, listando automaticamente imagens Docker/Podman.
+- VRNETLAB e Container Images auto-carregam ao detectar ContainerLab; iShare2, Images, Templates e Icons são ocultadas nesse cenário.
+- Caminho padrão do VRNETLAB ajustado para /opt/containerlab/vrnetlab sem fallback.
+
 ## 1.0.0
 
 - Release inicial do NetConfig Lab Image Manager.

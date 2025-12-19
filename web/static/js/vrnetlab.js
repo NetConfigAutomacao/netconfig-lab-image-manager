@@ -9,6 +9,8 @@
 
 document.addEventListener('DOMContentLoaded', function () {
   const statusBtn = document.getElementById('vrnetlabStatusBtn');
+  const installBtn = document.getElementById('vrnetlabInstallBtn');
+  const installHint = document.getElementById('vrnetlabInstallHint');
   const runtimeEl = document.getElementById('vrnetlabRuntime');
   const repoEl = document.getElementById('vrnetlabRepo');
   const imagesList = document.getElementById('vrnetlabImagesList');
@@ -39,6 +41,16 @@ document.addEventListener('DOMContentLoaded', function () {
   function renderMeta(runtime, repoPath) {
     if (runtimeEl) runtimeEl.textContent = runtime || t('ui.vrnetlab.runtimeMissing');
     if (repoEl) repoEl.textContent = repoPath || t('ui.vrnetlab.repoMissing');
+
+    const repoAvailable = !!repoPath;
+    if (installBtn) {
+      installBtn.style.display = repoAvailable ? 'none' : '';
+      installBtn.disabled = repoAvailable;
+      installBtn.classList.toggle('btn-disabled', repoAvailable);
+    }
+    if (installHint) {
+      installHint.style.display = repoAvailable ? 'none' : '';
+    }
   }
 
   function renderImages(images) {
@@ -150,6 +162,81 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function requestInstall(options) {
+    options = options || {};
+    return new Promise(function (resolve, reject) {
+      const creds = getCommonCreds();
+      if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+        if (!options.skipMessage) {
+          showMessage('error', t('vrnetlab.missingCreds'));
+        }
+        reject(new Error('missing_credentials'));
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('eve_ip', creds.eve_ip);
+      formData.append('eve_user', creds.eve_user);
+      formData.append('eve_pass', creds.eve_pass);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/vrnetlab/install', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+
+        if (xhr.status === 0) {
+          if (!options.skipMessage) {
+            showMessage('error', t('msg.networkError'));
+          }
+          reject(new Error('network_error'));
+          return;
+        }
+
+        let resp = null;
+        try {
+          resp = JSON.parse(xhr.responseText || '{}');
+        } catch (err) {
+          if (!options.skipMessage) {
+            showMessage('error', t('msg.parseError'));
+          }
+          reject(err);
+          return;
+        }
+
+        if (!resp || typeof resp !== 'object') {
+          if (!options.skipMessage) {
+            showMessage('error', t('msg.parseError'));
+          }
+          reject(new Error('invalid_response'));
+          return;
+        }
+
+        if (resp.message && !options.skipMessage) {
+          showMessage(resp.success === false ? 'error' : 'success', resp.message);
+        }
+
+        if (resp.success === false) {
+          reject(new Error('install_failed'));
+          return;
+        }
+
+        resolve(resp);
+      };
+
+      xhr.onerror = function () {
+        if (!options.skipMessage) {
+          showMessage('error', t('msg.networkError'));
+        }
+        reject(new Error('network_error'));
+      };
+
+      xhr.send(formData);
+    });
+  }
+
   function handleStatusClick() {
     setLoading(true);
     loadVrnetlabStatus({ skipMessage: false })
@@ -158,6 +245,28 @@ document.addEventListener('DOMContentLoaded', function () {
       })
       .finally(function () {
         setLoading(false);
+      });
+  }
+
+  function setInstallLoading(isLoading) {
+    if (!installBtn) return;
+    installBtn.disabled = !!isLoading;
+    installBtn.classList.toggle('btn-disabled', !!isLoading);
+    const label = installBtn.querySelector('[data-i18n="ui.vrnetlab.installBtn"]') || installBtn;
+    label.textContent = isLoading ? t('ui.vrnetlab.installLoading') : t('ui.vrnetlab.installBtn');
+  }
+
+  function handleInstallClick() {
+    setInstallLoading(true);
+    requestInstall({ skipMessage: false })
+      .then(function () {
+        return loadVrnetlabStatus({ skipMessage: true });
+      })
+      .catch(function () {
+        // mensagem já exibida
+      })
+      .finally(function () {
+        setInstallLoading(false);
       });
   }
 
@@ -182,6 +291,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   statusBtn.addEventListener('click', handleStatusClick);
+  if (installBtn) {
+    installBtn.addEventListener('click', handleInstallClick);
+  }
 
   window.NetConfigApp = window.NetConfigApp || {};
   window.NetConfigApp.loadVrnetlabStatus = loadVrnetlabStatus;

@@ -90,6 +90,9 @@ def vrnetlab_status():
 
     if not runtime:
         message = translate("vrnetlab.status.no_runtime", lang)
+    elif not repo_path:
+        message = translate("vrnetlab.status.no_repo", lang)
+
     if rc != 0 and not runtime and not images:
         success = False
         message = translate("vrnetlab.status.fail", lang, rc=rc)
@@ -99,6 +102,7 @@ def vrnetlab_status():
         "message": message,
         "runtime": runtime,
         "repo_path": repo_path,
+        "repo_present": bool(repo_path),
         "images": images,
         "extra": extra_lines,
         "ssh_rc": rc,
@@ -107,3 +111,62 @@ def vrnetlab_status():
     }
 
     return jsonify(response), 200 if success else 500
+
+
+@vrnetlab_bp.route("/install", methods=["POST"])
+def vrnetlab_install():
+    """
+    Efetua git clone do repositório vrnetlab em /opt/vrnetlab, caso não exista.
+    """
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return (
+            jsonify(success=False, message=translate("vrnetlab.missing_creds", lang)),
+            400,
+        )
+
+    cmd = (
+        "set -e;"
+        "if [ -d '/opt/vrnetlab/.git' ] || [ -d '/opt/vrnetlab' ]; then "
+        " echo '__VRNETLAB_ALREADY_PRESENT__'; exit 0; "
+        "fi; "
+        "if ! command -v git >/dev/null 2>&1; then "
+        " echo '__VRNETLAB_GIT_MISSING__'; exit 45; "
+        "fi; "
+        "mkdir -p /opt && "
+        "git clone https://github.com/srl-labs/vrnetlab.git /opt/vrnetlab"
+    )
+
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    cleaned_out = (out or "").strip()
+    cleaned_err = (err or "").strip()
+
+    if "__VRNETLAB_ALREADY_PRESENT__" in cleaned_out:
+        return jsonify(success=True, message=translate("vrnetlab.install.already", lang)), 200
+
+    if "__VRNETLAB_GIT_MISSING__" in cleaned_out or rc == 45:
+        return (
+            jsonify(
+                success=False,
+                message=translate("vrnetlab.install.git_missing", lang),
+                stderr=cleaned_err,
+            ),
+            500,
+        )
+
+    if rc != 0:
+        return (
+            jsonify(
+                success=False,
+                message=translate("vrnetlab.install.fail", lang, rc=rc),
+                stdout=cleaned_out,
+                stderr=cleaned_err,
+            ),
+            500,
+        )
+
+    return jsonify(success=True, message=translate("vrnetlab.install.success", lang), stdout=cleaned_out), 200

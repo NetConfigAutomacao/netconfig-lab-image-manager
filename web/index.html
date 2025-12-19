@@ -629,6 +629,73 @@
       display: block;
     }
 
+    /* --- VRNETLAB --- */
+    .vrnetlab-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 0 10px;
+      flex-wrap: wrap;
+    }
+
+    .vrnetlab-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .vrnetlab-card {
+      background-color: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .vrnetlab-card-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .vrnetlab-card-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .vrnetlab-card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .vrnetlab-images {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .vrnetlab-image-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background-color: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      font-size: 12px;
+    }
+
+    .vrnetlab-image-name {
+      font-weight: 600;
+    }
+
+    .vrnetlab-image-size {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
     #featureArea[data-state="locked"] {
       display: none;
     }
@@ -1150,15 +1217,16 @@
             </button>
           </div>
 
-          <div id="featureArea" data-state="locked">
-            <!-- ABAS -->
-            <div class="tabs">
-              <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
-              <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
-              <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
-              <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
-              <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
-            </div>
+            <div id="featureArea" data-state="locked">
+              <!-- ABAS -->
+              <div class="tabs">
+                <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
+                <button type="button" class="tab-button" data-tab="vrnetlab-tab" data-i18n="ui.tabs.vrnetlab" style="display:none;">VRNETLAB</button>
+                <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
+                <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
+                <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
+                <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
+              </div>
 
             <!-- ==================== ABA IMAGES ==================== -->
             <div id="images-tab" class="tab-content active">
@@ -1321,6 +1389,53 @@
             </div>
             <!-- ==================== FIM ABA ICONS ==================== -->
 
+            <!-- ==================== ABA VRNETLAB ==================== -->
+            <div id="vrnetlab-tab" class="tab-content" style="display:none;">
+
+              <div class="field">
+                <label data-i18n="ui.vrnetlab.aboutTitle">VRNETLAB para ContainerLab</label>
+                <div class="hint" data-i18n="ui.vrnetlab.aboutText">
+                  VRNETLAB empacota appliances baseados em QEMU dentro de containers, permitindo usar plataformas
+                  não suportadas nativamente no ContainerLab.
+                </div>
+              </div>
+
+              <div class="vrnetlab-actions">
+                <button type="button" class="btn-primary" id="vrnetlabStatusBtn" data-requires-load="true">
+                  <span class="icon">🔍</span>
+                  <span data-i18n="ui.vrnetlab.statusBtn">Checar ambiente</span>
+                </button>
+                <div class="small-info" data-i18n="ui.vrnetlab.statusHint">
+                  Consulta runtime de container e imagens com prefixo vrnetlab no host remoto.
+                </div>
+              </div>
+
+              <div class="vrnetlab-meta">
+                <div class="vrnetlab-card">
+                  <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.runtimeLabel">Runtime detectado</div>
+                  <div class="vrnetlab-card-value" id="vrnetlabRuntime">--</div>
+                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.runtimeHint">Procura por docker ou podman no host remoto.</div>
+                </div>
+                <div class="vrnetlab-card">
+                  <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.repoLabel">Repositório vrnetlab</div>
+                  <div class="vrnetlab-card-value" id="vrnetlabRepo">--</div>
+                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.repoHint">Diretório padrão /opt/vrnetlab quando presente.</div>
+                </div>
+              </div>
+
+              <div class="images-section" id="vrnetlabImagesSection">
+                <div class="images-section-header">
+                  <div class="images-section-main">
+                    <div class="images-section-title" data-i18n="ui.vrnetlab.imagesTitle">Imagens VRNETLAB</div>
+                  </div>
+                  <div class="images-section-count" id="vrnetlabImagesCount">0</div>
+                </div>
+                <div class="vrnetlab-images" id="vrnetlabImagesList"></div>
+              </div>
+
+            </div>
+            <!-- ==================== FIM ABA VRNETLAB ==================== -->
+
 
             <!-- ==================== ABA ISHARE2 ==================== -->
             <div id="ishare2-tab" class="tab-content">
@@ -1404,6 +1519,7 @@
   <script src="/static/js/images.js"></script>
   <script src="/static/js/templates.js"></script>
   <script src="/static/js/icons.js"></script>
+  <script src="/static/js/vrnetlab.js"></script>
   <script src="/static/js/ishare2.js"></script>
   <script src="/static/js/fix_permissions.js"></script>
   <script src="/static/js/main.js"></script>

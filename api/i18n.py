@@ -75,6 +75,10 @@ TRANSLATIONS = {
         "ishare2.job_required": "Parâmetro 'job_id' é obrigatório.",
         "ishare2.progress_contact_error": "Falha ao consultar progresso no serviço ishare2: {error}",
         "ishare2.progress_invalid_json": "Resposta inválida do serviço ishare2 (não é JSON) ao consultar progresso.",
+        "vrnetlab.missing_creds": "Informe IP, usuário e senha do host ContainerLab.",
+        "vrnetlab.status.ok": "Ambiente VRNETLAB consultado com sucesso.",
+        "vrnetlab.status.no_runtime": "Runtime de containers (docker/podman) não encontrado. Instale ou configure para usar VRNETLAB.",
+        "vrnetlab.status.fail": "Falha ao consultar VRNETLAB (código {rc}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -135,6 +139,10 @@ TRANSLATIONS = {
         "ishare2.job_required": "Parameter 'job_id' is required.",
         "ishare2.progress_contact_error": "Failed to query progress from the ishare2 service: {error}",
         "ishare2.progress_invalid_json": "Invalid response from the ishare2 service (not JSON) when querying progress.",
+        "vrnetlab.missing_creds": "Provide IP, user and password for the ContainerLab host.",
+        "vrnetlab.status.ok": "VRNETLAB environment inspected successfully.",
+        "vrnetlab.status.no_runtime": "Container runtime (docker/podman) not found. Install or configure one to use VRNETLAB.",
+        "vrnetlab.status.fail": "Failed to query VRNETLAB (exit code {rc}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -195,6 +203,10 @@ TRANSLATIONS = {
         "ishare2.job_required": "El parámetro 'job_id' es obligatorio.",
         "ishare2.progress_contact_error": "Fallo al consultar progreso en el servicio ishare2: {error}",
         "ishare2.progress_invalid_json": "Respuesta inválida del servicio ishare2 (no es JSON) al consultar progreso.",
+        "vrnetlab.missing_creds": "Informa IP, usuario y contraseña del host ContainerLab.",
+        "vrnetlab.status.ok": "Entorno VRNETLAB consultado con éxito.",
+        "vrnetlab.status.no_runtime": "Runtime de contenedores (docker/podman) no encontrado. Instala o configura uno para usar VRNETLAB.",
+        "vrnetlab.status.fail": "Fallo al consultar VRNETLAB (código {rc}).",
     },
 }
 

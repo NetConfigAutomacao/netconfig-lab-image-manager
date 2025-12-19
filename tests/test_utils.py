@@ -61,6 +61,26 @@ class TestUtils(unittest.TestCase):
         self.assertIn("pnetlab", raw.lower())
         self.assertIn("/etc/pnetlab-release", source)
 
+    def test_detect_platform_containerlab(self):
+        utils = self._import_utils()
+
+        output = "\n".join(
+            [
+                "---FILE:/etc/issue---",
+                "Ubuntu 22.04.3 LTS",
+                "---BIN:containerlab---",
+                "/usr/bin/containerlab",
+                "---CMD:containerlab version---",
+                "containerlab version 0.54.0",
+            ]
+        )
+
+        with patch.object(utils, "run_ssh_command", return_value=(0, output, "")):
+            name, raw, source = utils.detect_platform("ip", "u", "p")
+        self.assertEqual(name, "containerlab")
+        self.assertIn("containerlab", raw.lower())
+        self.assertIn("containerlab", source.lower())
+
     def test_get_resource_usage_parses_values_and_calculates_mem_percent(self):
         utils = self._import_utils()
 

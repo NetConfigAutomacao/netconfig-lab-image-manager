@@ -30,6 +30,42 @@ document.addEventListener('DOMContentLoaded', function () {
   const resourceDiskBar = document.getElementById('resourceDiskBar');
   const systemReloadBtn = document.getElementById('systemReloadBtn');
 
+  const tabImagesBtn = document.querySelector('.tab-button[data-tab="images-tab"]');
+  const tabVrnetlabBtn = document.querySelector('.tab-button[data-tab="vrnetlab-tab"]');
+  const tabTemplatesBtn = document.querySelector('.tab-button[data-tab="templates-tab"]');
+  const tabIconsBtn = document.querySelector('.tab-button[data-tab="icons-tab"]');
+  const vrnetlabTab = document.getElementById('vrnetlab-tab');
+  const templatesTab = document.getElementById('templates-tab');
+  const iconsTab = document.getElementById('icons-tab');
+
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible ? '' : 'none';
+  }
+
+  function updateTabsForPlatform(platform) {
+    const isContainerlab = !!(platform && platform.name === 'containerlab');
+
+    // ContainerLab não tem (nativamente) os diretórios/fluxos de templates/ícones do EVE/PNETLab,
+    // então escondemos essas abas para evitar confusão.
+    setVisible(tabTemplatesBtn, !isContainerlab);
+    setVisible(tabIconsBtn, !isContainerlab);
+    setVisible(tabVrnetlabBtn, isContainerlab);
+    setVisible(vrnetlabTab, isContainerlab);
+    setVisible(templatesTab, !isContainerlab);
+    setVisible(iconsTab, !isContainerlab);
+
+    const activeContent = document.querySelector('.tab-content.active');
+    const activeId = activeContent ? activeContent.id : '';
+    if (isContainerlab) {
+      if ((activeId === 'templates-tab' || activeId === 'icons-tab') && tabImagesBtn && tabImagesBtn.click) {
+        tabImagesBtn.click();
+      }
+    } else if (activeId === 'vrnetlab-tab' && tabImagesBtn && tabImagesBtn.click) {
+      tabImagesBtn.click();
+    }
+  }
+
   function setDependentButtons(enabled) {
     dependentButtons.forEach(function (btn) {
       if (!(btn instanceof HTMLButtonElement)) return;
@@ -45,11 +81,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function setPlatformInfo(platform) {
-    if (!platformBadge) return;
+    updateTabsForPlatform(platform && platform.name ? platform : null);
     if (!platform || !platform.name) {
-      platformBadge.style.display = 'none';
-      platformBadge.textContent = '';
-      platformBadge.title = '';
+      if (platformBadge) {
+        platformBadge.style.display = 'none';
+        platformBadge.textContent = '';
+        platformBadge.title = '';
+      }
       if (platformLogo) {
         platformLogo.style.display = 'none';
         platformLogo.src = '';
@@ -61,11 +99,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var nameKey = 'platform.unknown';
     if (platform.name === 'eve-ng') nameKey = 'platform.eve';
     if (platform.name === 'pnetlab') nameKey = 'platform.pnetlab';
+    if (platform.name === 'containerlab') nameKey = 'platform.containerlab';
 
     const label = t('platform.label', { name: t(nameKey) });
-    platformBadge.textContent = label;
-    platformBadge.style.display = 'inline-flex';
-    platformBadge.title = platform.raw ? platform.raw : '';
+    if (platformBadge) {
+      platformBadge.textContent = label;
+      platformBadge.style.display = 'inline-flex';
+      platformBadge.title = platform.raw ? platform.raw : '';
+    }
 
     if (platformLogo) {
       if (platform.name === 'eve-ng') {
@@ -75,6 +116,10 @@ document.addEventListener('DOMContentLoaded', function () {
       } else if (platform.name === 'pnetlab') {
         platformLogo.src = '/static/img/pnetlab-logo.png';
         platformLogo.alt = 'PNETLab';
+        platformLogo.style.display = 'inline-block';
+      } else if (platform.name === 'containerlab') {
+        platformLogo.src = '/static/img/containerlab-logo.png';
+        platformLogo.alt = 'ContainerLab';
         platformLogo.style.display = 'inline-block';
       } else {
         platformLogo.style.display = 'none';
@@ -201,12 +246,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const platformResult = results.find(function (r) {
           return r.status === 'fulfilled' && r.value && r.value.platform;
         });
+        const platformName = platformResult && platformResult.value && platformResult.value.platform ? platformResult.value.platform.name : '';
         if (platformResult && platformResult.value) {
           setPlatformInfo(platformResult.value.platform);
           setResources(platformResult.value.resources || null);
         } else {
           setPlatformInfo(null);
           setResources(null);
+        }
+
+        if (platformName === 'containerlab' && typeof app.loadVrnetlabStatus === 'function') {
+          app.loadVrnetlabStatus({ skipMessage: true }).catch(function () {
+            // Falha silenciosa para não interromper o fluxo principal
+          });
         }
 
         if (fulfilled === total) {

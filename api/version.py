@@ -20,7 +20,7 @@ import time
 import requests
 
 
-DEFAULT_VERSION = "1.0.2"
+DEFAULT_VERSION = "1.0.3"
 DEFAULT_GITHUB_REPO = "NetConfigAutomacao/netconfig-lab-image-manager"
 UPDATE_CACHE_TTL_SECONDS = 300
 _update_cache = {"checked_at": 0.0, "data": None}

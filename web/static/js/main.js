@@ -33,12 +33,14 @@ document.addEventListener('DOMContentLoaded', function () {
   const tabImagesBtn = document.querySelector('.tab-button[data-tab="images-tab"]');
   const tabVrnetlabBtn = document.querySelector('.tab-button[data-tab="vrnetlab-tab"]');
   const tabContainerImagesBtn = document.querySelector('.tab-button[data-tab="container-images-tab"]');
+  const tabLabsBtn = document.querySelector('.tab-button[data-tab="labs-tab"]');
   const tabTemplatesBtn = document.querySelector('.tab-button[data-tab="templates-tab"]');
   const tabIconsBtn = document.querySelector('.tab-button[data-tab="icons-tab"]');
   const tabIshare2Btn = document.querySelector('.tab-button[data-tab="ishare2-tab"]');
   const tabSystemBtn = document.querySelector('.tab-button[data-tab="system-tab"]');
   const vrnetlabTab = document.getElementById('vrnetlab-tab');
   const containerImagesTab = document.getElementById('container-images-tab');
+  const labsTab = document.getElementById('labs-tab');
   const imagesTab = document.getElementById('images-tab');
   const templatesTab = document.getElementById('templates-tab');
   const iconsTab = document.getElementById('icons-tab');
@@ -60,8 +62,10 @@ document.addEventListener('DOMContentLoaded', function () {
     setVisible(tabIshare2Btn, !isContainerlab);
     setVisible(tabVrnetlabBtn, isContainerlab);
     setVisible(tabContainerImagesBtn, isContainerlab);
+    setVisible(tabLabsBtn, isContainerlab);
     setVisible(vrnetlabTab, isContainerlab);
     setVisible(containerImagesTab, isContainerlab);
+    setVisible(labsTab, isContainerlab);
     setVisible(imagesTab, !isContainerlab);
     setVisible(templatesTab, !isContainerlab);
     setVisible(iconsTab, !isContainerlab);
@@ -72,7 +76,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isContainerlab) {
       const shouldSwitch = (activeId === 'templates-tab' || activeId === 'icons-tab' || activeId === 'ishare2-tab' || activeId === 'images-tab');
       if (shouldSwitch) {
-        if (tabContainerImagesBtn && tabContainerImagesBtn.click) {
+        if (tabLabsBtn && tabLabsBtn.click) {
+          tabLabsBtn.click();
+        } else if (tabContainerImagesBtn && tabContainerImagesBtn.click) {
           tabContainerImagesBtn.click();
         } else if (tabVrnetlabBtn && tabVrnetlabBtn.click) {
           tabVrnetlabBtn.click();
@@ -80,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function () {
           tabSystemBtn.click();
         }
       }
-    } else if ((activeId === 'vrnetlab-tab' || activeId === 'container-images-tab') && tabImagesBtn && tabImagesBtn.click) {
+    } else if ((activeId === 'vrnetlab-tab' || activeId === 'container-images-tab' || activeId === 'labs-tab') && tabImagesBtn && tabImagesBtn.click) {
       tabImagesBtn.click();
     }
   }
@@ -282,6 +288,11 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if (typeof app.loadContainerImages === 'function') {
         app.loadContainerImages({ skipMessage: true, auto: true }).catch(function () {
+          // Falha silenciosa
+        });
+      }
+      if (typeof app.loadContainerLabs === 'function') {
+        app.loadContainerLabs({ skipMessage: true, auto: true }).catch(function () {
           // Falha silenciosa
         });
       }

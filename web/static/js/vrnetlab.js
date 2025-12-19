@@ -23,6 +23,20 @@ document.addEventListener('DOMContentLoaded', function () {
   };
   const t = app.t || function (key) { return key; };
   const setLangHeader = app.setLanguageHeader || function () {};
+  let loadingOps = 0;
+
+  function setBodyLoading(active) {
+    if (!document || !document.body) return;
+    if (active) {
+      loadingOps += 1;
+      document.body.classList.add('is-loading');
+    } else {
+      loadingOps = Math.max(0, loadingOps - 1);
+      if (loadingOps === 0) {
+        document.body.classList.remove('is-loading');
+      }
+    }
+  }
 
   if (!statusBtn) {
     return;
@@ -254,6 +268,7 @@ document.addEventListener('DOMContentLoaded', function () {
     installBtn.classList.toggle('btn-disabled', !!isLoading);
     const label = installBtn.querySelector('[data-i18n="ui.vrnetlab.installBtn"]') || installBtn;
     label.textContent = isLoading ? t('ui.vrnetlab.installLoading') : t('ui.vrnetlab.installBtn');
+    setBodyLoading(!!isLoading);
   }
 
   function handleInstallClick() {

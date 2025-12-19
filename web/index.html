@@ -1220,13 +1220,14 @@
             <div id="featureArea" data-state="locked">
               <!-- ABAS -->
               <div class="tabs">
-                <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
-                <button type="button" class="tab-button" data-tab="vrnetlab-tab" data-i18n="ui.tabs.vrnetlab" style="display:none;">VRNETLAB</button>
-                <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
-                <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
-                <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
-                <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
-              </div>
+              <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
+              <button type="button" class="tab-button" data-tab="vrnetlab-tab" data-i18n="ui.tabs.vrnetlab" style="display:none;">VRNETLAB</button>
+              <button type="button" class="tab-button" data-tab="container-images-tab" data-i18n="ui.tabs.containerImages" style="display:none;">Container Images</button>
+              <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
+              <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
+              <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
+              <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
+            </div>
 
             <!-- ==================== ABA IMAGES ==================== -->
             <div id="images-tab" class="tab-content active">
@@ -1413,7 +1414,7 @@
                   Consulta runtime de container e imagens com prefixo vrnetlab no host remoto.
                 </div>
                 <div class="small-info" id="vrnetlabInstallHint" style="display:none;" data-i18n="ui.vrnetlab.installHint">
-                  Se /opt/vrnetlab não existe no host, será feito git clone do repositório oficial.
+                  Se /opt/containerlab/vrnetlab não existe no host, será feito git clone do repositório oficial.
                 </div>
               </div>
 
@@ -1426,7 +1427,7 @@
                 <div class="vrnetlab-card">
                   <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.repoLabel">Repositório vrnetlab</div>
                   <div class="vrnetlab-card-value" id="vrnetlabRepo">--</div>
-                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.repoHint">Diretório padrão /opt/vrnetlab quando presente.</div>
+                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.repoHint">Diretório padrão /opt/containerlab/vrnetlab quando presente.</div>
                 </div>
               </div>
 
@@ -1442,6 +1443,38 @@
 
             </div>
             <!-- ==================== FIM ABA VRNETLAB ==================== -->
+
+            <!-- ==================== ABA CONTAINER IMAGES ==================== -->
+            <div id="container-images-tab" class="tab-content" style="display:none;">
+              <div class="field">
+                <label data-i18n="ui.containerImages.title">Imagens de container (docker/podman)</label>
+                <div class="hint" data-i18n="ui.containerImages.hint">
+                  Lista imagens disponíveis no runtime (docker/podman) do host ContainerLab.
+                </div>
+              </div>
+
+              <div class="vrnetlab-actions">
+                <button type="button" class="btn-primary" id="containerImagesBtn" data-requires-load="true">
+                  <span class="icon">📦</span>
+                  <span data-i18n="ui.containerImages.loadBtn">Listar imagens</span>
+                </button>
+                <div class="small-info" data-i18n="ui.containerImages.loadHint">
+                  Executa <code>docker images</code> (ou podman) no host remoto.
+                </div>
+              </div>
+
+              <div class="images-section">
+                <div class="images-section-header">
+                  <div class="images-section-main">
+                    <div class="images-section-title" data-i18n="ui.containerImages.listTitle">Imagens encontradas</div>
+                  </div>
+                  <div class="images-section-count" id="containerImagesCount">0</div>
+                </div>
+
+                <div class="vrnetlab-images" id="containerImagesList"></div>
+              </div>
+            </div>
+            <!-- ==================== FIM ABA CONTAINER IMAGES ==================== -->
 
 
             <!-- ==================== ABA ISHARE2 ==================== -->
@@ -1527,6 +1560,7 @@
   <script src="/static/js/templates.js"></script>
   <script src="/static/js/icons.js"></script>
   <script src="/static/js/vrnetlab.js"></script>
+  <script src="/static/js/container_images.js"></script>
   <script src="/static/js/ishare2.js"></script>
   <script src="/static/js/fix_permissions.js"></script>
   <script src="/static/js/main.js"></script>

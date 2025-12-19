@@ -47,7 +47,7 @@ def vrnetlab_status():
         "if command -v docker >/dev/null 2>&1; then runtime='docker'; fi; "
         "if [ -z \"$runtime\" ] && command -v podman >/dev/null 2>&1; then runtime='podman'; fi; "
         "repo=''; "
-        "if [ -d '/opt/vrnetlab' ]; then repo='/opt/vrnetlab'; fi; "
+        "if [ -d '/opt/containerlab/vrnetlab' ]; then repo='/opt/containerlab/vrnetlab'; fi; "
         "echo \"RUNTIME=$runtime\"; "
         "echo \"REPO=$repo\"; "
         "if [ -n \"$runtime\" ]; then "
@@ -131,14 +131,14 @@ def vrnetlab_install():
 
     cmd = (
         "set -e;"
-        "if [ -d '/opt/vrnetlab/.git' ] || [ -d '/opt/vrnetlab' ]; then "
+        "if [ -d '/opt/containerlab/vrnetlab/.git' ] || [ -d '/opt/containerlab/vrnetlab' ]; then "
         " echo '__VRNETLAB_ALREADY_PRESENT__'; exit 0; "
         "fi; "
         "if ! command -v git >/dev/null 2>&1; then "
         " echo '__VRNETLAB_GIT_MISSING__'; exit 45; "
         "fi; "
-        "mkdir -p /opt && "
-        "git clone https://github.com/srl-labs/vrnetlab.git /opt/vrnetlab"
+        "mkdir -p /opt/containerlab && "
+        "git clone https://github.com/srl-labs/vrnetlab.git /opt/containerlab/vrnetlab"
     )
 
     rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)

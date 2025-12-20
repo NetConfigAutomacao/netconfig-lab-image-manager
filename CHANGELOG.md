@@ -17,6 +17,10 @@ Este projeto segue **SemVer** (x.y.z).
 - Aba "Laboratórios" exclusiva para ContainerLab, listando automaticamente os diretórios em /opt/containerlab/labs.
 - Carregamento automático de Container Images, VRNETLAB e Laboratórios ao identificar ContainerLab.
 
+## 1.0.5
+
+- Botão de edição de arquivos nos labs ganhou tamanho/estilo mais discreto para não poluir a lista.
+
 ## 1.0.0
 
 - Release inicial do NetConfig Lab Image Manager.

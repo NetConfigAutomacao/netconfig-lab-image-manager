@@ -24,6 +24,12 @@ document.addEventListener('DOMContentLoaded', function () {
   const setLangHeader = app.setLanguageHeader || function () {};
 
   let loadingOps = 0;
+<<<<<<< ours
+  let currentLabs = [];
+  let labFilesCache = {};
+  let labFetching = {};
+=======
+>>>>>>> theirs
 
   if (!loadBtn || !listEl || !countEl) {
     return;
@@ -135,7 +141,15 @@ document.addEventListener('DOMContentLoaded', function () {
       } else if ((entry.path || '').toLowerCase().match(/\.(ya?ml|txt|py)$/)) {
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
-        editBtn.className = 'btn-secondary';
+        editBtn.className = '';
+        editBtn.style.padding = '3px 8px';
+        editBtn.style.fontSize = '11px';
+        editBtn.style.minWidth = '56px';
+        editBtn.style.border = '1px solid rgba(56,189,248,0.5)';
+        editBtn.style.borderRadius = '8px';
+        editBtn.style.backgroundColor = 'rgba(56,189,248,0.12)';
+        editBtn.style.color = '#e5e7eb';
+        editBtn.style.cursor = 'pointer';
         editBtn.textContent = t('ui.labs.editBtn') || 'Editar';
         editBtn.addEventListener('click', function () {
           loadFileContent(lab, entry.path, row, actions);
@@ -149,13 +163,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function loadLabFiles(labName, container, toggleBtn) {
-    if (!labName) return;
-    container.innerHTML = t('ui.labs.loading');
+  function requestLabFiles(labName) {
+    if (!labName) return Promise.reject(new Error('missing_lab'));
+    if (labFilesCache[labName]) return Promise.resolve(labFilesCache[labName]);
+    if (labFetching[labName]) return labFetching[labName];
     const creds = getCommonCreds();
     if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
       showMessage('error', t('container_labs.missing_creds'));
-      return;
+      return Promise.reject(new Error('missing_creds'));
     }
 
     const fd = new FormData();
@@ -167,42 +182,75 @@ document.addEventListener('DOMContentLoaded', function () {
       fd.append('labs_dir', dirInput.value.trim());
     }
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/container-labs/files', true);
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    setLangHeader(xhr);
-    setBodyLoading(true);
+    labFetching[labName] = new Promise(function (resolve, reject) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/container-labs/files', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
 
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState !== 4) return;
-      setBodyLoading(false);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        setBodyLoading(false);
 
-      let resp = null;
-      try {
-        resp = JSON.parse(xhr.responseText || '{}');
-      } catch (err) {
-        showMessage('error', t('msg.parseError'));
-        return;
-      }
+        let resp = null;
+        try {
+          resp = JSON.parse(xhr.responseText || '{}');
+        } catch (err) {
+          showMessage('error', t('msg.parseError'));
+          reject(err);
+          return;
+        }
 
-      if (!resp || resp.success === false) {
-        if (resp && resp.message) showMessage('error', resp.message);
+        if (!resp || resp.success === false) {
+          if (resp && resp.message) showMessage('error', resp.message);
+          reject(new Error('list_files_failed'));
+          return;
+        }
+
+        labFilesCache[labName] = resp.files || [];
+        resolve(labFilesCache[labName]);
+      };
+
+      xhr.onerror = function () {
+        setBodyLoading(false);
+        showMessage('error', t('msg.networkError'));
+        reject(new Error('network_error'));
+      };
+
+      setBodyLoading(true);
+      xhr.send(fd);
+    }).finally(function () {
+      delete labFetching[labName];
+    });
+
+    return labFetching[labName];
+  }
+
+  function loadLabFiles(labName, container, toggleBtn) {
+    if (!labName) return;
+    container.innerHTML = t('ui.labs.loading');
+    requestLabFiles(labName)
+      .then(function (files) {
+        renderFileTree(labName, files || [], container);
+        renderList(currentLabs);
+      })
+      .catch(function () {
         container.innerHTML = '';
-        if (toggleBtn) toggleBtn.textContent = '▼';
-        return;
-      }
+        if (toggleBtn) toggleBtn.textContent = '+';
+      });
+  }
 
-      renderFileTree(labName, resp.files || [], container);
-    };
-
-    xhr.onerror = function () {
-      setBodyLoading(false);
-      showMessage('error', t('msg.networkError'));
-      container.innerHTML = '';
-      if (toggleBtn) toggleBtn.textContent = '▼';
-    };
-
-    xhr.send(fd);
+  function prefetchLabFiles(labs) {
+    if (!Array.isArray(labs)) return;
+    labs.forEach(function (lab) {
+      requestLabFiles(lab)
+        .then(function () {
+          renderList(currentLabs);
+        })
+        .catch(function () {
+          // ignore individual failures
+        });
+    });
   }
 
   function b64Encode(str) {
@@ -395,7 +443,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function renderList(items) {
     listEl.innerHTML = '';
+<<<<<<< ours
+    currentLabs = Array.isArray(items) ? items : [];
+    const query = (filterInput && filterInput.value || '').trim().toLowerCase();
+    const arr = query
+      ? currentLabs.filter(function (lab) {
+        const nameMatch = (lab || '').toLowerCase().indexOf(query) !== -1;
+        const files = labFilesCache[lab] || [];
+        const fileMatch = files.some(function (f) { return (f.path || '').toLowerCase().indexOf(query) !== -1; });
+        return nameMatch || fileMatch;
+      })
+      : currentLabs;
+=======
     const arr = Array.isArray(items) ? items : [];
+>>>>>>> theirs
 
     if (!arr.length) {
       const empty = document.createElement('div');
@@ -542,6 +603,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         renderList(resp.labs || []);
         setCreateVisible(false);
+        prefetchLabFiles(resp.labs || []);
       })
       .catch(function () {
         // mensagem já exibida

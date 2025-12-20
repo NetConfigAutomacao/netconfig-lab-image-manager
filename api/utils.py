@@ -48,9 +48,10 @@ def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str):
 
 def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
     """
-    Detecta se o host é EVE-NG ou PNETLab lendo /etc/issue (ou arquivos relacionados).
+    Detecta se o host é EVE-NG, PNETLab ou ContainerLab lendo /etc/issue
+    (ou arquivos/comandos relacionados).
     Retorna (name, raw_output, source_file).
-    name: "eve-ng" | "pnetlab" | "unknown"
+    name: "eve-ng" | "pnetlab" | "containerlab" | "unknown"
     """
     detect_cmd = (
         "if [ -f /etc/issue ]; then "
@@ -58,6 +59,19 @@ def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
         "fi; "
         "if [ -f /etc/pnetlab-release ]; then "
         "echo '---FILE:/etc/pnetlab-release---'; cat /etc/pnetlab-release; "
+        "fi"
+        "; "
+        # ContainerLab (https://containerlab.dev/) costuma instalar um binário `containerlab`
+        # em /usr/bin ou /usr/local/bin, e pode ter service unit em systemd.
+        "if command -v containerlab >/dev/null 2>&1; then "
+        "echo '---BIN:containerlab---'; command -v containerlab; "
+        "echo '---CMD:containerlab version---'; containerlab version 2>/dev/null || true; "
+        "fi; "
+        "if [ -f /etc/containerlab/version ]; then "
+        "echo '---FILE:/etc/containerlab/version---'; cat /etc/containerlab/version; "
+        "fi; "
+        "if [ -f /etc/systemd/system/containerlab.service ] || [ -f /lib/systemd/system/containerlab.service ]; then "
+        "echo '---UNIT:containerlab.service---'; "
         "fi"
     )
     rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, detect_cmd)
@@ -68,6 +82,12 @@ def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
         return "eve-ng", raw, "/etc/issue"
     if "pnetlab" in content_lower or "pnet lab" in content_lower:
         return "pnetlab", raw, "/etc/pnetlab-release or /etc/issue"
+    if "containerlab" in content_lower:
+        return (
+            "containerlab",
+            raw,
+            "containerlab binary (/usr/bin|/usr/local/bin), /etc/containerlab, or systemd unit",
+        )
 
     return "unknown", raw, "/etc/issue"
 

@@ -30,6 +30,67 @@ document.addEventListener('DOMContentLoaded', function () {
   const resourceDiskBar = document.getElementById('resourceDiskBar');
   const systemReloadBtn = document.getElementById('systemReloadBtn');
 
+  const tabImagesBtn = document.querySelector('.tab-button[data-tab="images-tab"]');
+  const tabVrnetlabBtn = document.querySelector('.tab-button[data-tab="vrnetlab-tab"]');
+  const tabContainerImagesBtn = document.querySelector('.tab-button[data-tab="container-images-tab"]');
+  const tabLabsBtn = document.querySelector('.tab-button[data-tab="labs-tab"]');
+  const tabTemplatesBtn = document.querySelector('.tab-button[data-tab="templates-tab"]');
+  const tabIconsBtn = document.querySelector('.tab-button[data-tab="icons-tab"]');
+  const tabIshare2Btn = document.querySelector('.tab-button[data-tab="ishare2-tab"]');
+  const tabSystemBtn = document.querySelector('.tab-button[data-tab="system-tab"]');
+  const vrnetlabTab = document.getElementById('vrnetlab-tab');
+  const containerImagesTab = document.getElementById('container-images-tab');
+  const labsTab = document.getElementById('labs-tab');
+  const imagesTab = document.getElementById('images-tab');
+  const templatesTab = document.getElementById('templates-tab');
+  const iconsTab = document.getElementById('icons-tab');
+  const ishare2Tab = document.getElementById('ishare2-tab');
+
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible ? '' : 'none';
+  }
+
+  function updateTabsForPlatform(platform) {
+    const isContainerlab = !!(platform && platform.name === 'containerlab');
+
+    // ContainerLab não tem (nativamente) os diretórios/fluxos de templates/ícones do EVE/PNETLab,
+    // então escondemos essas abas para evitar confusão.
+    setVisible(tabImagesBtn, !isContainerlab);
+    setVisible(tabTemplatesBtn, !isContainerlab);
+    setVisible(tabIconsBtn, !isContainerlab);
+    setVisible(tabIshare2Btn, !isContainerlab);
+    setVisible(tabVrnetlabBtn, isContainerlab);
+    setVisible(tabContainerImagesBtn, isContainerlab);
+    setVisible(tabLabsBtn, isContainerlab);
+    setVisible(vrnetlabTab, isContainerlab);
+    setVisible(containerImagesTab, isContainerlab);
+    setVisible(labsTab, isContainerlab);
+    setVisible(imagesTab, !isContainerlab);
+    setVisible(templatesTab, !isContainerlab);
+    setVisible(iconsTab, !isContainerlab);
+    setVisible(ishare2Tab, !isContainerlab);
+
+    const activeContent = document.querySelector('.tab-content.active');
+    const activeId = activeContent ? activeContent.id : '';
+    if (isContainerlab) {
+      const shouldSwitch = (activeId === 'templates-tab' || activeId === 'icons-tab' || activeId === 'ishare2-tab' || activeId === 'images-tab');
+      if (shouldSwitch) {
+        if (tabLabsBtn && tabLabsBtn.click) {
+          tabLabsBtn.click();
+        } else if (tabContainerImagesBtn && tabContainerImagesBtn.click) {
+          tabContainerImagesBtn.click();
+        } else if (tabVrnetlabBtn && tabVrnetlabBtn.click) {
+          tabVrnetlabBtn.click();
+        } else if (tabSystemBtn && tabSystemBtn.click) {
+          tabSystemBtn.click();
+        }
+      }
+    } else if ((activeId === 'vrnetlab-tab' || activeId === 'container-images-tab' || activeId === 'labs-tab') && tabImagesBtn && tabImagesBtn.click) {
+      tabImagesBtn.click();
+    }
+  }
+
   function setDependentButtons(enabled) {
     dependentButtons.forEach(function (btn) {
       if (!(btn instanceof HTMLButtonElement)) return;
@@ -45,11 +106,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function setPlatformInfo(platform) {
-    if (!platformBadge) return;
+    updateTabsForPlatform(platform && platform.name ? platform : null);
     if (!platform || !platform.name) {
-      platformBadge.style.display = 'none';
-      platformBadge.textContent = '';
-      platformBadge.title = '';
+      if (platformBadge) {
+        platformBadge.style.display = 'none';
+        platformBadge.textContent = '';
+        platformBadge.title = '';
+      }
       if (platformLogo) {
         platformLogo.style.display = 'none';
         platformLogo.src = '';
@@ -61,11 +124,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var nameKey = 'platform.unknown';
     if (platform.name === 'eve-ng') nameKey = 'platform.eve';
     if (platform.name === 'pnetlab') nameKey = 'platform.pnetlab';
+    if (platform.name === 'containerlab') nameKey = 'platform.containerlab';
 
     const label = t('platform.label', { name: t(nameKey) });
-    platformBadge.textContent = label;
-    platformBadge.style.display = 'inline-flex';
-    platformBadge.title = platform.raw ? platform.raw : '';
+    if (platformBadge) {
+      platformBadge.textContent = label;
+      platformBadge.style.display = 'inline-flex';
+      platformBadge.title = platform.raw ? platform.raw : '';
+    }
 
     if (platformLogo) {
       if (platform.name === 'eve-ng') {
@@ -75,6 +141,10 @@ document.addEventListener('DOMContentLoaded', function () {
       } else if (platform.name === 'pnetlab') {
         platformLogo.src = '/static/img/pnetlab-logo.png';
         platformLogo.alt = 'PNETLab';
+        platformLogo.style.display = 'inline-block';
+      } else if (platform.name === 'containerlab') {
+        platformLogo.src = '/static/img/containerlab-logo.png';
+        platformLogo.alt = 'ContainerLab';
         platformLogo.style.display = 'inline-block';
       } else {
         platformLogo.style.display = 'none';
@@ -198,16 +268,35 @@ document.addEventListener('DOMContentLoaded', function () {
         const total = results.length;
         const anySuccess = fulfilled > 0;
 
-        const platformResult = results.find(function (r) {
-          return r.status === 'fulfilled' && r.value && r.value.platform;
+    const platformResult = results.find(function (r) {
+      return r.status === 'fulfilled' && r.value && r.value.platform;
+    });
+    const platformName = platformResult && platformResult.value && platformResult.value.platform ? platformResult.value.platform.name : '';
+    if (platformResult && platformResult.value) {
+      setPlatformInfo(platformResult.value.platform);
+      setResources(platformResult.value.resources || null);
+    } else {
+      setPlatformInfo(null);
+      setResources(null);
+    }
+
+    if (platformName === 'containerlab') {
+      if (typeof app.loadVrnetlabStatus === 'function') {
+        app.loadVrnetlabStatus({ skipMessage: true }).catch(function () {
+          // Falha silenciosa para não interromper o fluxo principal
         });
-        if (platformResult && platformResult.value) {
-          setPlatformInfo(platformResult.value.platform);
-          setResources(platformResult.value.resources || null);
-        } else {
-          setPlatformInfo(null);
-          setResources(null);
-        }
+      }
+      if (typeof app.loadContainerImages === 'function') {
+        app.loadContainerImages({ skipMessage: true, auto: true }).catch(function () {
+          // Falha silenciosa
+        });
+      }
+      if (typeof app.loadContainerLabs === 'function') {
+        app.loadContainerLabs({ skipMessage: true, auto: true }).catch(function () {
+          // Falha silenciosa
+        });
+      }
+    }
 
         if (fulfilled === total) {
           showMessage('success', t('load.success'));

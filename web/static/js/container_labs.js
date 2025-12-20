@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const listEl = document.getElementById('labsList');
   const countEl = document.getElementById('labsCount');
   const dirInput = document.getElementById('labsDirInput');
+  const filterInput = document.getElementById('labsFilter');
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
@@ -24,15 +25,43 @@ document.addEventListener('DOMContentLoaded', function () {
   const setLangHeader = app.setLanguageHeader || function () {};
 
   let loadingOps = 0;
-<<<<<<< ours
   let currentLabs = [];
   let labFilesCache = {};
   let labFetching = {};
-=======
->>>>>>> theirs
 
-  if (!loadBtn || !listEl || !countEl) {
-    return;
+  if (!loadBtn || !listEl || !countEl) return;
+
+  function resetLabCache() {
+    labFilesCache = {};
+    labFetching = {};
+  }
+
+  function setBodyLoading(active) {
+    if (active) {
+      loadingOps += 1;
+      document.body.classList.add('is-loading');
+    } else {
+      loadingOps = Math.max(0, loadingOps - 1);
+      if (loadingOps === 0) document.body.classList.remove('is-loading');
+    }
+  }
+
+  function setLoading(isLoading) {
+    if (!(loadBtn instanceof HTMLButtonElement)) return;
+    loadBtn.disabled = !!isLoading;
+    loadBtn.classList.toggle('btn-disabled', !!isLoading);
+    const label = loadBtn.querySelector('[data-i18n="ui.labs.loadBtn"]') || loadBtn;
+    label.textContent = isLoading ? t('ui.labs.loading') : t('ui.labs.loadBtn');
+    setBodyLoading(!!isLoading);
+  }
+
+  function setCreateVisible(visible) {
+    if (createBtn) {
+      createBtn.style.display = visible ? '' : 'none';
+      createBtn.disabled = !visible;
+      createBtn.classList.toggle('btn-disabled', !visible);
+    }
+    if (createHint) createHint.style.display = visible ? '' : 'none';
   }
 
   function sortFiles(files) {
@@ -42,6 +71,14 @@ document.addEventListener('DOMContentLoaded', function () {
       if (aDir !== bDir) return aDir ? -1 : 1;
       return (a.path || '').localeCompare(b.path || '');
     });
+  }
+
+  function b64Encode(str) {
+    try {
+      return btoa(unescape(encodeURIComponent(str)));
+    } catch (e) {
+      return btoa(str || '');
+    }
   }
 
   function renderFileTree(lab, files, target) {
@@ -232,33 +269,12 @@ document.addEventListener('DOMContentLoaded', function () {
     requestLabFiles(labName)
       .then(function (files) {
         renderFileTree(labName, files || [], container);
-        renderList(currentLabs);
+        if (toggleBtn) toggleBtn.textContent = '−';
       })
       .catch(function () {
         container.innerHTML = '';
         if (toggleBtn) toggleBtn.textContent = '+';
       });
-  }
-
-  function prefetchLabFiles(labs) {
-    if (!Array.isArray(labs)) return;
-    labs.forEach(function (lab) {
-      requestLabFiles(lab)
-        .then(function () {
-          renderList(currentLabs);
-        })
-        .catch(function () {
-          // ignore individual failures
-        });
-    });
-  }
-
-  function b64Encode(str) {
-    try {
-      return btoa(unescape(encodeURIComponent(str)));
-    } catch (e) {
-      return btoa(str);
-    }
   }
 
   function loadFileContent(labName, path, rowEl, actionsEl) {
@@ -286,6 +302,7 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.onreadystatechange = function () {
       if (xhr.readyState !== 4) return;
       setBodyLoading(false);
+
       let resp = null;
       try {
         resp = JSON.parse(xhr.responseText || '{}');
@@ -314,6 +331,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const editor = document.createElement('div');
     editor.style.marginTop = '8px';
     editor.style.width = '100%';
+    editor.className = 'lab-editor';
 
     const textarea = document.createElement('textarea');
     textarea.style.width = '100%';
@@ -340,10 +358,8 @@ document.addEventListener('DOMContentLoaded', function () {
     editor.appendChild(textarea);
     editor.appendChild(buttons);
 
-    // Remove previous editor if exists
     const existing = rowEl.querySelector('.lab-editor');
     if (existing) existing.remove();
-    editor.className = 'lab-editor';
     rowEl.appendChild(editor);
 
     cancelBtn.addEventListener('click', function () {
@@ -395,8 +411,8 @@ document.addEventListener('DOMContentLoaded', function () {
         showMessage(resp.success === false ? 'error' : 'success', resp.message);
       }
 
-      if (resp && resp.success) {
-        if (editorEl) editorEl.remove();
+      if (resp && resp.success && editorEl) {
+        editorEl.remove();
       }
     };
 
@@ -408,43 +424,9 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.send(fd);
   }
 
-  function setBodyLoading(active) {
-    if (!document || !document.body) return;
-    if (active) {
-      loadingOps += 1;
-      document.body.classList.add('is-loading');
-    } else {
-      loadingOps = Math.max(0, loadingOps - 1);
-      if (loadingOps === 0) {
-        document.body.classList.remove('is-loading');
-      }
-    }
-  }
-
-  function setLoading(isLoading) {
-    if (!(loadBtn instanceof HTMLButtonElement)) return;
-    loadBtn.disabled = !!isLoading;
-    loadBtn.classList.toggle('btn-disabled', !!isLoading);
-    const label = loadBtn.querySelector('[data-i18n=\"ui.labs.loadBtn\"]') || loadBtn;
-    label.textContent = isLoading ? t('ui.labs.loading') : t('ui.labs.loadBtn');
-    setBodyLoading(!!isLoading);
-  }
-
-  function setCreateVisible(visible) {
-    if (createBtn) {
-      createBtn.style.display = visible ? '' : 'none';
-      createBtn.disabled = !visible;
-      createBtn.classList.toggle('btn-disabled', !visible);
-    }
-    if (createHint) {
-      createHint.style.display = visible ? '' : 'none';
-    }
-  }
-
   function renderList(items) {
     listEl.innerHTML = '';
-<<<<<<< ours
-    currentLabs = Array.isArray(items) ? items : [];
+    currentLabs = Array.isArray(items) ? items.slice() : [];
     const query = (filterInput && filterInput.value || '').trim().toLowerCase();
     const arr = query
       ? currentLabs.filter(function (lab) {
@@ -454,9 +436,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return nameMatch || fileMatch;
       })
       : currentLabs;
-=======
-    const arr = Array.isArray(items) ? items : [];
->>>>>>> theirs
 
     if (!arr.length) {
       const empty = document.createElement('div');
@@ -593,6 +572,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function handleLoad() {
+    resetLabCache();
     setLoading(true);
     requestLabs({ skipMessage: false })
       .then(function (resp) {
@@ -617,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!(createBtn instanceof HTMLButtonElement)) return;
     createBtn.disabled = true;
     createBtn.classList.add('btn-disabled');
-    const label = createBtn.querySelector('[data-i18n=\"ui.labs.createBtn\"]') || createBtn;
+    const label = createBtn.querySelector('[data-i18n="ui.labs.createBtn"]') || createBtn;
     label.textContent = t('ui.labs.createLoading');
     setBodyLoading(true);
 
@@ -664,10 +644,10 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
       }
 
-      // Após criar, recarrega a lista.
       requestLabs({ skipMessage: true, auto: true })
         .then(function (r) {
           renderList((r && r.labs) || []);
+          prefetchLabFiles((r && r.labs) || []);
         })
         .finally(finishCreate);
     };
@@ -689,9 +669,23 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function prefetchLabFiles(labs) {
+    if (!Array.isArray(labs)) return;
+    labs.forEach(function (lab) {
+      requestLabFiles(lab)
+        .then(function () {
+          renderList(currentLabs);
+        })
+        .catch(function () {});
+    });
+  }
+
   loadBtn.addEventListener('click', handleLoad);
-  if (createBtn) {
-    createBtn.addEventListener('click', handleCreate);
+  if (createBtn) createBtn.addEventListener('click', handleCreate);
+  if (filterInput) {
+    filterInput.addEventListener('input', function () {
+      renderList(currentLabs);
+    });
   }
 
   window.NetConfigApp = window.NetConfigApp || {};
@@ -700,6 +694,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (opts.auto !== true) {
       return requestLabs(opts);
     }
+    resetLabCache();
     setLoading(true);
     return requestLabs(opts)
       .then(function (resp) {
@@ -710,6 +705,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         renderList((resp && resp.labs) || []);
         setCreateVisible(false);
+        prefetchLabFiles((resp && resp.labs) || []);
         return resp;
       })
       .catch(function (err) {

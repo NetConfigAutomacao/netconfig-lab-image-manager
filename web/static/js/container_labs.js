@@ -435,13 +435,10 @@ document.addEventListener('DOMContentLoaded', function () {
     listEl.innerHTML = '';
     currentLabs = Array.isArray(items) ? items.slice() : [];
     const query = (filterInput && filterInput.value || '').trim().toLowerCase();
-    const searching = query.length > 0;
+    const searching = false; // search only by lab name now
     const arr = query
       ? currentLabs.filter(function (lab) {
-        const nameMatch = (lab || '').toLowerCase().indexOf(query) !== -1;
-        const files = labFilesCache[lab] || [];
-        const fileMatch = files.some(function (f) { return (f.path || '').toLowerCase().indexOf(query) !== -1; });
-        return nameMatch || fileMatch;
+        return (lab || '').toLowerCase().indexOf(query) !== -1;
       })
       : currentLabs;
 
@@ -502,11 +499,6 @@ document.addEventListener('DOMContentLoaded', function () {
         row.appendChild(filesWrap);
         listEl.appendChild(row);
 
-        if (searching) {
-          filesWrap.style.display = 'block';
-          toggleBtn.textContent = '−';
-          loadLabFiles(lab, filesWrap, toggleBtn, true);
-        }
       });
     }
 

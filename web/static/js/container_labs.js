@@ -336,19 +336,67 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function showEditor(labName, path, rowEl, content, actionsEl) {
     const editor = document.createElement('div');
-    editor.style.marginTop = '8px';
+    editor.style.marginTop = '10px';
     editor.style.width = '100%';
+    editor.style.padding = '8px';
+    editor.style.background = 'rgba(30,41,59,0.7)';
+    editor.style.border = '1px solid rgba(56,189,248,0.25)';
+    editor.style.borderRadius = '8px';
     editor.className = 'lab-editor';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    header.style.marginBottom = '6px';
+
+    const pathLabel = document.createElement('div');
+    pathLabel.style.fontSize = '12px';
+    pathLabel.style.color = '#cbd5e1';
+    pathLabel.textContent = path || '';
+
+    const hint = document.createElement('div');
+    hint.style.fontSize = '11px';
+    hint.style.color = '#94a3b8';
+    hint.textContent = 'Use TAB para indentar · Ctrl+S salva';
+
+    header.appendChild(pathLabel);
+    header.appendChild(hint);
 
     const textarea = document.createElement('textarea');
     textarea.style.width = '100%';
-    textarea.style.minHeight = '160px';
+    textarea.style.minHeight = '240px';
+    textarea.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    textarea.style.fontSize = '13px';
+    textarea.style.lineHeight = '1.45';
+    textarea.style.color = '#e2e8f0';
+    textarea.style.background = 'rgba(15,23,42,0.9)';
+    textarea.style.border = '1px solid rgba(56,189,248,0.2)';
+    textarea.style.borderRadius = '6px';
+    textarea.style.padding = '10px';
+    textarea.style.resize = 'vertical';
     textarea.value = content || '';
+
+    textarea.addEventListener('keydown', function (e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const val = textarea.value;
+        textarea.value = val.substring(0, start) + '  ' + val.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 2;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveLabFile(labName, path, textarea.value, editor);
+      }
+    });
 
     const buttons = document.createElement('div');
     buttons.style.display = 'flex';
     buttons.style.gap = '8px';
-    buttons.style.marginTop = '6px';
+    buttons.style.marginTop = '10px';
+    buttons.style.justifyContent = 'flex-end';
 
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
@@ -362,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     buttons.appendChild(saveBtn);
     buttons.appendChild(cancelBtn);
+    editor.appendChild(header);
     editor.appendChild(textarea);
     editor.appendChild(buttons);
 

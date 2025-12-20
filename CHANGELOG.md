@@ -21,6 +21,10 @@ Este projeto segue **SemVer** (x.y.z).
 
 - Botão de edição de arquivos nos labs ganhou tamanho/estilo mais discreto para não poluir a lista.
 
+## 1.0.6
+
+- Versão incrementada para 1.0.6.
+
 ## 1.0.0
 
 - Release inicial do NetConfig Lab Image Manager.

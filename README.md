@@ -14,6 +14,8 @@ Ah, suporta tanto EVE-NG, quanto PNETLAB :)
 
 Suporta tanto EVE-NG, quanto PNETLAB :)
 
+A instalação precisa ser em um linux a parte! Não instale no proprio EVE / PNETLAB ou esse poderá crashar feio!
+
 ## Features:
 
 - Upload de imagens;
@@ -25,7 +27,8 @@ Suporta tanto EVE-NG, quanto PNETLAB :)
 
 Este projeto segue **SemVer** no formato `x.y.z`.
 
-- Versão atual: `1.0.1` (fonte: arquivo `VERSION`)
+- Versão atual: `1.0.2` (fonte: arquivo `VERSION`)
+- Versão atual: `1.0.5` (fonte: arquivo `VERSION`)
 - Ver versão no repositório: `cat VERSION`
 - Ver versão pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Ver em qualquer resposta da API: confira o header `X-App-Version`
@@ -107,7 +110,8 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.0.1` (archivo `VERSION`)
+- Versión actual: `1.0.2` (archivo `VERSION`)
+- Versión actual: `1.0.5` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 

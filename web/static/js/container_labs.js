@@ -335,68 +335,96 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function showEditor(labName, path, rowEl, content, actionsEl) {
-    const editor = document.createElement('div');
-    editor.style.marginTop = '10px';
-    editor.style.width = '100%';
-    editor.style.padding = '8px';
-    editor.style.background = 'rgba(30,41,59,0.7)';
-    editor.style.border = '1px solid rgba(56,189,248,0.25)';
-    editor.style.borderRadius = '8px';
-    editor.className = 'lab-editor';
+    // remove any existing modal
+    const oldModal = document.querySelector('.lab-editor-modal');
+    if (oldModal) oldModal.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'lab-editor-modal';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(15,23,42,0.55)';
+    overlay.style.backdropFilter = 'blur(3px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '9999';
+    overlay.style.padding = '18px';
+
+    const modal = document.createElement('div');
+    modal.style.width = '90%';
+    modal.style.maxWidth = '980px';
+    modal.style.maxHeight = '90vh';
+    modal.style.background = 'rgba(10,14,26,0.95)';
+    modal.style.border = '1px solid rgba(56,189,248,0.3)';
+    modal.style.borderRadius = '12px';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.boxShadow = '0 25px 60px rgba(0,0,0,0.45)';
 
     const header = document.createElement('div');
     header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
     header.style.alignItems = 'center';
-    header.style.marginBottom = '6px';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '12px 14px';
+    header.style.borderBottom = '1px solid rgba(56,189,248,0.18)';
 
-    const pathLabel = document.createElement('div');
-    pathLabel.style.fontSize = '12px';
-    pathLabel.style.color = '#cbd5e1';
-    pathLabel.textContent = path || '';
+    const title = document.createElement('div');
+    title.style.display = 'flex';
+    title.style.flexDirection = 'column';
+    title.style.gap = '3px';
 
-    const hint = document.createElement('div');
-    hint.style.fontSize = '11px';
-    hint.style.color = '#94a3b8';
-    hint.textContent = 'Use TAB para indentar · Ctrl+S salva';
+    const titleMain = document.createElement('div');
+    titleMain.style.fontSize = '15px';
+    titleMain.style.fontWeight = '600';
+    titleMain.style.color = '#e5e7eb';
+    titleMain.textContent = t('ui.labs.editBtn') || 'Editar arquivo';
 
-    header.appendChild(pathLabel);
-    header.appendChild(hint);
+    const titlePath = document.createElement('div');
+    titlePath.style.fontSize = '12px';
+    titlePath.style.color = '#cbd5e1';
+    titlePath.textContent = (labName ? labName + ' / ' : '') + (path || '');
 
-    const textarea = document.createElement('textarea');
-    textarea.style.width = '100%';
-    textarea.style.minHeight = '240px';
-    textarea.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-    textarea.style.fontSize = '13px';
-    textarea.style.lineHeight = '1.45';
-    textarea.style.color = '#e2e8f0';
-    textarea.style.background = 'rgba(15,23,42,0.9)';
-    textarea.style.border = '1px solid rgba(56,189,248,0.2)';
-    textarea.style.borderRadius = '6px';
-    textarea.style.padding = '10px';
-    textarea.style.resize = 'vertical';
-    textarea.value = content || '';
+    title.appendChild(titleMain);
+    title.appendChild(titlePath);
 
-    textarea.addEventListener('keydown', function (e) {
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const val = textarea.value;
-        textarea.value = val.substring(0, start) + '  ' + val.substring(end);
-        textarea.selectionStart = textarea.selectionEnd = start + 2;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        saveLabFile(labName, path, textarea.value, editor);
-      }
-    });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.color = '#cbd5e1';
+    closeBtn.style.border = '1px solid rgba(248,113,113,0.4)';
+    closeBtn.style.borderRadius = '8px';
+    closeBtn.style.padding = '4px 10px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.addEventListener('click', function () { overlay.remove(); });
 
-    const buttons = document.createElement('div');
-    buttons.style.display = 'flex';
-    buttons.style.gap = '8px';
-    buttons.style.marginTop = '10px';
-    buttons.style.justifyContent = 'flex-end';
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.style.flex = '1';
+    body.style.padding = '12px';
+    body.style.overflow = 'auto';
+
+    const editorHost = document.createElement('div');
+    const codeEditor = window.NetConfigApp && window.NetConfigApp.createCodeEditor
+      ? window.NetConfigApp.createCodeEditor({
+        container: editorHost,
+        value: content || '',
+        path: path || '',
+        language: window.NetConfigApp.detectLanguageFromPath ? window.NetConfigApp.detectLanguageFromPath(path, content) : null,
+        onSave: function (val) { saveLabFile(labName, path, val, overlay); },
+        onCancel: function () { overlay.remove(); }
+      })
+      : null;
+
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-end';
+    footer.style.gap = '10px';
+    footer.style.padding = '12px';
+    footer.style.borderTop = '1px solid rgba(56,189,248,0.18)';
 
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
@@ -408,23 +436,39 @@ document.addEventListener('DOMContentLoaded', function () {
     cancelBtn.className = 'btn-secondary';
     cancelBtn.textContent = t('ui.labs.cancelBtn') || 'Cancelar';
 
-    buttons.appendChild(saveBtn);
-    buttons.appendChild(cancelBtn);
-    editor.appendChild(header);
-    editor.appendChild(textarea);
-    editor.appendChild(buttons);
+    footer.appendChild(saveBtn);
+    footer.appendChild(cancelBtn);
 
-    const existing = rowEl.querySelector('.lab-editor');
-    if (existing) existing.remove();
-    rowEl.appendChild(editor);
+    body.appendChild(editorHost);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
 
-    cancelBtn.addEventListener('click', function () {
-      editor.remove();
+    const escListener = function (ev) {
+      if (ev.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    function closeModal() {
+      overlay.remove();
+      document.removeEventListener('keydown', escListener);
+    }
+
+    cancelBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeModal();
     });
+    document.addEventListener('keydown', escListener);
 
     saveBtn.addEventListener('click', function () {
-      saveLabFile(labName, path, textarea.value, editor);
+      const val = codeEditor && codeEditor.getValue ? codeEditor.getValue() : content || '';
+      saveLabFile(labName, path, val, overlay);
     });
+
+    if (codeEditor && codeEditor.focus) codeEditor.focus();
   }
 
   function saveLabFile(labName, path, content, editorEl) {

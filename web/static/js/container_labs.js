@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  function renderFileTree(lab, files, target) {
+  function renderFileTree(lab, files, target, expandAll) {
     target.innerHTML = '';
     const arr = sortFiles(files);
     if (!arr.length) {
@@ -119,7 +119,8 @@ document.addEventListener('DOMContentLoaded', function () {
     arr.forEach(function (entry) {
       const depth = (entry.path || '').split('/').length - 1;
       const row = document.createElement('div');
-      row.style.display = depth === 0 ? 'flex' : 'none';
+      const shouldShow = expandAll || depth === 0;
+      row.style.display = shouldShow ? 'flex' : 'none';
       row.style.alignItems = 'center';
       row.style.justifyContent = 'flex-start';
       row.style.padding = '4px 6px';
@@ -130,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
       row.style.marginLeft = (depth * 12) + 'px';
       row.dataset.path = entry.path || '';
       row.dataset.depth = depth.toString();
-      row.dataset.expanded = 'false';
+      row.dataset.expanded = expandAll ? 'true' : 'false';
 
       const info = document.createElement('div');
       info.style.display = 'flex';
@@ -161,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const dirBtn = document.createElement('button');
         dirBtn.type = 'button';
         dirBtn.className = 'btn-secondary lab-dir-toggle';
-        dirBtn.textContent = '+';
+        dirBtn.textContent = expandAll ? '−' : '+';
         dirBtn.addEventListener('click', function () {
           const expanded = row.dataset.expanded === 'true';
           if (expanded) {
@@ -197,6 +198,11 @@ document.addEventListener('DOMContentLoaded', function () {
       row.appendChild(actions);
       target.appendChild(row);
       rows.push(row);
+
+      if (expandAll && entry.type === 'dir') {
+        // Ensure first-level children are visible when fully expanded
+        expandChildren(entry.path, depth);
+      }
     });
   }
 
@@ -263,12 +269,13 @@ document.addEventListener('DOMContentLoaded', function () {
     return labFetching[labName];
   }
 
-  function loadLabFiles(labName, container, toggleBtn) {
+  function loadLabFiles(labName, container, toggleBtn, expandAll) {
     if (!labName) return;
     container.innerHTML = t('ui.labs.loading');
     requestLabFiles(labName)
       .then(function (files) {
-        renderFileTree(labName, files || [], container);
+        renderFileTree(labName, files || [], container, !!expandAll);
+        container.dataset.loaded = 'true';
         if (toggleBtn) toggleBtn.textContent = '−';
       })
       .catch(function () {
@@ -428,6 +435,7 @@ document.addEventListener('DOMContentLoaded', function () {
     listEl.innerHTML = '';
     currentLabs = Array.isArray(items) ? items.slice() : [];
     const query = (filterInput && filterInput.value || '').trim().toLowerCase();
+    const searching = query.length > 0;
     const arr = query
       ? currentLabs.filter(function (lab) {
         const nameMatch = (lab || '').toLowerCase().indexOf(query) !== -1;
@@ -486,13 +494,19 @@ document.addEventListener('DOMContentLoaded', function () {
           } else {
             filesWrap.style.display = 'block';
             toggleBtn.textContent = '−';
-            loadLabFiles(lab, filesWrap, toggleBtn);
+            loadLabFiles(lab, filesWrap, toggleBtn, false);
           }
         });
 
         row.appendChild(header);
         row.appendChild(filesWrap);
         listEl.appendChild(row);
+
+        if (searching) {
+          filesWrap.style.display = 'block';
+          toggleBtn.textContent = '−';
+          loadLabFiles(lab, filesWrap, toggleBtn, true);
+        }
       });
     }
 
@@ -680,11 +694,32 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function prefetchMissingLabs() {
+    const missing = currentLabs.filter(function (lab) {
+      return !labFilesCache[lab] && !labFetching[lab];
+    });
+    if (!missing.length) return Promise.resolve();
+    setBodyLoading(true);
+    return Promise.all(missing.map(function (lab) {
+      return requestLabFiles(lab).catch(function () {});
+    })).finally(function () {
+      setBodyLoading(false);
+      renderList(currentLabs);
+    });
+  }
+
   loadBtn.addEventListener('click', handleLoad);
   if (createBtn) createBtn.addEventListener('click', handleCreate);
   if (filterInput) {
     filterInput.addEventListener('input', function () {
-      renderList(currentLabs);
+      const query = (filterInput.value || '').trim();
+      if (query) {
+        prefetchMissingLabs().finally(function () {
+          renderList(currentLabs);
+        });
+      } else {
+        renderList(currentLabs);
+      }
     });
   }
 

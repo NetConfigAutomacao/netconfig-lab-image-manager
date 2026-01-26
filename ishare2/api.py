@@ -4,6 +4,7 @@ Pequeno wrapper HTTP para expor o comando
 container ishare2.
 """
 
+import os
 import re
 import subprocess
 import threading
@@ -16,12 +17,131 @@ app = Flask(__name__)
 
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1B[@-_][0-?]*[ -/]*[@-~]")
+_SAFE_DIR_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
+_QEMU_BASE_DIR = "/opt/unetlab/addons/qemu"
+_CUSTOM_DIR_RULES = [
+  (re.compile(r"(?:^|-)ne9000(?:-|$)"), "huaweine9k-ne9000"),
+]
 
 
 def _strip_ansi(text: str) -> str:
   if not text:
     return ""
   return _ANSI_ESCAPE_RE.sub("", text)
+
+
+def _normalize_image_dir_name(raw: str) -> str:
+  cleaned = (raw or "").strip()
+  if not cleaned:
+    return ""
+  cleaned = cleaned.lower()
+  cleaned = re.sub(r"\s+", "-", cleaned)
+  cleaned = re.sub(r"[^A-Za-z0-9._+-]", "-", cleaned)
+  cleaned = re.sub(r"-{2,}", "-", cleaned)
+  cleaned = cleaned.strip("-")
+  if not cleaned:
+    return ""
+  if "/" in cleaned or "\\" in cleaned or ".." in cleaned:
+    return ""
+  if not _SAFE_DIR_RE.match(cleaned):
+    return ""
+  return cleaned
+
+
+def _validate_dir_name(raw: str) -> str:
+  cleaned = (raw or "").strip()
+  if not cleaned:
+    return ""
+  if "/" in cleaned or "\\" in cleaned or ".." in cleaned:
+    return ""
+  if not _SAFE_DIR_RE.match(cleaned):
+    return ""
+  return cleaned
+
+
+def _apply_custom_dir_rules(base_name: str, normalized: str) -> str:
+  base_norm = _normalize_image_dir_name(base_name)
+  for pattern, suggestion in _CUSTOM_DIR_RULES:
+    if normalized and pattern.search(normalized):
+      return suggestion
+    if base_norm and pattern.search(base_norm):
+      return suggestion
+  return ""
+
+
+def _build_name_choices(base_name: str, normalized: str) -> tuple[str, List[str]]:
+  raw_candidates: List[str] = []
+
+  rule_suggestion = _apply_custom_dir_rules(base_name, normalized)
+  if rule_suggestion:
+    raw_candidates.append(rule_suggestion)
+
+  fallback_from = base_name or normalized
+  if fallback_from and "-" not in fallback_from:
+    raw_candidates.append(f"{fallback_from}-{fallback_from}")
+
+  if normalized and "-" in normalized:
+    raw_candidates.append(normalized)
+  if base_name and "-" in base_name:
+    raw_candidates.append(base_name)
+
+  choices: List[str] = []
+  suggested = ""
+  for candidate in raw_candidates:
+    cleaned = _normalize_image_dir_name(candidate) or _validate_dir_name(candidate)
+    if not cleaned or "-" not in cleaned:
+      continue
+    if cleaned in choices:
+      continue
+    choices.append(cleaned)
+    if not suggested:
+      suggested = cleaned
+
+  return suggested, choices
+
+
+def _get_name_choices(install_path: str, image_name: str) -> tuple[str, str, str, List[str], str]:
+  path = (install_path or "").rstrip("/")
+  base_dir = os.path.dirname(path)
+  base_name = os.path.basename(path)
+  normalized = _normalize_image_dir_name(image_name)
+  suggested, choices = _build_name_choices(base_name, normalized)
+  return base_dir, base_name, normalized, choices, suggested
+
+
+def _adjust_install_path(install_path: str, image_name: str) -> tuple[str, str]:
+  if not install_path:
+    return install_path, ""
+
+  normalized = _normalize_image_dir_name(image_name)
+  if not normalized:
+    return install_path, ""
+
+  path = install_path.rstrip("/")
+  base_dir = os.path.dirname(path)
+  base_name = os.path.basename(path)
+
+  if not base_dir.startswith(_QEMU_BASE_DIR):
+    return install_path, ""
+
+  rule_suggestion = _apply_custom_dir_rules(base_name, normalized)
+  if rule_suggestion and rule_suggestion != base_name:
+    return f"{base_dir}/{rule_suggestion}", f"Nome de diretório ajustado de '{base_name}' para '{rule_suggestion}'."
+
+  if base_name == normalized:
+    return install_path, ""
+
+  candidate = normalized
+  if "-" in normalized:
+    parts = normalized.split("-")
+    if base_name in parts:
+      idx = parts.index(base_name)
+      candidate = "-".join(parts[idx:])
+
+  if "-" not in base_name and "-" in candidate and candidate.startswith(f"{base_name}-"):
+    return f"{base_dir}/{candidate}", f"Nome de diretório ajustado de '{base_name}' para '{candidate}'."
+
+  return install_path, ""
 
 
 # Estrutura simples em memória para acompanhar progresso de installs
@@ -32,15 +152,167 @@ def _create_job() -> str:
   job_id = uuid.uuid4().hex
   JOBS[job_id] = {
     "id": job_id,
-    "status": "pending",  # pending | running | success | error
-    "phase": "pending",  # pull | copy | fix | done
+    "status": "pending",  # pending | running | needs_input | success | error
+    "phase": "pending",  # pull | choose | copy | fix | done
     "progress": 0,
     "message": "Aguardando início da instalação.",
     "error": "",
     "stdout": "",
     "stderr": "",
+    "choices": [],
+    "current_name": "",
+    "suggested_name": "",
+    "base_dir": "",
+    "install_path": "",
+    "target_install_path": "",
+    "eve_ip": "",
+    "eve_user": "",
+    "eve_pass": "",
   }
   return job_id
+
+
+def _copy_to_eve(job_id: str, install_path: str, target_install_path: str, eve_ip: str, eve_user: str, eve_pass: str) -> None:
+  base_ssh = _base_ssh_cmd(eve_ip, eve_pass)
+  base_scp = _base_scp_cmd(eve_ip, eve_pass)
+
+  try:
+    target_ssh = _format_target(eve_user, eve_ip, brackets=False)
+    target_scp = _format_target(eve_user, eve_ip, brackets=True)
+
+    # Garante diretório remoto
+    _update_job(
+      job_id,
+      status="running",
+      phase="copy",
+      progress=0,
+      message="Criando diretório de destino no EVE...",
+      target_install_path=target_install_path,
+    )
+    mkdir_cmd = base_ssh + [
+      target_ssh,
+      f"mkdir -p '{target_install_path}'",
+    ]
+    mkdir_proc = subprocess.run(
+      mkdir_cmd,
+      check=False,
+      text=True,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+    )
+    mkdir_out = _strip_ansi(mkdir_proc.stdout or "")
+    mkdir_err = _strip_ansi(mkdir_proc.stderr or "")
+    _append_job_logs(job_id, stdout=mkdir_out, stderr=mkdir_err)
+    if mkdir_proc.returncode != 0:
+      _update_job(
+        job_id,
+        status="error",
+        phase="done",
+        progress=0,
+        message=f"Falha ao criar diretório no EVE: {mkdir_err or 'erro desconhecido.'}",
+        error=mkdir_err or "Falha ao criar diretório no EVE.",
+      )
+      return
+
+    # Copia conteúdo do diretório local para o mesmo caminho no EVE
+    _update_job(
+      job_id,
+      phase="copy",
+      progress=0,
+      message="Copiando arquivos para o EVE...",
+    )
+    scp_cmd = base_scp + [
+      "-r",
+      f"{install_path}/.",
+      f"{target_scp}:{target_install_path}",
+    ]
+    proc = subprocess.Popen(
+      scp_cmd,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      text=True,
+    )
+
+    # Lê stderr em fluxo para tentar extrair porcentagem real (padrão 'NN%')
+    while True:
+      line = proc.stderr.readline()
+      if not line:
+        break
+      clean_line = _strip_ansi(line)
+      _append_job_logs(job_id, stderr=clean_line)
+      m = re.search(r"(\d+)%", clean_line)
+      if m:
+        try:
+          pct = int(m.group(1))
+        except ValueError:
+          pct = None
+        if pct is not None and 0 <= pct <= 100:
+          _update_job(
+            job_id,
+            progress=pct,
+          )
+
+    proc.wait()
+    if proc.returncode != 0:
+      _update_job(
+        job_id,
+        status="error",
+        phase="done",
+        progress=0,
+        message="Falha ao copiar arquivos para o EVE via SCP.",
+        error="Falha ao copiar arquivos para o EVE via SCP.",
+      )
+      return
+
+    # Executa fixpermissions no EVE
+    _update_job(
+      job_id,
+      phase="fix",
+      progress=100,
+      message="Aplicando fixpermissions no EVE...",
+    )
+    fix_cmd = base_ssh + [
+      target_ssh,
+      "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions",
+    ]
+    fix_proc = subprocess.run(
+      fix_cmd,
+      check=False,
+      text=True,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+    )
+    fix_out = _strip_ansi(fix_proc.stdout or "")
+    fix_err = _strip_ansi(fix_proc.stderr or "")
+    _append_job_logs(job_id, stdout=fix_out, stderr=fix_err)
+    if fix_proc.returncode != 0:
+      _update_job(
+        job_id,
+        status="error",
+        phase="done",
+        progress=100,
+        message="Falha ao executar fixpermissions no EVE.",
+        error=fix_err or "Falha ao executar fixpermissions no EVE.",
+      )
+      return
+
+    _update_job(
+      job_id,
+      status="success",
+      phase="done",
+      progress=100,
+      message="Imagem instalada e copiada para o EVE com sucesso (incluindo fixpermissions).",
+    )
+
+  except Exception as exc:  # pragma: no cover
+    _update_job(
+      job_id,
+      status="error",
+      phase="done",
+      progress=0,
+      message=f"Erro inesperado durante a instalação: {exc}",
+      error=str(exc),
+    )
 
 
 def _update_job(job_id: str, **kwargs: Any) -> None:
@@ -283,6 +555,7 @@ def install():
   data = request.get_json(silent=True) or {}
   image_type = (data.get("type") or "").strip()
   image_id = str(data.get("id") or "").strip()
+  image_name = (data.get("name") or "").strip()
 
   eve_ip = (data.get("eve_ip") or "").strip()
   eve_user = (data.get("eve_user") or "").strip()
@@ -360,7 +633,11 @@ def install():
   # copiamos os arquivos baixados para o host EVE.
   copy_ok = True
   copy_err = ""
+  target_install_path = install_path
   if eve_ip and eve_user and eve_pass and install_path:
+    target_install_path, adjust_note = _adjust_install_path(install_path, image_name)
+    if adjust_note:
+      clean_out = (clean_out + "\n" if clean_out else "") + f"[image-manager] {adjust_note}\n"
     base_ssh = _base_ssh_cmd(eve_ip, eve_pass)
     base_scp = _base_scp_cmd(eve_ip, eve_pass)
     target_ssh = _format_target(eve_user, eve_ip, brackets=False)
@@ -370,7 +647,7 @@ def install():
       # Garante diretório remoto
       mkdir_cmd = base_ssh + [
         target_ssh,
-        f"mkdir -p '{install_path}'",
+        f"mkdir -p '{target_install_path}'",
       ]
       subprocess.run(mkdir_cmd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -378,7 +655,7 @@ def install():
       scp_cmd = base_scp + [
         "-r",
         f"{install_path}/.",
-        f"{target_scp}:{install_path}",
+        f"{target_scp}:{target_install_path}",
       ]
       scp_proc = subprocess.run(
         scp_cmd,
@@ -419,13 +696,13 @@ def install():
       + (" Copia para o EVE realizada com sucesso." if copy_ok and eve_ip and eve_user and eve_pass and install_path else ""),
       output=clean_out,
       stderr=(clean_err + ("\n" + copy_err if copy_err else "")) if (clean_err or copy_err) else "",
-      install_path=install_path or "",
+      install_path=target_install_path or "",
     ),
     200,
   )
 
 
-def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, eve_user: str, eve_pass: str) -> None:
+def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, eve_user: str, eve_pass: str, image_name: str) -> None:
   """
   Executa o fluxo de instalação em background, atualizando o JOBS[job_id].
   """
@@ -505,144 +782,32 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     )
     return
 
-  base_ssh = _base_ssh_cmd(eve_ip, eve_pass)
-  base_scp = _base_scp_cmd(eve_ip, eve_pass)
-
-  try:
-    target_ssh = _format_target(eve_user, eve_ip, brackets=False)
-    target_scp = _format_target(eve_user, eve_ip, brackets=True)
-
-    # Garante diretório remoto
-    _update_job(
-      job_id,
-      phase="copy",
-      progress=0,
-      message="Criando diretório de destino no EVE...",
-    )
-    mkdir_cmd = base_ssh + [
-      target_ssh,
-      f"mkdir -p '{install_path}'",
-    ]
-    mkdir_proc = subprocess.run(
-      mkdir_cmd,
-      check=False,
-      text=True,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-    )
-    mkdir_out = _strip_ansi(mkdir_proc.stdout or "")
-    mkdir_err = _strip_ansi(mkdir_proc.stderr or "")
-    _append_job_logs(job_id, stdout=mkdir_out, stderr=mkdir_err)
-    if mkdir_proc.returncode != 0:
+  target_install_path = install_path
+  adjusted_path, adjust_note = _adjust_install_path(install_path, image_name)
+  if adjust_note:
+    target_install_path = adjusted_path
+    _append_job_logs(job_id, stdout=f"[image-manager] {adjust_note}\n")
+  else:
+    base_dir, base_name, normalized, choices, suggested = _get_name_choices(install_path, image_name)
+    if base_dir.startswith(_QEMU_BASE_DIR) and base_name and "-" not in base_name:
       _update_job(
         job_id,
-        status="error",
-        phase="done",
+        status="needs_input",
+        phase="choose",
         progress=0,
-        message=f"Falha ao criar diretório no EVE: {mkdir_err or 'erro desconhecido.'}",
-        error=mkdir_err or "Falha ao criar diretório no EVE.",
+        message="Nome de diretório precisa conter hífen. Escolha ou informe o nome correto.",
+        choices=choices,
+        current_name=base_name,
+        suggested_name=suggested or normalized,
+        base_dir=base_dir,
+        install_path=install_path,
+        eve_ip=eve_ip,
+        eve_user=eve_user,
+        eve_pass=eve_pass,
       )
       return
 
-    # Copia conteúdo do diretório local para o mesmo caminho no EVE
-    _update_job(
-      job_id,
-      phase="copy",
-      progress=0,
-      message="Copiando arquivos para o EVE...",
-    )
-    scp_cmd = base_scp + [
-      "-r",
-      f"{install_path}/.",
-      f"{target_scp}:{install_path}",
-    ]
-    proc = subprocess.Popen(
-      scp_cmd,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      text=True,
-    )
-
-    # Lê stderr em fluxo para tentar extrair porcentagem real (padrão 'NN%')
-    while True:
-      line = proc.stderr.readline()
-      if not line:
-        break
-      clean_line = _strip_ansi(line)
-      _append_job_logs(job_id, stderr=clean_line)
-      m = re.search(r"(\d+)%", clean_line)
-      if m:
-        try:
-          pct = int(m.group(1))
-        except ValueError:
-          pct = None
-        if pct is not None and 0 <= pct <= 100:
-          _update_job(
-            job_id,
-            progress=pct,
-          )
-
-    proc.wait()
-    if proc.returncode != 0:
-      _update_job(
-        job_id,
-        status="error",
-        phase="done",
-        progress=0,
-        message="Falha ao copiar arquivos para o EVE via SCP.",
-        error="Falha ao copiar arquivos para o EVE via SCP.",
-      )
-      return
-
-    # Executa fixpermissions no EVE
-    _update_job(
-      job_id,
-      phase="fix",
-      progress=100,
-      message="Aplicando fixpermissions no EVE...",
-    )
-    fix_cmd = base_ssh + [
-      target_ssh,
-      "/opt/unetlab/wrappers/unl_wrapper -a fixpermissions",
-    ]
-    fix_proc = subprocess.run(
-      fix_cmd,
-      check=False,
-      text=True,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-    )
-    fix_out = _strip_ansi(fix_proc.stdout or "")
-    fix_err = _strip_ansi(fix_proc.stderr or "")
-    _append_job_logs(job_id, stdout=fix_out, stderr=fix_err)
-    if fix_proc.returncode != 0:
-      _update_job(
-        job_id,
-        status="error",
-        phase="done",
-        progress=100,
-        message="Falha ao executar fixpermissions no EVE.",
-        error=fix_err or "Falha ao executar fixpermissions no EVE.",
-      )
-      return
-
-    _update_job(
-      job_id,
-      status="success",
-      phase="done",
-      progress=100,
-      message="Imagem instalada e copiada para o EVE com sucesso (incluindo fixpermissions).",
-    )
-
-  except Exception as exc:  # pragma: no cover
-    _update_job(
-      job_id,
-      status="error",
-      phase="done",
-      progress=0,
-      message=f"Erro inesperado durante a instalação: {exc}",
-      error=str(exc),
-    )
+  _copy_to_eve(job_id, install_path, target_install_path, eve_ip, eve_user, eve_pass)
 
 
 @app.route("/install_async", methods=["POST"])
@@ -654,6 +819,7 @@ def install_async():
   data = request.get_json(silent=True) or {}
   image_type = (data.get("type") or "").strip()
   image_id = str(data.get("id") or "").strip()
+  image_name = (data.get("name") or "").strip()
 
   eve_ip = (data.get("eve_ip") or "").strip()
   eve_user = (data.get("eve_user") or "").strip()
@@ -672,7 +838,7 @@ def install_async():
 
   thread = threading.Thread(
     target=_run_install_job,
-    args=(job_id, image_type, image_id, eve_ip, eve_user, eve_pass),
+    args=(job_id, image_type, image_id, eve_ip, eve_user, eve_pass, image_name),
     daemon=True,
   )
   thread.start()
@@ -682,6 +848,112 @@ def install_async():
       success=True,
       job_id=job_id,
       message="Instalação iniciada no serviço ishare2.",
+    ),
+    200,
+  )
+
+
+@app.route("/install_choose", methods=["POST"])
+def install_choose():
+  """
+  Recebe JSON {"job_id": "...", "name": "..."} para continuar
+  a instalação quando o nome do diretório precisa de confirmação.
+  """
+  data = request.get_json(silent=True) or {}
+  job_id = (data.get("job_id") or "").strip()
+  chosen_name = (data.get("name") or "").strip()
+
+  if not job_id or not chosen_name:
+    return (
+      jsonify(
+        success=False,
+        message="Parâmetros 'job_id' e 'name' são obrigatórios.",
+      ),
+      400,
+    )
+
+  job = JOBS.get(job_id)
+  if not job:
+    return (
+      jsonify(
+        success=False,
+        job_id=job_id,
+        message="Job de instalação não encontrado.",
+      ),
+      404,
+    )
+
+  if job.get("status") != "needs_input":
+    return (
+      jsonify(
+        success=False,
+        job_id=job_id,
+        message="Job não está aguardando escolha de nome.",
+      ),
+      409,
+    )
+
+  safe_name = _normalize_image_dir_name(chosen_name) or _validate_dir_name(chosen_name)
+  if not safe_name:
+    return (
+      jsonify(
+        success=False,
+        job_id=job_id,
+        message="Nome de diretório inválido.",
+      ),
+      400,
+    )
+
+  base_dir = (job.get("base_dir") or "").strip()
+  install_path = (job.get("install_path") or "").strip()
+  eve_ip = (job.get("eve_ip") or "").strip()
+  eve_user = (job.get("eve_user") or "").strip()
+  eve_pass = (job.get("eve_pass") or "").strip()
+
+  if not base_dir or not install_path or not (eve_ip and eve_user and eve_pass):
+    return (
+      jsonify(
+        success=False,
+        job_id=job_id,
+        message="Dados insuficientes para retomar a instalação.",
+      ),
+      500,
+    )
+
+  if base_dir.startswith(_QEMU_BASE_DIR) and "-" not in safe_name:
+    return (
+      jsonify(
+        success=False,
+        job_id=job_id,
+        message="Nome de diretório inválido. Use um hífen como delimitador.",
+      ),
+      400,
+    )
+
+  target_install_path = f"{base_dir.rstrip('/')}/{safe_name}"
+
+  _update_job(
+    job_id,
+    status="running",
+    phase="copy",
+    progress=0,
+    message="Retomando instalação com nome selecionado.",
+    current_name=safe_name,
+    target_install_path=target_install_path,
+  )
+
+  thread = threading.Thread(
+    target=_copy_to_eve,
+    args=(job_id, install_path, target_install_path, eve_ip, eve_user, eve_pass),
+    daemon=True,
+  )
+  thread.start()
+
+  return (
+    jsonify(
+      success=True,
+      job_id=job_id,
+      message="Nome definido. Retomando instalação.",
     ),
     200,
   )
@@ -725,6 +997,10 @@ def install_progress():
       error=job.get("error", ""),
       stdout=job.get("stdout", ""),
       stderr=job.get("stderr", ""),
+      choices=job.get("choices", []),
+      current_name=job.get("current_name", ""),
+      suggested_name=job.get("suggested_name", ""),
+      base_dir=job.get("base_dir", ""),
     ),
     200,
   )

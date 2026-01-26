@@ -1,0 +1,182 @@
+name: bgp-video-clab
+
+mgmt:
+  network: bgp-clab
+  ipv4-subnet: 10.95.202.0/24
+
+topology:
+  nodes:
+
+    ### UPSTREAMS ###
+    op-cogent:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.174
+      labels:
+        graph-level: 1
+        graph-icon: router
+      group: tier-1
+    op-sparkle:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.62
+      labels:
+        graph-level: 1
+        graph-icon: router
+      group: tier-1
+
+    op-mob:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.98
+      labels:
+        graph-level: 2
+        graph-icon: router   
+      group: tier-2   
+    op-algar:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.35
+      labels:
+        graph-level: 2
+        graph-icon: router
+      group: tier-2
+
+    ### IX-RS ###
+    ix-rs1:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.253
+      labels:
+        graph-level: 2
+        graph-icon: router
+      group: ix-rs    
+    ix-rs2:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.254
+      labels:
+        graph-level: 2
+        graph-icon: router
+      group: ix-rs    
+
+    ### BACKBONE ###
+    bgp01:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.5
+      labels:
+        graph-level: 3
+        graph-icon: router
+      group: backbone-bgp 
+      startup-config: configs/startup-config.cfg/ne40.txt
+    core01:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.2
+      labels:
+        graph-level: 4
+        graph-icon: switch
+      group: backbone-core
+    #core02:
+      #kind: huawei_vrp
+      #image: vrnetlab/huawei_vrp:ne40e-r011
+      #mgmt-ipv4: 10.95.202.3
+      #labels:
+        #graph-level: 4
+        #graph-icon: switch
+      #group: backbone-core
+    pe01:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.4
+      labels:
+        graph-level: 5
+        graph-icon: switch
+      group: backbone-pe
+    
+    ### DOWNSTREAMS ###
+    downstream:
+      kind: huawei_vrp
+      image: vrnetlab/huawei_vrp:ne40e-r011
+      mgmt-ipv4: 10.95.202.99
+      labels:
+        graph-level: 6
+        graph-icon: router
+      group: downstream
+
+    ### CLIENTS ###
+    client1:
+      image: ghcr.io/srl-labs/network-multitool
+      kind: linux
+      mgmt-ipv4: 10.95.202.31
+      exec:
+        - ip address add 172.17.0.1/24 dev eth1
+#        - ip -6 address add 2002::172:17:0:1/96 dev eth1
+#        - iperf3 -s -p 5201 -D > iperf3_1.log
+#        - iperf3 -s -p 5202 -D > iperf3_2.log
+      group: server
+    client2:
+      image: ghcr.io/srl-labs/network-multitool
+      kind: linux
+      mgmt-ipv4: 10.95.202.32
+      binds:
+        - configs/client2:/config
+      exec:
+        - ip address add 172.17.0.2/24 dev eth1
+ #       - ip -6 address add 2002::172:17:0:2/96 dev eth1
+      group: server
+      labels:
+        graph-level: 6
+        graph-icon: host
+
+    grafana:
+      kind: linux
+      mgmt-ipv4: 10.95.202.43
+      image: grafana/grafana:11.2.0
+      binds:
+        - configs/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+        - configs/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+        - configs/grafana/dashboards:/var/lib/grafana/dashboards
+      ports:
+        - 3000:3000
+      env:
+        GF_INSTALL_PLUGINS: "andrewbmchugh-flow-panel"
+        # env vars to enable anonymous access
+        GF_ORG_ROLE: "Admin"
+        GF_ORG_NAME: "Main Org"
+        GF_AUTH_ANONYMOUS_ENABLED: "true"
+        GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+        GF_AUTH_ANONYMOUS: "true"
+        GF_AUTH_OAUTH_AUTO_LOGIN: "true"
+      #group: "10"
+
+    ### BRIDGES ###
+    br-atm:
+      kind: bridge
+      labels:
+        #graph-level: 3
+        graph-icon: switch
+      group: ix-atm
+
+  links:
+
+    - endpoints: ["op-cogent:eth3", "op-sparkle:eth3"]
+    - endpoints: ["op-cogent:eth6", "op-mob:eth6"]
+
+    - endpoints: ["op-sparkle:eth5", "op-algar:eth5"]
+    - endpoints: ["op-sparkle:eth4", "op-mob:eth4"]
+
+    - endpoints: ["op-mob:eth2", "bgp01:eth2"]
+
+    - endpoints: ["op-algar:eth3", "bgp01:eth3"]
+
+    - endpoints: ["bgp01:eth6", "core01:eth6"]
+    
+    - endpoints: ["core01:eth3", "pe01:eth3"]
+
+    - endpoints: ["pe01:eth6", "downstream:eth6"]
+
+
+    - endpoints: ["br-atm:eth1", "bgp01:eth5"]
+    - endpoints: ["br-atm:eth2", "downstream:eth2"]

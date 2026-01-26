@@ -4,17 +4,14 @@
 Esse é um projeto OpenSource desenvolvido pela equipe do [NetConfig](https://netconfig.com.br/), software de automação de redes.
 Quer saber mais sobre o NetConfig? Entre já e conheça!
 
-O NetConfig - Lab Image Manager é um projeto que vem com a intenção de auxiliar aqueles que estudam redes, tirando a complexidade para subir imagens em laboratorios (EVE-NG / PNETLAB) de forma que o usuario possa focar no seu estudo.
+O NetConfig - Lab Image Manager é um projeto que vem com a intenção de auxiliar aqueles que estudam redes, tirando a complexidade para subir imagens em laboratórios (EVE-NG / PNETLAB / ContainerLab) de forma que o usuário possa focar no seu estudo.
 
 Não tente instalar direto no EVE/PNETLAB!  A instalação é para ser em uma VM separada!
 
-Ah, suporta tanto EVE-NG, quanto PNETLAB :)
+Suporta EVE-NG, PNETLAB e ContainerLab (em desenvolvimento) :)
 
 ![ScreenShot](images/screenshot-lab-image-manager.png)
 
-Suporta tanto EVE-NG, quanto PNETLAB :)
-
-A instalação precisa ser em um linux a parte! Não instale no proprio EVE / PNETLAB ou esse poderá crashar feio!
 
 ## Features:
 
@@ -22,22 +19,7 @@ A instalação precisa ser em um linux a parte! Não instale no proprio EVE / PN
 - Upload de templates .yaml;
 - Upload de icones;
 - Auto instalação de imagens no EVE-NG (iShare2 embarcado).
-
-## Versão
-
-Este projeto segue **SemVer** no formato `x.y.z`.
-
-- Versão atual: `1.0.2` (fonte: arquivo `VERSION`)
-- Versão atual: `1.0.5` (fonte: arquivo `VERSION`)
-- Ver versão no repositório: `cat VERSION`
-- Ver versão pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
-- Ver em qualquer resposta da API: confira o header `X-App-Version`
-
-### Regras de versionamento (SemVer)
-
-- **MAJOR** (`x.0.0`): mudanças incompatíveis (breaking changes) na API/UX/fluxo.
-- **MINOR** (`0.y.0`): novas features compatíveis (sem quebrar o que já existe).
-- **PATCH** (`0.0.z`): correções e melhorias internas compatíveis.
+- Suporte a ContainerLab: aba VRNETLAB (build/clone), aba Container Images (docker/podman) e aba Laboratórios para listar/editar labs em `/opt/containerlab/labs`.
 
 ### iShare2
 
@@ -105,13 +87,13 @@ ports:
 - Carga/listado/carga en vivo de plantillas YAML
 - Carga/listado de íconos
 - Instalación automática de imágenes con el CLI de iShare2 integrado
+- Soporte a ContainerLab: VRNETLAB, imágenes de contenedor (docker/podman) y pestaña de laboratorios en `/opt/containerlab/labs`.
 
 ### Versión
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.0.2` (archivo `VERSION`)
-- Versión actual: `1.0.5` (archivo `VERSION`)
+- Versión actual: `1.0.7` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 

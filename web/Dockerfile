@@ -19,5 +19,6 @@ WORKDIR /usr/share/nginx/html
 
 COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY web/index.html /usr/share/nginx/html/index.html
+COPY web/topoviewer.html /usr/share/nginx/html/topoviewer.html
 COPY web/static /usr/share/nginx/html/static
 COPY VERSION /usr/share/nginx/html/VERSION

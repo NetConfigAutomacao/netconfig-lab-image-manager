@@ -93,7 +93,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.0.6` (archivo `VERSION`)
+- Versión actual: `1.0.7` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 

@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
+import yaml
 
 from i18n import get_request_lang, translate
 from utils import run_ssh_command
@@ -33,6 +34,171 @@ def _is_safe_relpath(name: str) -> bool:
     if ".." in cleaned.split("/"):
         return False
     return True
+
+
+def _normalize_nodes(topology: dict) -> dict:
+    nodes = topology.get("nodes") if isinstance(topology, dict) else None
+    if isinstance(nodes, list):
+        mapped = {}
+        for idx, item in enumerate(nodes):
+            if not isinstance(item, dict):
+                continue
+            name = (item.get("name") or f"node-{idx + 1}").strip()
+            if not name:
+                name = f"node-{idx + 1}"
+            mapped[name] = item
+        return mapped
+    if isinstance(nodes, dict):
+        return nodes
+    return {}
+
+
+def _parse_endpoint(endpoint):
+    if isinstance(endpoint, str):
+        if ":" in endpoint:
+            node, iface = endpoint.split(":", 1)
+            return node.strip(), iface.strip()
+        return endpoint.strip(), ""
+    if isinstance(endpoint, dict):
+        node = str(endpoint.get("node") or "").strip()
+        iface = str(endpoint.get("interface") or "").strip()
+        return node, iface
+    return "", ""
+
+
+def _format_endpoint(node, iface):
+    if node and iface:
+        return f"{node}:{iface}"
+    return node or ""
+
+
+def _guess_role(kind_value: str, labels: dict) -> str:
+    role = str(labels.get("topoViewer-role") or labels.get("graph-icon") or "").strip()
+    if role:
+        return role
+    kind = (kind_value or "").lower()
+    if "bridge" in kind:
+        return "bridge"
+    if kind in ("linux", "host"):
+        return "host"
+    return "router"
+
+
+def _build_cyto_elements(doc: dict) -> list:
+    elements = []
+    topology = doc.get("topology") if isinstance(doc, dict) else {}
+    topology = topology if isinstance(topology, dict) else {}
+    nodes = _normalize_nodes(topology)
+    parent_map = {}
+
+    for idx, (node_name, node_obj) in enumerate(nodes.items()):
+        node_obj = node_obj if isinstance(node_obj, dict) else {}
+        labels = node_obj.get("labels") if isinstance(node_obj.get("labels"), dict) else {}
+        group_name = str(labels.get("topoViewer-group") or labels.get("graph-group") or node_obj.get("group") or "").strip()
+        group_level = str(labels.get("topoViewer-groupLevel") or labels.get("graph-level") or "").strip()
+        parent_id = ""
+        if group_name and group_level:
+            parent_id = f"{group_name}:{group_level}"
+            parent_map[parent_id] = str(labels.get("graph-groupLabelPos") or "").strip()
+
+        role = _guess_role(str(node_obj.get("kind") or ""), labels)
+        lat = str(labels.get("graph-geoCoordinateLat") or "")
+        lng = str(labels.get("graph-geoCoordinateLng") or "")
+
+        extra_data = {
+            "id": node_name,
+            "name": node_name,
+            "kind": node_obj.get("kind") or "",
+            "image": node_obj.get("image") or "",
+            "type": node_obj.get("type") or "",
+            "group": node_obj.get("group") or "",
+            "labels": labels,
+            "mgmtIpv4Address": node_obj.get("mgmt-ipv4") or "",
+            "mgmtIpv6Address": node_obj.get("mgmt-ipv6") or "",
+        }
+
+        position = {"x": 0, "y": 0}
+        if "graph-posX" in labels and "graph-posY" in labels:
+            try:
+                position = {"x": float(labels.get("graph-posX")), "y": float(labels.get("graph-posY"))}
+            except (TypeError, ValueError):
+                position = {"x": 0, "y": 0}
+
+        node_data = {
+            "id": node_name,
+            "name": node_name,
+            "topoViewerRole": role,
+            "lat": lat,
+            "lng": lng,
+            "weight": "30",
+            "extraData": extra_data,
+        }
+        if parent_id:
+            node_data["parent"] = parent_id
+
+        elements.append(
+            {
+                "group": "nodes",
+                "data": node_data,
+                "position": position,
+                "classes": "",
+            }
+        )
+
+    for parent_id, group_label_pos in parent_map.items():
+        group_name, group_level = (parent_id.split(":", 1) + [""])[:2]
+        elements.append(
+            {
+                "group": "nodes",
+                "data": {
+                    "id": parent_id,
+                    "name": group_name or "UnnamedGroup",
+                    "topoViewerRole": "group",
+                    "lat": "",
+                    "lng": "",
+                    "weight": "1000",
+                    "extraData": {
+                        "topoViewerGroup": group_name or "",
+                        "topoViewerGroupLevel": group_level or "",
+                    },
+                },
+                "classes": group_label_pos or "",
+            }
+        )
+
+    links = topology.get("links") if isinstance(topology, dict) else []
+    if isinstance(links, list):
+        for idx, link in enumerate(links):
+            if not isinstance(link, dict):
+                continue
+            endpoints = link.get("endpoints")
+            if not isinstance(endpoints, list) or len(endpoints) < 2:
+                continue
+            src_node, src_iface = _parse_endpoint(endpoints[0])
+            dst_node, dst_iface = _parse_endpoint(endpoints[1])
+            if not src_node or not dst_node:
+                continue
+            edge_id = f"link-{idx + 1}-{src_node}-{dst_node}"
+            elements.append(
+                {
+                    "group": "edges",
+                    "data": {
+                        "id": edge_id,
+                        "source": src_node,
+                        "target": dst_node,
+                        "sourceEndpoint": src_iface,
+                        "targetEndpoint": dst_iface,
+                        "endpoints": [
+                            _format_endpoint(src_node, src_iface),
+                            _format_endpoint(dst_node, dst_iface),
+                        ],
+                        "extraData": link,
+                    },
+                    "classes": "",
+                }
+            )
+
+    return elements
 
 
 @container_labs_bp.route("/list", methods=["POST"])
@@ -301,3 +467,112 @@ def save_lab_file():
         )
 
     return jsonify(success=True, message=translate("container_labs.save_success", lang)), 200
+
+
+@container_labs_bp.route("/topoviewer/cyto", methods=["POST"])
+def container_labs_topoviewer_cyto():
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+
+    cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; "
+        "target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+        "cat \"$target\""
+    )
+
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    cleaned_out = out or ""
+    if "__FILE_NOT_FOUND__" in cleaned_out or rc == 44:
+        return (
+            jsonify(
+                success=False,
+                message=translate("container_labs.file_missing", lang, path=rel_path),
+                stderr=(err or "").strip(),
+            ),
+            404,
+        )
+
+    try:
+        doc = yaml.safe_load(cleaned_out) or {}
+    except Exception as exc:
+        return (
+            jsonify(success=False, message=f"Failed to parse YAML: {exc}"),
+            400,
+        )
+
+    if not isinstance(doc, dict):
+        doc = {}
+
+    elements = _build_cyto_elements(doc)
+    return jsonify(success=True, elements=elements), 200
+
+
+@container_labs_bp.route("/topoviewer/env", methods=["POST"])
+def container_labs_topoviewer_env():
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+
+    cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; "
+        "target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+        "cat \"$target\""
+    )
+
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    cleaned_out = out or ""
+    if "__FILE_NOT_FOUND__" in cleaned_out or rc == 44:
+        return (
+            jsonify(
+                success=False,
+                message=translate("container_labs.file_missing", lang, path=rel_path),
+                stderr=(err or "").strip(),
+            ),
+            404,
+        )
+
+    try:
+        doc = yaml.safe_load(cleaned_out) or {}
+    except Exception:
+        doc = {}
+
+    if not isinstance(doc, dict):
+        doc = {}
+
+    clab_name = doc.get("name") or lab_name
+    clab_prefix = doc.get("prefix") or ""
+
+    environment = {
+        "working-directory": f"{labs_dir}/{lab_name}",
+        "clab-name": str(clab_name),
+        "clab-prefix": str(clab_prefix),
+        "clab-server-address": eve_ip,
+        "clab-server-port": "22",
+        "deployment-type": "containerlab",
+        "topoviewer-version": "embedded",
+    }
+
+    return jsonify(success=True, environment=environment), 200

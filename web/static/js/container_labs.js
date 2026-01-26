@@ -193,6 +193,19 @@ document.addEventListener('DOMContentLoaded', function () {
           loadFileContent(lab, entry.path, row, actions);
         });
         actions.appendChild(editBtn);
+
+        if ((entry.path || '').toLowerCase().match(/clab\.ya?ml$/)) {
+          const topoBtn = document.createElement('button');
+          topoBtn.type = 'button';
+          topoBtn.className = 'btn-secondary';
+          topoBtn.style.padding = '3px 8px';
+          topoBtn.style.fontSize = '11px';
+          topoBtn.textContent = 'Topology';
+          topoBtn.addEventListener('click', function () {
+            openTopologyFromFile(lab, entry.path);
+          });
+          actions.appendChild(topoBtn);
+        }
       }
 
       row.appendChild(actions);
@@ -522,6 +535,503 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     xhr.send(fd);
+  }
+
+  function fetchLabFileContent(labName, path) {
+    return new Promise(function (resolve, reject) {
+      const creds = getCommonCreds();
+      if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+        showMessage('error', t('container_labs.missing_creds'));
+        return reject(new Error('missing_creds'));
+      }
+      const fd = new FormData();
+      fd.append('eve_ip', creds.eve_ip);
+      fd.append('eve_user', creds.eve_user);
+      fd.append('eve_pass', creds.eve_pass);
+      fd.append('lab_name', labName);
+      fd.append('path', path);
+      if (dirInput && dirInput.value) {
+        fd.append('labs_dir', dirInput.value.trim());
+      }
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/container-labs/file', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
+      setBodyLoading(true);
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        setBodyLoading(false);
+        let resp = null;
+        try {
+          resp = JSON.parse(xhr.responseText || '{}');
+        } catch (err) {
+          showMessage('error', t('msg.parseError'));
+          return reject(err);
+        }
+        if (!resp || resp.success === false) {
+          if (resp && resp.message) showMessage('error', resp.message);
+          return reject(new Error('fetch_file_failed'));
+        }
+        resolve(resp.content || '');
+      };
+
+      xhr.onerror = function () {
+        setBodyLoading(false);
+        showMessage('error', t('msg.networkError'));
+        reject(new Error('network_error'));
+      };
+
+      xhr.send(fd);
+    });
+  }
+
+  function parseTopologyFallback(text) {
+    const nodes = [];
+    const links = [];
+    const lines = (text || '').split(/\r?\n/);
+    let inNodes = false;
+    let inLinks = false;
+    let currentNode = null;
+    let nodesBlockIndent = 0;
+
+    function pushNode() {
+      if (currentNode) nodes.push(currentNode);
+      currentNode = null;
+    }
+
+    lines.forEach(function (raw) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      const indent = (raw.match(/^\s*/) || [''])[0].length;
+      if (/^topology\s*:/.test(line)) {
+        inNodes = false; inLinks = false; pushNode(); return;
+      }
+      if (/^nodes\s*:/.test(line)) {
+        inNodes = true; inLinks = false; pushNode(); nodesBlockIndent = indent; return;
+      }
+      if (/^links\s*:/.test(line)) {
+        inNodes = false; inLinks = true; pushNode(); return;
+      }
+
+      if (inNodes) {
+        const nodeMatch = line.match(/^([A-Za-z0-9._-]+)\s*:\s*$/);
+        if (nodeMatch && indent > nodesBlockIndent) {
+          pushNode();
+          currentNode = { name: nodeMatch[1], kind: '', image: '', mgmt: '' };
+          return;
+        }
+        if (currentNode && indent > nodesBlockIndent) {
+          const kindM = line.match(/^kind\s*:\s*(.+)$/);
+          if (kindM) { currentNode.kind = kindM[1]; return; }
+          const imgM = line.match(/^image\s*:\s*(.+)$/);
+          if (imgM) { currentNode.image = imgM[1]; return; }
+          const mgmtM = line.match(/^(mgmt-ipv4|mgmt)\s*:\s*(.+)$/);
+          if (mgmtM) { currentNode.mgmt = mgmtM[2]; return; }
+        }
+        return;
+      }
+
+      if (inLinks) {
+        const epMatch = line.match(/endpoints\s*:\s*\[(.+)\]/);
+        if (epMatch) {
+          const parts = epMatch[1].split(',').map(function (p) {
+            return p.replace(/['"\s]/g, '');
+          }).filter(Boolean);
+          links.push({ endpoints: parts, name: 'link-' + (links.length + 1) });
+        }
+      }
+    });
+    pushNode();
+    return { nodes: nodes, links: links, fallback: true };
+  }
+
+  function parseTopologyYaml(text) {
+    let parsed = { nodes: [], links: [], error: null, meta: {} };
+    const meta = {
+      lib: null,
+      usedFallback: false,
+      hasTopology: false,
+      nodesType: null,
+      linksType: null,
+      nodesDetected: 0,
+      linksDetected: 0
+    };
+    try {
+      const yamlLib = (typeof jsyaml !== 'undefined' ? jsyaml : (window.jsyaml || null));
+      if (yamlLib && yamlLib.load) {
+        meta.lib = 'jsyaml';
+        const doc = yamlLib.load(text || '');
+        if (doc && doc.topology) {
+          meta.hasTopology = true;
+          const topo = doc.topology || {};
+          const rawNodes = topo.nodes || {};
+          const rawLinks = topo.links || [];
+          meta.nodesType = Array.isArray(rawNodes) ? 'array' : typeof rawNodes;
+          meta.linksType = Array.isArray(rawLinks) ? 'array' : typeof rawLinks;
+
+          if (Array.isArray(rawNodes)) {
+            parsed.nodes = rawNodes.map(function (n, idx) {
+              const item = n || {};
+              return {
+                name: item.name || 'node-' + (idx + 1),
+                kind: item.kind || '',
+                image: item.image || '',
+                mgmt: item['mgmt-ipv4'] || item.mgmt || ''
+              };
+            });
+          } else if (rawNodes && typeof rawNodes === 'object') {
+            parsed.nodes = Object.keys(rawNodes).map(function (k) {
+              const n = rawNodes[k] || {};
+              return { name: k, kind: n.kind || '', image: n.image || '', mgmt: n['mgmt-ipv4'] || n.mgmt || '' };
+            });
+          }
+
+          parsed.links = Array.isArray(rawLinks) ? rawLinks.map(function (l, idx) {
+            const link = l || {};
+            return { endpoints: Array.isArray(link.endpoints) ? link.endpoints : [], name: link.name || 'link-' + (idx + 1) };
+          }) : [];
+        } else {
+          parsed.error = 'no_topology_section';
+        }
+      } else {
+        parsed.error = 'missing_yaml_lib';
+      }
+    } catch (err) {
+      parsed.error = err && err.message ? err.message : 'yaml_parse_error';
+    }
+
+    if ((!parsed.nodes.length && !parsed.links.length) && (!parsed.error || parsed.error === 'no_topology_section')) {
+      const fb = parseTopologyFallback(text);
+      parsed.nodes = fb.nodes;
+      parsed.links = fb.links;
+      meta.usedFallback = true;
+      if (!parsed.error) parsed.error = fb.fallback ? 'parsed_with_fallback' : parsed.error;
+    }
+
+    meta.nodesDetected = parsed.nodes.length;
+    meta.linksDetected = parsed.links.length;
+    parsed.meta = meta;
+    return parsed;
+  }
+
+  function showTopologyModal(labName, path, topology) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lab-editor-modal';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(15,23,42,0.55)';
+    overlay.style.backdropFilter = 'blur(3px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '9999';
+    overlay.style.padding = '18px';
+
+    const modal = document.createElement('div');
+    modal.style.width = '90%';
+    modal.style.maxWidth = '1080px';
+    modal.style.maxHeight = '90vh';
+    modal.style.background = 'rgba(10,14,26,0.95)';
+    modal.style.border = '1px solid rgba(56,189,248,0.3)';
+    modal.style.borderRadius = '12px';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.boxShadow = '0 25px 60px rgba(0,0,0,0.45)';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '12px 14px';
+    header.style.borderBottom = '1px solid rgba(56,189,248,0.18)';
+
+    const title = document.createElement('div');
+    title.style.display = 'flex';
+    title.style.flexDirection = 'column';
+    title.style.gap = '3px';
+
+    const titleMain = document.createElement('div');
+    titleMain.style.fontSize = '15px';
+    titleMain.style.fontWeight = '600';
+    titleMain.style.color = '#e5e7eb';
+    titleMain.textContent = 'Topology';
+
+    const titlePath = document.createElement('div');
+    titlePath.style.fontSize = '12px';
+    titlePath.style.color = '#cbd5e1';
+    titlePath.textContent = (labName ? labName + ' / ' : '') + (path || '');
+
+    title.appendChild(titleMain);
+    title.appendChild(titlePath);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.color = '#cbd5e1';
+    closeBtn.style.border = '1px solid rgba(248,113,113,0.4)';
+    closeBtn.style.borderRadius = '8px';
+    closeBtn.style.padding = '4px 10px';
+    closeBtn.style.cursor = 'pointer';
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.style.flex = '1';
+    body.style.padding = '12px';
+    body.style.overflow = 'auto';
+
+    const debugCard = document.createElement('div');
+    debugCard.style.background = 'rgba(15,23,42,0.85)';
+    debugCard.style.border = '1px solid rgba(56,189,248,0.15)';
+    debugCard.style.borderRadius = '10px';
+    debugCard.style.padding = '10px';
+    debugCard.style.marginBottom = '10px';
+
+    const debugTitle = document.createElement('div');
+    debugTitle.style.fontWeight = '600';
+    debugTitle.style.color = '#e5e7eb';
+    debugTitle.style.marginBottom = '6px';
+    debugTitle.textContent = 'Debug';
+
+    const debugPre = document.createElement('pre');
+    debugPre.style.margin = '0';
+    debugPre.style.fontSize = '11px';
+    debugPre.style.color = '#94a3b8';
+    debugPre.style.whiteSpace = 'pre-wrap';
+    debugPre.textContent = JSON.stringify((topology && topology.meta) || {}, null, 2);
+
+    debugCard.appendChild(debugTitle);
+    debugCard.appendChild(debugPre);
+
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = '1fr 1fr';
+    grid.style.gap = '12px';
+
+    const nodesCard = document.createElement('div');
+    nodesCard.style.background = 'rgba(15,23,42,0.85)';
+    nodesCard.style.border = '1px solid rgba(56,189,248,0.15)';
+    nodesCard.style.borderRadius = '10px';
+    nodesCard.style.padding = '10px';
+
+    const nodesTitle = document.createElement('div');
+    nodesTitle.style.fontWeight = '600';
+    nodesTitle.style.color = '#e5e7eb';
+    nodesTitle.style.marginBottom = '6px';
+    nodesTitle.textContent = 'Nodes (' + (topology.nodes.length || 0) + ')';
+
+    const nodesList = document.createElement('div');
+    nodesList.style.display = 'grid';
+    nodesList.style.gridTemplateColumns = '1fr';
+    nodesList.style.gap = '6px';
+
+    topology.nodes.forEach(function (n) {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.border = '1px solid rgba(56,189,248,0.12)';
+      row.style.borderRadius = '8px';
+      row.style.padding = '8px';
+      row.style.background = 'rgba(12,18,32,0.9)';
+
+      const name = document.createElement('div');
+      name.style.fontWeight = '600';
+      name.style.color = '#e2e8f0';
+      name.textContent = n.name || '(node)';
+
+      const meta = document.createElement('div');
+      meta.style.fontSize = '12px';
+      meta.style.color = '#cbd5e1';
+      meta.textContent = [n.kind || '', n.image || '', n.mgmt || ''].filter(Boolean).join(' · ');
+
+      row.appendChild(name);
+      row.appendChild(meta);
+      nodesList.appendChild(row);
+    });
+
+    nodesCard.appendChild(nodesTitle);
+    nodesCard.appendChild(nodesList);
+
+    const linksCard = document.createElement('div');
+    linksCard.style.background = 'rgba(15,23,42,0.85)';
+    linksCard.style.border = '1px solid rgba(56,189,248,0.15)';
+    linksCard.style.borderRadius = '10px';
+    linksCard.style.padding = '10px';
+
+    const linksTitle = document.createElement('div');
+    linksTitle.style.fontWeight = '600';
+    linksTitle.style.color = '#e5e7eb';
+    linksTitle.style.marginBottom = '6px';
+    linksTitle.textContent = 'Links (' + (topology.links.length || 0) + ')';
+
+    const linksList = document.createElement('div');
+    linksList.style.display = 'grid';
+    linksList.style.gridTemplateColumns = '1fr';
+    linksList.style.gap = '6px';
+
+    topology.links.forEach(function (l) {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.flexDirection = 'column';
+      row.style.border = '1px solid rgba(56,189,248,0.12)';
+      row.style.borderRadius = '8px';
+      row.style.padding = '8px';
+      row.style.background = 'rgba(12,18,32,0.9)';
+
+      const ep = document.createElement('div');
+      ep.style.fontWeight = '600';
+      ep.style.color = '#e2e8f0';
+      ep.textContent = (l.endpoints && l.endpoints.join('  ⟷  ')) || 'link';
+
+      row.appendChild(ep);
+      linksList.appendChild(row);
+    });
+
+    linksCard.appendChild(linksTitle);
+    linksCard.appendChild(linksList);
+
+    grid.appendChild(nodesCard);
+    grid.appendChild(linksCard);
+
+    body.appendChild(debugCard);
+    body.appendChild(grid);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function close() {
+      overlay.remove();
+    }
+
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', function esc(ev) {
+      if (ev.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', esc);
+      }
+    });
+  }
+
+  function openTopologyFromFile(labName, path) {
+    const creds = getCommonCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+      showMessage('error', t('container_labs.missing_creds'));
+      return;
+    }
+
+    try {
+      sessionStorage.setItem('clabCreds', JSON.stringify(creds));
+      if (dirInput && dirInput.value) {
+        sessionStorage.setItem('clabLabsDir', dirInput.value.trim());
+      } else {
+        sessionStorage.removeItem('clabLabsDir');
+      }
+    } catch (e) {
+      // ignore storage failures
+    }
+
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(15,23,42,0.6)';
+    overlay.style.backdropFilter = 'blur(4px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '9999';
+    overlay.style.padding = '18px';
+
+    const modal = document.createElement('div');
+    modal.style.width = '96%';
+    modal.style.maxWidth = '1400px';
+    modal.style.height = '90vh';
+    modal.style.background = 'rgba(10,14,26,0.98)';
+    modal.style.border = '1px solid rgba(56,189,248,0.3)';
+    modal.style.borderRadius = '12px';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.boxShadow = '0 25px 60px rgba(0,0,0,0.45)';
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '10px 14px';
+    header.style.borderBottom = '1px solid rgba(56,189,248,0.18)';
+
+    const title = document.createElement('div');
+    title.style.display = 'flex';
+    title.style.flexDirection = 'column';
+    title.style.gap = '2px';
+
+    const titleMain = document.createElement('div');
+    titleMain.style.fontSize = '15px';
+    titleMain.style.fontWeight = '600';
+    titleMain.style.color = '#e5e7eb';
+    titleMain.textContent = 'Topology';
+
+    const titlePath = document.createElement('div');
+    titlePath.style.fontSize = '12px';
+    titlePath.style.color = '#cbd5e1';
+    titlePath.textContent = (labName ? labName + ' / ' : '') + (path || '');
+
+    title.appendChild(titleMain);
+    title.appendChild(titlePath);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.color = '#cbd5e1';
+    closeBtn.style.border = '1px solid rgba(248,113,113,0.4)';
+    closeBtn.style.borderRadius = '8px';
+    closeBtn.style.padding = '4px 10px';
+    closeBtn.style.cursor = 'pointer';
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.style.flex = '1';
+    body.style.padding = '8px';
+    body.style.overflow = 'hidden';
+
+    const iframe = document.createElement('iframe');
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    iframe.style.borderRadius = '10px';
+    iframe.src = '/topoviewer.html?lab=' + encodeURIComponent(labName || '') + '&file=' + encodeURIComponent(path || '');
+
+    body.appendChild(iframe);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function close() {
+      overlay.remove();
+    }
+
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', function esc(ev) {
+      if (ev.key === 'Escape') {
+        close();
+        document.removeEventListener('keydown', esc);
+      }
+    });
   }
 
   function renderList(items) {

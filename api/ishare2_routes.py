@@ -91,6 +91,7 @@ def ishare2_install():
     lang = get_request_lang()
     image_type = (request.form.get("type") or "").strip()
     image_id = (request.form.get("id") or "").strip()
+    image_name = (request.form.get("name") or "").strip()
 
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
@@ -117,6 +118,7 @@ def ishare2_install():
     payload = {
         "type": image_type,
         "id": image_id,
+        "name": image_name,
         "eve_ip": eve_ip,
         "eve_user": eve_user,
         "eve_pass": eve_pass,
@@ -173,6 +175,7 @@ def ishare2_install_async():
     lang = get_request_lang()
     image_type = (request.form.get("type") or "").strip()
     image_id = (request.form.get("id") or "").strip()
+    image_name = (request.form.get("name") or "").strip()
 
     eve_ip = (request.form.get("eve_ip") or "").strip()
     eve_user = (request.form.get("eve_user") or "").strip()
@@ -199,6 +202,7 @@ def ishare2_install_async():
     payload = {
         "type": image_type,
         "id": image_id,
+        "name": image_name,
         "eve_ip": eve_ip,
         "eve_user": eve_user,
         "eve_pass": eve_pass,
@@ -292,3 +296,64 @@ def ishare2_install_progress():
 
     # Repassa o conteúdo do job praticamente como veio do serviço ishare2
     return jsonify(data), 200
+
+
+@ishare2_bp.route("/install_choose", methods=["POST"])
+def ishare2_install_choose():
+    """
+    Envia o nome escolhido pelo usuário para continuar a instalação
+    quando o ishare2 precisar de confirmação do diretório.
+
+    Via Nginx: /api/ishare2/install_choose
+    """
+    lang = get_request_lang()
+    job_id = (request.form.get("job_id") or "").strip()
+    name = (request.form.get("name") or "").strip()
+
+    if not job_id or not name:
+        return (
+            jsonify(
+                success=False,
+                message=translate("ishare2.choose_missing", lang),
+            ),
+            400,
+        )
+
+    payload = {"job_id": job_id, "name": name}
+
+    try:
+        resp = requests.post(
+            "http://ishare2:8080/install_choose",
+            json=payload,
+            timeout=30,
+        )
+    except requests.RequestException as exc:
+        return (
+            jsonify(
+                success=False,
+                message=translate("ishare2.choose_contact_error", lang, error=exc),
+            ),
+            502,
+        )
+
+    try:
+        data = resp.json()
+    except ValueError:
+        return (
+            jsonify(
+                success=False,
+                message=translate("ishare2.choose_invalid_json", lang),
+                status_code=resp.status_code,
+                raw_text=resp.text,
+            ),
+            502,
+        )
+
+    return (
+        jsonify(
+            success=bool(data.get("success")),
+            message=data.get("message", ""),
+            status_code=resp.status_code,
+        ),
+        200,
+    )

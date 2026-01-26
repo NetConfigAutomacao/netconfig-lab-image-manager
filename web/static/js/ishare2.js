@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   let lastSections = [];
   let installProgressInterval = null;
+  let pendingNameJobId = null;
 
   if (!searchBtn || !outputDiv) {
     return;
@@ -45,6 +46,220 @@ document.addEventListener('DOMContentLoaded', function () {
     progressText.textContent = t('ishare2.install.start');
     progressContainer.style.display = 'block';
     progressBar.style.width = '0%';
+  }
+
+  function closeNameChoiceModal() {
+    var old = document.querySelector('.ishare2-name-modal');
+    if (old) {
+      old.remove();
+    }
+    pendingNameJobId = null;
+  }
+
+  function showNameChoiceModal(jobId, resp) {
+    if (!jobId || pendingNameJobId === jobId) {
+      return;
+    }
+
+    closeNameChoiceModal();
+    pendingNameJobId = jobId;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'ishare2-name-modal';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(15,23,42,0.55)';
+    overlay.style.backdropFilter = 'blur(3px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '9999';
+    overlay.style.padding = '18px';
+
+    var modal = document.createElement('div');
+    modal.style.width = '92%';
+    modal.style.maxWidth = '520px';
+    modal.style.background = 'rgba(10,14,26,0.97)';
+    modal.style.border = '1px solid rgba(56,189,248,0.3)';
+    modal.style.borderRadius = '12px';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.boxShadow = '0 25px 60px rgba(0,0,0,0.45)';
+
+    var header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '12px 14px';
+    header.style.borderBottom = '1px solid rgba(56,189,248,0.18)';
+
+    var title = document.createElement('div');
+    title.style.fontSize = '15px';
+    title.style.fontWeight = '600';
+    title.style.color = '#e5e7eb';
+    title.textContent = t('ishare2.install.chooseTitle');
+
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = '✕';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.color = '#cbd5e1';
+    closeBtn.style.border = '1px solid rgba(248,113,113,0.4)';
+    closeBtn.style.borderRadius = '8px';
+    closeBtn.style.padding = '4px 10px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.addEventListener('click', function () { closeNameChoiceModal(); });
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    var body = document.createElement('div');
+    body.style.display = 'flex';
+    body.style.flexDirection = 'column';
+    body.style.gap = '10px';
+    body.style.padding = '14px';
+
+    var desc = document.createElement('div');
+    desc.style.fontSize = '13px';
+    desc.style.color = '#cbd5e1';
+    desc.textContent = t('ishare2.install.chooseDesc', { baseDir: resp.base_dir || '/opt/unetlab/addons/qemu' });
+
+    var label = document.createElement('label');
+    label.style.fontSize = '12px';
+    label.style.color = '#9ca3af';
+    label.textContent = t('ishare2.install.chooseLabel');
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = resp.suggested_name || resp.current_name || '';
+    input.placeholder = t('ishare2.install.choosePlaceholder');
+    input.style.padding = '10px 12px';
+    input.style.borderRadius = '8px';
+    input.style.border = '1px solid rgba(148,163,184,0.35)';
+    input.style.background = 'rgba(15,23,42,0.6)';
+    input.style.color = '#e5e7eb';
+    input.style.fontSize = '13px';
+
+    body.appendChild(desc);
+    var choices = Array.isArray(resp.choices) ? resp.choices : [];
+    if (choices.length) {
+      var choiceRow = document.createElement('div');
+      choiceRow.style.display = 'flex';
+      choiceRow.style.flexWrap = 'wrap';
+      choiceRow.style.gap = '8px';
+
+      choices.forEach(function (choice) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = t('ishare2.install.chooseUse', { name: choice });
+        btn.style.padding = '6px 10px';
+        btn.style.borderRadius = '999px';
+        btn.style.border = '1px solid rgba(56,189,248,0.35)';
+        btn.style.background = 'rgba(30,41,59,0.7)';
+        btn.style.color = '#e2e8f0';
+        btn.style.fontSize = '12px';
+        btn.style.cursor = 'pointer';
+        btn.addEventListener('click', function () {
+          input.value = choice;
+          input.focus();
+        });
+        choiceRow.appendChild(btn);
+      });
+
+      body.appendChild(choiceRow);
+    }
+
+    body.appendChild(label);
+    body.appendChild(input);
+
+    var footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'flex-end';
+    footer.style.gap = '10px';
+    footer.style.padding = '0 14px 14px 14px';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'btn-secondary';
+    cancelBtn.textContent = t('ishare2.install.chooseCancel');
+    cancelBtn.addEventListener('click', function () {
+      closeNameChoiceModal();
+    });
+
+    var confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'btn-primary';
+    confirmBtn.textContent = t('ishare2.install.chooseConfirm');
+    confirmBtn.addEventListener('click', function () {
+      var name = (input.value || '').trim();
+      if (!name) {
+        showMessage('error', t('ishare2.install.chooseInvalid'));
+        return;
+      }
+      if (name.indexOf('-') === -1) {
+        showMessage('error', t('ishare2.install.chooseNeedsHyphen'));
+        return;
+      }
+
+      var fd = new FormData();
+      fd.append('job_id', jobId);
+      fd.append('name', name);
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/ishare2/install_choose', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          var status = xhr.status || 0;
+          if (status === 0) {
+            showMessage('error', t('ishare2.install.commFail'));
+            return;
+          }
+
+          var respChoose = null;
+          try {
+            respChoose = JSON.parse(xhr.responseText || '{}');
+          } catch (err) {
+            showMessage('error', t('ishare2.install.parseError', { status: status }));
+            return;
+          }
+
+          if (!respChoose || respChoose.success === false) {
+            showMessage('error', (respChoose && respChoose.message) || t('ishare2.install.fail'));
+            return;
+          }
+
+          showMessage('success', respChoose.message || t('ishare2.install.chooseResumed'));
+          closeNameChoiceModal();
+          setLoading(true);
+        }
+      };
+
+      xhr.onerror = function () {
+        showMessage('error', t('ishare2.install.commFail'));
+      };
+
+      xhr.send(fd);
+    });
+
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        confirmBtn.click();
+      }
+    });
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(confirmBtn);
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    setTimeout(function () { input.focus(); }, 50);
   }
 
   function finishInstallProgress() {
@@ -128,10 +343,20 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           var jobStatus = resp.status || '';
+          if (jobStatus === 'needs_input') {
+            if (progressText) {
+              progressText.style.display = 'block';
+              progressText.textContent = t('ishare2.install.waitingName');
+            }
+            showNameChoiceModal(jobId, resp);
+            setLoading(false);
+            return;
+          }
           if (jobStatus === 'success' || jobStatus === 'error') {
             clearInterval(installProgressInterval);
             installProgressInterval = null;
             setLoading(false);
+            closeNameChoiceModal();
             finishInstallProgress();
 
             if (jobStatus === 'success') {
@@ -381,6 +606,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var fd = new FormData();
     fd.append('type', type);
     fd.append('id', id);
+    if (name) {
+      fd.append('name', name);
+    }
     fd.append('eve_ip', creds.eve_ip);
     fd.append('eve_user', creds.eve_user);
     fd.append('eve_pass', creds.eve_pass);

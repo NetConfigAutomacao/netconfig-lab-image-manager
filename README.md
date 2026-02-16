@@ -52,7 +52,7 @@ docker compose up -d --build
 Assista ao passo a passo completo no YouTube:
 https://www.youtube.com/watch?v=BlYUhqPxWuI
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/BlYUhqPxWuI" title="NetConfig Lab Image Manager - Tutorial de instalação" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![NetConfig Lab Image Manager - Tutorial de instalação](https://img.youtube.com/vi/BlYUhqPxWuI/hqdefault.jpg)](https://www.youtube.com/watch?v=BlYUhqPxWuI)
 
 ### Testes unitários
 
@@ -149,7 +149,7 @@ docker compose up -d --build
 Watch the full step-by-step on YouTube:
 https://www.youtube.com/watch?v=BlYUhqPxWuI
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/BlYUhqPxWuI" title="NetConfig Lab Image Manager - Installation tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![NetConfig Lab Image Manager - Installation tutorial](https://img.youtube.com/vi/BlYUhqPxWuI/hqdefault.jpg)](https://www.youtube.com/watch?v=BlYUhqPxWuI)
 
 ### Unit tests
 
@@ -243,7 +243,7 @@ docker compose up -d --build
 Mira el paso a paso completo en YouTube:
 https://www.youtube.com/watch?v=BlYUhqPxWuI
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/BlYUhqPxWuI" title="NetConfig Lab Image Manager - Tutorial de instalación" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![NetConfig Lab Image Manager - Tutorial de instalación](https://img.youtube.com/vi/BlYUhqPxWuI/hqdefault.jpg)](https://www.youtube.com/watch?v=BlYUhqPxWuI)
 
 ### Pruebas unitarias
 

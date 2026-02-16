@@ -41,6 +41,13 @@ cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
 
+### Tutorial em vídeo
+
+Assista ao passo a passo completo no YouTube:
+https://www.youtube.com/watch?v=BlYUhqPxWuI
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/BlYUhqPxWuI" title="NetConfig Lab Image Manager - Tutorial de instalação" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 ## Testes unitários
 
 Os testes unitários ficam em `tests/` e usam `unittest` (stdlib do Python).
@@ -111,6 +118,13 @@ git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git 
 cd /opt/netconfig-lab-image-manager
 docker compose up -d --build
 ```
+
+### Tutorial en video
+
+Mira el paso a paso completo en YouTube:
+https://www.youtube.com/watch?v=BlYUhqPxWuI
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/BlYUhqPxWuI" title="NetConfig Lab Image Manager - Tutorial de instalación" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ### Habilitar IPv6
 El compose crea la red `eveng-net` con IPv6 (`fd00:dead:beef::/64`). Activa IPv6 en Docker antes de subir los contenedores:

@@ -7,6 +7,7 @@ container ishare2.
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import uuid
 from typing import Any, Dict, List
@@ -19,6 +20,8 @@ app = Flask(__name__)
 _ANSI_ESCAPE_RE = re.compile(r"\x1B[@-_][0-?]*[ -/]*[@-~]")
 _SAFE_DIR_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
 _QEMU_BASE_DIR = "/opt/unetlab/addons/qemu"
+_ISHARE2_SCRIPT = "/opt/ishare2-cli/ishare2"
+_PULL_PREFIX_TOKEN = "prefix=$(jq -r --arg mirror \"$mirror\" '.url_properties.prefixes[$mirror]' \"$TEMP_JSON\")"
 _CUSTOM_DIR_RULES = [
   (re.compile(r"(?:^|-)ne9000(?:-|$)"), "huaweine9k-ne9000"),
 ]
@@ -28,6 +31,142 @@ def _strip_ansi(text: str) -> str:
   if not text:
     return ""
   return _ANSI_ESCAPE_RE.sub("", text)
+
+
+def _append_text(base: str, extra: str) -> str:
+  if not extra:
+    return base or ""
+  if not base:
+    return extra
+  if base.endswith("\n"):
+    return f"{base}{extra}"
+  return f"{base}\n{extra}"
+
+
+def _extract_install_path(text: str) -> str | None:
+  for line in (text or "").splitlines():
+    m = re.search(r"^\s*Path\s*:\s*(.+)$", line)
+    if m:
+      return m.group(1).strip()
+  return None
+
+
+def _build_patched_ishare2_script(forced_prefix: str) -> str:
+  with open(_ISHARE2_SCRIPT, "r", encoding="utf-8") as src:
+    script_content = src.read()
+
+  if _PULL_PREFIX_TOKEN not in script_content:
+    raise RuntimeError("Trecho de prefixo do ishare2 não encontrado para aplicar fallback.")
+
+  patched_content = script_content.replace(
+    _PULL_PREFIX_TOKEN,
+    f'prefix="{forced_prefix}"',
+    1,
+  )
+
+  fd, path = tempfile.mkstemp(prefix="ishare2-prefix-", suffix=".sh")
+  os.close(fd)
+  try:
+    with open(path, "w", encoding="utf-8") as tmp:
+      tmp.write(patched_content)
+    os.chmod(path, 0o755)
+  except Exception:
+    try:
+      os.remove(path)
+    except OSError:
+      pass
+    raise
+
+  return path
+
+
+def _run_pull_command(
+  type_arg: str,
+  image_id: str,
+  *,
+  overwrite: bool = False,
+  forced_prefix: str | None = None,
+) -> tuple[int, str, str]:
+  script_path = _ISHARE2_SCRIPT
+  temp_script_path = ""
+
+  if forced_prefix:
+    temp_script_path = _build_patched_ishare2_script(forced_prefix)
+    script_path = temp_script_path
+
+  try:
+    cmd = [script_path, "pull", type_arg, image_id]
+    if overwrite:
+      cmd.append("--overwrite")
+    proc = subprocess.Popen(
+      cmd,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      text=True,
+    )
+    stdout, stderr = proc.communicate()
+    return proc.returncode, _strip_ansi(stdout or ""), _strip_ansi(stderr or "")
+  finally:
+    if temp_script_path and os.path.exists(temp_script_path):
+      try:
+        os.remove(temp_script_path)
+      except OSError:
+        pass
+
+
+def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]:
+  rc0, out0, err0 = _run_pull_command(type_arg, image_id)
+  if rc0 == 0:
+    return {
+      "rc": rc0,
+      "output": out0,
+      "stderr": err0,
+      "final_output": out0,
+      "fallback_attempted": False,
+      "fallback_used": False,
+    }
+
+  out_joined = _append_text(
+    out0,
+    "[image-manager] Pull falhou no repositório /0:. Tentando fallback no /1:.",
+  )
+  err_joined = err0
+
+  rc1: int | None = None
+  out1 = ""
+  err1 = ""
+  try:
+    rc1, out1, err1 = _run_pull_command(
+      type_arg,
+      image_id,
+      overwrite=True,
+      forced_prefix="/1:",
+    )
+  except Exception as exc:
+    err1 = f"Erro ao executar fallback no repositório /1:: {exc}"
+
+  out_joined = _append_text(out_joined, out1)
+  err_joined = _append_text(err_joined, err1)
+
+  if rc1 == 0:
+    out_joined = _append_text(out_joined, "[image-manager] Fallback no repositório /1: concluído com sucesso.")
+    return {
+      "rc": 0,
+      "output": out_joined,
+      "stderr": err_joined,
+      "final_output": out1,
+      "fallback_attempted": True,
+      "fallback_used": True,
+    }
+
+  return {
+    "rc": rc1 if rc1 is not None else rc0,
+    "output": out_joined,
+    "stderr": err_joined,
+    "final_output": out1 or out0,
+    "fallback_attempted": True,
+    "fallback_used": False,
+  }
 
 
 def _normalize_image_dir_name(raw: str) -> str:
@@ -573,18 +712,8 @@ def install():
     )
 
   type_arg = image_type.lower()
-  cmd_str = f"/opt/ishare2-cli/ishare2 pull {type_arg} {image_id}"
-  cmd = ["bash", "-lc", cmd_str]
-
   try:
-    proc = subprocess.Popen(
-      cmd,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      text=True,
-    )
-    stdout, stderr = proc.communicate()
-    rc = proc.returncode
+    pull_result = _run_pull_with_repo_fallback(type_arg, image_id)
   except FileNotFoundError:
     return (
       jsonify(
@@ -606,25 +735,24 @@ def install():
       500,
     )
 
-  clean_out = _strip_ansi(stdout or "")
-  clean_err = _strip_ansi(stderr or "")
+  clean_out = pull_result.get("output", "")
+  clean_err = pull_result.get("stderr", "")
+  install_path = _extract_install_path(pull_result.get("final_output") or clean_out)
+  fallback_attempted = bool(pull_result.get("fallback_attempted"))
+  fallback_used = bool(pull_result.get("fallback_used"))
 
-  # Tenta extrair o caminho de instalação da saída (linha "Path: ...")
-  install_path = None
-  for line in clean_out.splitlines():
-    m = re.search(r"^\s*Path\s*:\s*(.+)$", line)
-    if m:
-      install_path = m.group(1).strip()
-      break
-
-  if rc != 0:
+  if pull_result.get("rc", 1) != 0:
+    fail_message = "Falha ao executar ishare2 pull."
+    if fallback_attempted:
+      fail_message = "Falha ao executar ishare2 pull nos repositórios /0: e /1:."
     return (
       jsonify(
         success=False,
-        message="Falha ao executar ishare2 pull.",
+        message=fail_message,
         output=clean_out,
         stderr=clean_err,
         install_path=install_path or "",
+        fallback_attempted=fallback_attempted,
       ),
       500,
     )
@@ -693,10 +821,12 @@ def install():
     jsonify(
       success=True,
       message="Imagem instalada (download via ishare2 pull concluído)."
+      + (" Fallback para o repositório /1: aplicado com sucesso." if fallback_used else "")
       + (" Copia para o EVE realizada com sucesso." if copy_ok and eve_ip and eve_user and eve_pass and install_path else ""),
       output=clean_out,
       stderr=(clean_err + ("\n" + copy_err if copy_err else "")) if (clean_err or copy_err) else "",
       install_path=target_install_path or "",
+      fallback_used=fallback_used,
     ),
     200,
   )
@@ -707,8 +837,6 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
   Executa o fluxo de instalação em background, atualizando o JOBS[job_id].
   """
   type_arg = image_type.lower()
-  cmd_str = f"/opt/ishare2-cli/ishare2 pull {type_arg} {image_id}"
-  cmd = ["bash", "-lc", cmd_str]
 
   _update_job(
     job_id,
@@ -719,14 +847,7 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
   )
 
   try:
-    proc = subprocess.Popen(
-      cmd,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-      text=True,
-    )
-    stdout, stderr = proc.communicate()
-    rc = proc.returncode
+    pull_result = _run_pull_with_repo_fallback(type_arg, image_id)
   except FileNotFoundError:
     _update_job(
       job_id,
@@ -748,37 +869,41 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     )
     return
 
-  clean_out = _strip_ansi(stdout or "")
-  clean_err = _strip_ansi(stderr or "")
+  clean_out = pull_result.get("output", "")
+  clean_err = pull_result.get("stderr", "")
   _append_job_logs(job_id, stdout=clean_out, stderr=clean_err)
 
-  # Tenta extrair o caminho de instalação da saída (linha "Path: ...")
-  install_path = None
-  for line in clean_out.splitlines():
-    m = re.search(r"^\s*Path\s*:\s*(.+)$", line)
-    if m:
-      install_path = m.group(1).strip()
-      break
+  install_path = _extract_install_path(pull_result.get("final_output") or clean_out)
+  fallback_attempted = bool(pull_result.get("fallback_attempted"))
+  fallback_used = bool(pull_result.get("fallback_used"))
+  if fallback_used:
+    _append_job_logs(job_id, stdout="[image-manager] Download concluído via fallback no repositório /1:.\n")
 
-  if rc != 0:
+  if pull_result.get("rc", 1) != 0:
+    fail_message = "Falha ao executar ishare2 pull."
+    if fallback_attempted:
+      fail_message = "Falha ao executar ishare2 pull nos repositórios /0: e /1:."
     _update_job(
       job_id,
       status="error",
       phase="done",
       progress=0,
-      message="Falha ao executar ishare2 pull.",
+      message=fail_message,
       error=clean_err or "Falha ao executar ishare2 pull.",
     )
     return
 
   # Se não houver credenciais ou caminho, consideramos concluído após o pull.
   if not (eve_ip and eve_user and eve_pass and install_path):
+    success_message = "Imagem baixada via ishare2 pull (sem cópia para o EVE)."
+    if fallback_used:
+      success_message = "Imagem baixada via ishare2 pull usando fallback do repositório /1: (sem cópia para o EVE)."
     _update_job(
       job_id,
       status="success",
       phase="done",
       progress=100,
-      message="Imagem baixada via ishare2 pull (sem cópia para o EVE).",
+      message=success_message,
     )
     return
 

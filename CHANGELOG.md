@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.0.9
+
+- Versão incrementada para 1.0.9.
+
 ## 1.0.8
 
 - Versão incrementada para 1.0.8.

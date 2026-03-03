@@ -332,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
             progressBar.style.width = progress + '%';
 
             if (phase === 'pull') {
-              progressText.textContent = t('ishare2.install.pull', { progress: progress });
+              progressText.textContent = msg || t('ishare2.install.pull', { progress: progress });
             } else if (phase === 'copy') {
               progressText.textContent = t('ishare2.install.copy', { progress: progress });
             } else if (phase === 'fix') {

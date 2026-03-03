@@ -432,6 +432,32 @@
       background-color: rgba(15, 23, 42, 0.9);
       white-space: pre-wrap;
       word-break: break-word;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .alert-content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .alert-close {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0 2px;
+      cursor: pointer;
+      opacity: 0.8;
+      transition: opacity 0.15s ease;
+    }
+
+    .alert-close:hover {
+      opacity: 1;
     }
 
     .alert-success {

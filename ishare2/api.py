@@ -12,7 +12,7 @@ import threading
 import uuid
 import urllib.error
 import urllib.request
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from flask import Flask, jsonify, request
 
@@ -25,6 +25,18 @@ _QEMU_BASE_DIR = "/opt/unetlab/addons/qemu"
 _ISHARE2_SCRIPT = "/opt/ishare2-cli/ishare2"
 _PULL_PREFIX_TOKEN = "prefix=$(jq -r --arg mirror \"$mirror\" '.url_properties.prefixes[$mirror]' \"$TEMP_JSON\")"
 _LABHUB_INDEX_URL = "https://labhub.eu.org/"
+_QUOTA_HINT_MESSAGE = (
+  "Possível limite de quota dos mirrors LabHub detectado. "
+  "Tente novamente em alguns minutos ou use outro repositório."
+)
+_QUOTA_PATTERNS = [
+  ("quota_exceeded", re.compile(r"\bquota(?:\s+has\s+been)?\s+exceeded\b", re.IGNORECASE)),
+  ("download_quota", re.compile(r"download\s+quota", re.IGNORECASE)),
+  ("rate_limit", re.compile(r"\brate\s+limit\b", re.IGNORECASE)),
+  ("bandwidth_limit", re.compile(r"bandwidth\s+limit\s+exceeded", re.IGNORECASE)),
+  ("too_many_users", re.compile(r"too\s+many\s+users\s+have\s+viewed\s+or\s+downloaded", re.IGNORECASE)),
+  ("too_many_requests", re.compile(r"\b429\b|\btoo\s+many\s+requests\b", re.IGNORECASE)),
+]
 _CUSTOM_DIR_RULES = [
   (re.compile(r"(?:^|-)ne9000(?:-|$)"), "huaweine9k-ne9000"),
 ]
@@ -52,6 +64,19 @@ def _extract_install_path(text: str) -> str | None:
     if m:
       return m.group(1).strip()
   return None
+
+
+def _detect_labhub_quota_issue(*texts: str) -> Dict[str, Any]:
+  merged = "\n".join([part for part in texts if part]).strip()
+  if not merged:
+    return {"detected": False, "matches": []}
+
+  matches: List[str] = []
+  for label, pattern in _QUOTA_PATTERNS:
+    if pattern.search(merged):
+      matches.append(label)
+
+  return {"detected": bool(matches), "matches": matches}
 
 
 def _build_patched_ishare2_script(forced_prefix: str) -> str:
@@ -145,7 +170,16 @@ def _run_pull_command(
         pass
 
 
-def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]:
+def _run_pull_with_repo_fallback(
+  type_arg: str,
+  image_id: str,
+  on_attempt: Callable[[str], None] | None = None,
+) -> Dict[str, Any]:
+  tested_prefixes: List[str] = []
+
+  tested_prefixes.append("/0:")
+  if on_attempt:
+    on_attempt("/0:")
   rc0, out0, err0 = _run_pull_command(type_arg, image_id)
   if rc0 == 0:
     return {
@@ -155,6 +189,7 @@ def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]
       "final_output": out0,
       "fallback_attempted": False,
       "fallback_used": False,
+      "tested_prefixes": tested_prefixes,
     }
 
   discovered_prefixes = _discover_repo_prefixes_from_labhub()
@@ -169,6 +204,9 @@ def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]
   last_out = out0
 
   for prefix in fallback_prefixes:
+    tested_prefixes.append(prefix)
+    if on_attempt:
+      on_attempt(prefix)
     out_joined = _append_text(
       out_joined,
       f"[image-manager] Pull falhou no repositório /0:. Tentando fallback no {prefix}.",
@@ -202,6 +240,7 @@ def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]
         "fallback_attempted": True,
         "fallback_used": True,
         "fallback_prefix": prefix,
+        "tested_prefixes": tested_prefixes,
       }
 
   return {
@@ -212,6 +251,7 @@ def _run_pull_with_repo_fallback(type_arg: str, image_id: str) -> Dict[str, Any]
     "fallback_attempted": bool(fallback_prefixes),
     "fallback_used": False,
     "fallback_prefixes": fallback_prefixes,
+    "tested_prefixes": tested_prefixes,
   }
 
 
@@ -788,11 +828,19 @@ def install():
   fallback_used = bool(pull_result.get("fallback_used"))
   fallback_prefix = (pull_result.get("fallback_prefix") or "").strip()
   fallback_prefixes = pull_result.get("fallback_prefixes") or []
+  tested_prefixes = pull_result.get("tested_prefixes") or []
+  quota_info = _detect_labhub_quota_issue(clean_out, clean_err)
+  quota_detected = bool(quota_info.get("detected"))
+  quota_matches = quota_info.get("matches") or []
 
   if pull_result.get("rc", 1) != 0:
     fail_message = "Falha ao executar ishare2 pull."
     if fallback_attempted:
       fail_message = "Falha ao executar ishare2 pull mesmo após tentar fallbacks de repositório."
+    if quota_detected:
+      fail_message = f"{fail_message} {_QUOTA_HINT_MESSAGE}"
+    if tested_prefixes:
+      fail_message = f"{fail_message} Repositórios testados: {', '.join(tested_prefixes)}."
     return (
       jsonify(
         success=False,
@@ -802,6 +850,9 @@ def install():
         install_path=install_path or "",
         fallback_attempted=fallback_attempted,
         fallback_prefixes=fallback_prefixes,
+        tested_prefixes=tested_prefixes,
+        quota_detected=quota_detected,
+        quota_matches=quota_matches,
       ),
       500,
     )
@@ -870,7 +921,9 @@ def install():
     jsonify(
       success=True,
       message="Imagem instalada (download via ishare2 pull concluído)."
+      + (" Quota detectada em mirror anterior; fallback automático aplicado." if quota_detected and fallback_used else "")
       + (f" Fallback para o repositório {fallback_prefix} aplicado com sucesso." if fallback_used and fallback_prefix else "")
+      + (f" Repositórios testados: {', '.join(tested_prefixes)}." if tested_prefixes else "")
       + (" Copia para o EVE realizada com sucesso." if copy_ok and eve_ip and eve_user and eve_pass and install_path else ""),
       output=clean_out,
       stderr=(clean_err + ("\n" + copy_err if copy_err else "")) if (clean_err or copy_err) else "",
@@ -878,6 +931,9 @@ def install():
       fallback_used=fallback_used,
       fallback_prefix=fallback_prefix,
       fallback_prefixes=fallback_prefixes,
+      tested_prefixes=tested_prefixes,
+      quota_detected=quota_detected,
+      quota_matches=quota_matches,
     ),
     200,
   )
@@ -897,8 +953,17 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     message="Baixando imagem via ishare2 pull...",
   )
 
+  def _notify_repo_attempt(prefix: str) -> None:
+    _update_job(
+      job_id,
+      status="running",
+      phase="pull",
+      progress=0,
+      message=f"Testando repositório {prefix}...",
+    )
+
   try:
-    pull_result = _run_pull_with_repo_fallback(type_arg, image_id)
+    pull_result = _run_pull_with_repo_fallback(type_arg, image_id, on_attempt=_notify_repo_attempt)
   except FileNotFoundError:
     _update_job(
       job_id,
@@ -929,23 +994,36 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
   fallback_used = bool(pull_result.get("fallback_used"))
   fallback_prefix = (pull_result.get("fallback_prefix") or "").strip()
   fallback_prefixes = pull_result.get("fallback_prefixes") or []
+  tested_prefixes = pull_result.get("tested_prefixes") or []
+  quota_info = _detect_labhub_quota_issue(clean_out, clean_err)
+  quota_detected = bool(quota_info.get("detected"))
+  quota_matches = quota_info.get("matches") or []
   if fallback_used:
     if fallback_prefix:
       _append_job_logs(job_id, stdout=f"[image-manager] Download concluído via fallback no repositório {fallback_prefix}.\n")
     else:
       _append_job_logs(job_id, stdout="[image-manager] Download concluído via fallback de repositório.\n")
+  if quota_detected:
+    _append_job_logs(job_id, stdout=f"[image-manager] {_QUOTA_HINT_MESSAGE}\n")
 
   if pull_result.get("rc", 1) != 0:
     fail_message = "Falha ao executar ishare2 pull."
     if fallback_attempted:
       fail_message = "Falha ao executar ishare2 pull mesmo após tentar fallbacks de repositório."
+    if quota_detected:
+      fail_message = f"{fail_message} {_QUOTA_HINT_MESSAGE}"
     _update_job(
       job_id,
       status="error",
       phase="done",
       progress=0,
       message=fail_message,
-      error=(clean_err + (f"\nRepos tentados: {', '.join(fallback_prefixes)}" if fallback_prefixes else "")) or "Falha ao executar ishare2 pull.",
+      error=(
+        clean_err
+        + (f"\nRepos testados: {', '.join(tested_prefixes)}" if tested_prefixes else "")
+        + (f"\nFallbacks disponíveis: {', '.join(fallback_prefixes)}" if fallback_prefixes else "")
+        + (f"\nQuota matches: {', '.join(quota_matches)}" if quota_matches else "")
+      ) or "Falha ao executar ishare2 pull.",
     )
     return
 
@@ -957,6 +1035,8 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
         success_message = f"Imagem baixada via ishare2 pull usando fallback do repositório {fallback_prefix} (sem cópia para o EVE)."
       else:
         success_message = "Imagem baixada via ishare2 pull usando fallback de repositório (sem cópia para o EVE)."
+      if quota_detected:
+        success_message = f"{success_message} Quota detectada em mirror anterior."
     _update_job(
       job_id,
       status="success",

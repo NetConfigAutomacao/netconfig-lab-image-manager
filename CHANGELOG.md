@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.0.8
+
+- Versão incrementada para 1.0.8.
+
 ## 1.0.2
 
 - Suporte inicial ao VRNETLAB em hosts ContainerLab, com detecção do diretório /opt/vrnetlab e instalação automática via git clone quando ausente.

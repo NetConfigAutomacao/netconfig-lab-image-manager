@@ -133,7 +133,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const div = document.createElement('div');
     div.className = 'alert ' + (type === 'error' ? 'alert-error' : 'alert-success');
-    div.innerHTML = text;
+
+    const content = document.createElement('div');
+    content.className = 'alert-content';
+    content.innerHTML = text;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'alert-close';
+    closeBtn.setAttribute('aria-label', t('ui.alert.close'));
+    closeBtn.title = t('ui.alert.close');
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', function () {
+      div.remove();
+    });
+
+    div.appendChild(content);
+    div.appendChild(closeBtn);
     messages.appendChild(div);
   }
 

@@ -95,7 +95,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `1.0.7` (arquivo `VERSION`)
+- Versão atual: `1.0.8` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 
@@ -192,7 +192,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `1.0.7` (file `VERSION`)
+- Current version: `1.0.8` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 
@@ -286,6 +286,6 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.0.7` (archivo `VERSION`)
+- Versión actual: `1.0.8` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`

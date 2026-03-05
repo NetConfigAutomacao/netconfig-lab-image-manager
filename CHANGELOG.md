@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.0
+
+- Versão incrementada para 1.1.0.
+- Priorização de repositórios por latência no fluxo de instalação iShare2.
+- Fallback automático entre repositórios quando o primeiro falha ou não possui a imagem.
+- Exibição no frontend do ranking de latência medido para os repositórios.
+
 ## 1.0.9
 
 - Versão incrementada para 1.0.9.

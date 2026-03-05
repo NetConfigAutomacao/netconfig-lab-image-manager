@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 import threading
 import uuid
+import json
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List
@@ -23,8 +25,15 @@ _ANSI_ESCAPE_RE = re.compile(r"\x1B[@-_][0-?]*[ -/]*[@-~]")
 _SAFE_DIR_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
 _QEMU_BASE_DIR = "/opt/unetlab/addons/qemu"
 _ISHARE2_SCRIPT = "/opt/ishare2-cli/ishare2"
+_PULL_PROTOCOL_TOKEN = "protocol=$(jq -r '.url_properties.protocol' \"$TEMP_JSON\")"
+_PULL_HOSTNAME_TOKEN = "hostname=$(jq -r --arg mirror \"$mirror\" '.url_properties.hostnames[$mirror]' \"$TEMP_JSON\")"
 _PULL_PREFIX_TOKEN = "prefix=$(jq -r --arg mirror \"$mirror\" '.url_properties.prefixes[$mirror]' \"$TEMP_JSON\")"
 _LABHUB_INDEX_URL = "https://labhub.eu.org/"
+_LABHUB_HOST = "labhub.eu.org"
+_HEXA_REPO_HOST = "repo.hexanetworks.com.br"
+_HEXA_REPO_PREFIX = "/api/raw?path="
+_HEXA_REPO_ID = "repo.hexanetworks.com.br"
+_REPO_PROBE_TIMEOUT = 2.0
 _QUOTA_HINT_MESSAGE = (
   "Possível limite de quota dos mirrors LabHub detectado. "
   "Tente novamente em alguns minutos ou use outro repositório."
@@ -36,6 +45,32 @@ _QUOTA_PATTERNS = [
   ("bandwidth_limit", re.compile(r"bandwidth\s+limit\s+exceeded", re.IGNORECASE)),
   ("too_many_users", re.compile(r"too\s+many\s+users\s+have\s+viewed\s+or\s+downloaded", re.IGNORECASE)),
   ("too_many_requests", re.compile(r"\b429\b|\btoo\s+many\s+requests\b", re.IGNORECASE)),
+]
+_NOT_FOUND_PATTERNS = [
+  re.compile(r"\b404\b", re.IGNORECASE),
+  re.compile(r"\bnot\s+found\b", re.IGNORECASE),
+  re.compile(r"\benoent\b", re.IGNORECASE),
+  re.compile(r"no\s+such\s+file\s+or\s+directory", re.IGNORECASE),
+  re.compile(r"failed\s+to\s+read\s+file", re.IGNORECASE),
+]
+_TIMEOUT_PATTERNS = [
+  re.compile(r"\btimeout\b", re.IGNORECASE),
+  re.compile(r"timed\s+out", re.IGNORECASE),
+  re.compile(r"connection\s+timed\s+out", re.IGNORECASE),
+]
+_NETWORK_PATTERNS = [
+  re.compile(r"temporary\s+failure\s+in\s+name\s+resolution", re.IGNORECASE),
+  re.compile(r"name\s+or\s+service\s+not\s+known", re.IGNORECASE),
+  re.compile(r"could\s+not\s+resolve", re.IGNORECASE),
+  re.compile(r"failed\s+to\s+connect", re.IGNORECASE),
+  re.compile(r"network\s+is\s+unreachable", re.IGNORECASE),
+  re.compile(r"connection\s+refused", re.IGNORECASE),
+]
+_TLS_PATTERNS = [
+  re.compile(r"ssl", re.IGNORECASE),
+  re.compile(r"tls", re.IGNORECASE),
+  re.compile(r"certificate", re.IGNORECASE),
+  re.compile(r"x509", re.IGNORECASE),
 ]
 _CUSTOM_DIR_RULES = [
   (re.compile(r"(?:^|-)ne9000(?:-|$)"), "huaweine9k-ne9000"),
@@ -79,18 +114,42 @@ def _detect_labhub_quota_issue(*texts: str) -> Dict[str, Any]:
   return {"detected": bool(matches), "matches": matches}
 
 
-def _build_patched_ishare2_script(forced_prefix: str) -> str:
+def _build_patched_ishare2_script(
+  *,
+  forced_prefix: str | None = None,
+  forced_hostname: str | None = None,
+  forced_protocol: str | None = None,
+) -> str:
   with open(_ISHARE2_SCRIPT, "r", encoding="utf-8") as src:
     script_content = src.read()
 
-  if _PULL_PREFIX_TOKEN not in script_content:
-    raise RuntimeError("Trecho de prefixo do ishare2 não encontrado para aplicar fallback.")
+  patched_content = script_content
+  if forced_protocol is not None:
+    if _PULL_PROTOCOL_TOKEN not in patched_content:
+      raise RuntimeError("Trecho de protocolo do ishare2 não encontrado para aplicar fallback.")
+    patched_content = patched_content.replace(
+      _PULL_PROTOCOL_TOKEN,
+      f'protocol="{forced_protocol}"',
+      1,
+    )
 
-  patched_content = script_content.replace(
-    _PULL_PREFIX_TOKEN,
-    f'prefix="{forced_prefix}"',
-    1,
-  )
+  if forced_hostname is not None:
+    if _PULL_HOSTNAME_TOKEN not in patched_content:
+      raise RuntimeError("Trecho de host do ishare2 não encontrado para aplicar fallback.")
+    patched_content = patched_content.replace(
+      _PULL_HOSTNAME_TOKEN,
+      f'hostname="{forced_hostname}"',
+      1,
+    )
+
+  if forced_prefix is not None:
+    if _PULL_PREFIX_TOKEN not in patched_content:
+      raise RuntimeError("Trecho de prefixo do ishare2 não encontrado para aplicar fallback.")
+    patched_content = patched_content.replace(
+      _PULL_PREFIX_TOKEN,
+      f'prefix="{forced_prefix}"',
+      1,
+    )
 
   fd, path = tempfile.mkstemp(prefix="ishare2-prefix-", suffix=".sh")
   os.close(fd)
@@ -142,12 +201,18 @@ def _run_pull_command(
   *,
   overwrite: bool = False,
   forced_prefix: str | None = None,
+  forced_hostname: str | None = None,
+  forced_protocol: str | None = None,
 ) -> tuple[int, str, str]:
   script_path = _ISHARE2_SCRIPT
   temp_script_path = ""
 
-  if forced_prefix:
-    temp_script_path = _build_patched_ishare2_script(forced_prefix)
+  if forced_prefix or forced_hostname or forced_protocol:
+    temp_script_path = _build_patched_ishare2_script(
+      forced_prefix=forced_prefix,
+      forced_hostname=forced_hostname,
+      forced_protocol=forced_protocol,
+    )
     script_path = temp_script_path
 
   try:
@@ -170,58 +235,289 @@ def _run_pull_command(
         pass
 
 
+def _build_repository_candidates() -> List[Dict[str, str]]:
+  """
+  Monta lista de repositórios candidatos:
+  - repo.hexanetworks.com.br
+  - mirrors descobertos dinamicamente em labhub.eu.org
+  """
+  candidates: List[Dict[str, str]] = [
+    {
+      "id": _HEXA_REPO_ID,
+      "host": _HEXA_REPO_HOST,
+      "prefix": _HEXA_REPO_PREFIX,
+      "protocol": "https",
+      "kind": "hexa",
+    }
+  ]
+
+  discovered_prefixes = _discover_repo_prefixes_from_labhub()
+  if not discovered_prefixes:
+    discovered_prefixes = ["/0:", "/1:"]
+
+  for prefix in discovered_prefixes:
+    candidates.append(
+      {
+        "id": prefix,
+        "host": _LABHUB_HOST,
+        "prefix": prefix,
+        "protocol": "https",
+        "kind": "labhub",
+      }
+    )
+
+  deduped: List[Dict[str, str]] = []
+  seen_ids = set()
+  for item in candidates:
+    repo_id = item.get("id", "").strip()
+    if not repo_id or repo_id in seen_ids:
+      continue
+    deduped.append(item)
+    seen_ids.add(repo_id)
+  return deduped
+
+
+def _probe_repository_latency(repository: Dict[str, str], timeout: float = _REPO_PROBE_TIMEOUT) -> float | None:
+  start = time.perf_counter()
+  try:
+    protocol = repository.get("protocol", "https")
+    host = repository.get("host", "").strip()
+    kind = repository.get("kind", "labhub")
+    if not host:
+      return None
+
+    if kind == "hexa":
+      url = f"{protocol}://{host}/api/item?path=%2F"
+      req = urllib.request.Request(
+        url,
+        headers={
+          "User-Agent": "Mozilla/5.0",
+          "Accept": "application/json",
+        },
+        method="GET",
+      )
+      with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp.read(1)
+    else:
+      prefix = repository.get("prefix", "").strip()
+      if not prefix:
+        return None
+      payload = json.dumps({"password": ""}).encode("utf-8")
+      url = f"{protocol}://{host}{prefix}/"
+      req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+          "User-Agent": "Mozilla/5.0",
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+        },
+        method="POST",
+      )
+      with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp.read(1)
+  except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+    return None
+
+  elapsed_ms = (time.perf_counter() - start) * 1000.0
+  return elapsed_ms
+
+
+def _order_repositories_by_latency(
+  repositories: List[Dict[str, str]]
+) -> tuple[List[Dict[str, str]], Dict[str, float | None]]:
+  ranked: List[tuple[bool, float, int, Dict[str, str]]] = []
+  latencies: Dict[str, float | None] = {}
+
+  for idx, repository in enumerate(repositories):
+    repo_id = repository.get("id", f"repo-{idx}")
+    latency = _probe_repository_latency(repository)
+    latencies[repo_id] = latency
+    ranked.append((latency is None, latency if latency is not None else 10e9, idx, repository))
+
+  ranked.sort(key=lambda item: (item[0], item[1], item[2]))
+  ordered = [item[3] for item in ranked]
+  return ordered, latencies
+
+
+def _format_latency(latency_ms: float | None) -> str:
+  if latency_ms is None:
+    return "indisponível"
+  return f"{latency_ms:.1f}ms"
+
+
+def _extract_relevant_error_line(*texts: str) -> str:
+  lines: List[str] = []
+  for text in texts:
+    if not text:
+      continue
+    for line in text.splitlines():
+      stripped = line.strip()
+      if stripped:
+        lines.append(stripped)
+
+  if not lines:
+    return ""
+
+  preferred_tokens = [
+    "erro",
+    "error",
+    "falha",
+    "failed",
+    "not found",
+    "timeout",
+    "quota",
+    "429",
+  ]
+  for line in lines:
+    low = line.lower()
+    if any(token in low for token in preferred_tokens):
+      return line[:220]
+
+  return lines[-1][:220]
+
+
+def _classify_attempt_failure(output: str, stderr: str) -> tuple[str, str]:
+  merged = "\n".join([part for part in [output, stderr] if part]).strip()
+  low = merged.lower()
+
+  quota_info = _detect_labhub_quota_issue(output, stderr)
+  if quota_info.get("detected"):
+    code = "quota"
+    reason = "quota/rate-limit no repositório"
+  elif any(pattern.search(low) for pattern in _NOT_FOUND_PATTERNS):
+    code = "not_found"
+    reason = "imagem não encontrada neste repositório"
+  elif any(pattern.search(low) for pattern in _TIMEOUT_PATTERNS):
+    code = "timeout"
+    reason = "timeout de rede"
+  elif any(pattern.search(low) for pattern in _NETWORK_PATTERNS):
+    code = "network"
+    reason = "falha de conectividade/rede"
+  elif any(pattern.search(low) for pattern in _TLS_PATTERNS):
+    code = "tls"
+    reason = "erro TLS/SSL"
+  else:
+    code = "download_failed"
+    reason = "falha no download"
+
+  detail = _extract_relevant_error_line(output, stderr)
+  if detail:
+    return code, f"{reason} ({detail})"
+  return code, reason
+
+
+def _summarize_attempts_for_user(attempt_details: List[Dict[str, Any]]) -> str:
+  if not attempt_details:
+    return ""
+
+  parts: List[str] = []
+  for attempt in attempt_details:
+    repo_id = str(attempt.get("repo_id") or "").strip()
+    if not repo_id:
+      continue
+    latency_label = _format_latency(attempt.get("latency_ms"))
+    if attempt.get("success"):
+      parts.append(f"{repo_id} ({latency_label}): sucesso")
+    else:
+      reason = str(attempt.get("reason") or "falha no download").strip()
+      parts.append(f"{repo_id} ({latency_label}): {reason}")
+
+  return "; ".join(parts)
+
+
 def _run_pull_with_repo_fallback(
   type_arg: str,
   image_id: str,
   on_attempt: Callable[[str], None] | None = None,
 ) -> Dict[str, Any]:
-  tested_prefixes: List[str] = []
-
-  tested_prefixes.append("/0:")
-  if on_attempt:
-    on_attempt("/0:")
-  rc0, out0, err0 = _run_pull_command(type_arg, image_id)
-  if rc0 == 0:
+  repositories = _build_repository_candidates()
+  ordered_repositories, latency_map = _order_repositories_by_latency(repositories)
+  ranked_ids = [repo.get("id", "") for repo in ordered_repositories if repo.get("id")]
+  if not ranked_ids:
     return {
-      "rc": rc0,
-      "output": out0,
-      "stderr": err0,
-      "final_output": out0,
+      "rc": 1,
+      "output": "",
+      "stderr": "Nenhum repositório disponível para tentativa de download.",
+      "final_output": "",
       "fallback_attempted": False,
       "fallback_used": False,
-      "tested_prefixes": tested_prefixes,
+      "fallback_prefixes": [],
+      "tested_prefixes": [],
+      "ranked_prefixes": [],
+      "latency_ms": {},
+      "attempt_details": [],
     }
 
-  discovered_prefixes = _discover_repo_prefixes_from_labhub()
-  fallback_prefixes = [prefix for prefix in discovered_prefixes if prefix != "/0:"]
-  if not fallback_prefixes:
-    fallback_prefixes = ["/1:"]
+  tested_prefixes: List[str] = []
+  attempt_details: List[Dict[str, Any]] = []
+  out_joined = ""
+  err_joined = ""
+  last_rc = 1
+  last_out = ""
 
-  out_joined = out0
-  err_joined = err0
+  ranking_message = ", ".join(
+    [f"{repo_id}({_format_latency(latency_map.get(repo_id))})" for repo_id in ranked_ids]
+  )
+  out_joined = _append_text(
+    out_joined,
+    f"[image-manager] Ordem de tentativa por latência: {ranking_message}.",
+  )
 
-  last_rc = rc0
-  last_out = out0
+  for idx, repository in enumerate(ordered_repositories):
+    repo_id = repository.get("id", "").strip()
+    repo_prefix = repository.get("prefix", "").strip()
+    repo_host = repository.get("host", "").strip()
+    repo_protocol = repository.get("protocol", "https").strip() or "https"
+    if not (repo_id and repo_prefix and repo_host):
+      continue
 
-  for prefix in fallback_prefixes:
-    tested_prefixes.append(prefix)
+    tested_prefixes.append(repo_id)
+    attempt_idx = len(tested_prefixes) - 1
     if on_attempt:
-      on_attempt(prefix)
-    out_joined = _append_text(
-      out_joined,
-      f"[image-manager] Pull falhou no repositório /0:. Tentando fallback no {prefix}.",
-    )
+      on_attempt(repo_id)
+
+    latency_text = _format_latency(latency_map.get(repo_id))
+    if attempt_idx == 0:
+      out_joined = _append_text(
+        out_joined,
+        f"[image-manager] Tentando repositório {repo_id} (latência: {latency_text}).",
+      )
+    else:
+      previous = tested_prefixes[attempt_idx - 1]
+      out_joined = _append_text(
+        out_joined,
+        f"[image-manager] Pull falhou no repositório {previous}. Tentando fallback no {repo_id} (latência: {latency_text}).",
+      )
+
     try:
       rc, out, err = _run_pull_command(
         type_arg,
         image_id,
-        overwrite=True,
-        forced_prefix=prefix,
+        overwrite=attempt_idx > 0,
+        forced_prefix=repo_prefix,
+        forced_hostname=repo_host,
+        forced_protocol=repo_protocol,
       )
     except Exception as exc:
       rc = 1
       out = ""
-      err = f"Erro ao executar fallback no repositório {prefix}: {exc}"
+      err = f"Erro ao executar fallback no repositório {repo_id}: {exc}"
+
+    reason_code = ""
+    reason = ""
+    if rc != 0:
+      reason_code, reason = _classify_attempt_failure(out, err)
+    attempt_details.append(
+      {
+        "repo_id": repo_id,
+        "latency_ms": latency_map.get(repo_id),
+        "success": rc == 0,
+        "rc": rc,
+        "reason_code": reason_code,
+        "reason": reason,
+      }
+    )
 
     last_rc = rc
     if out:
@@ -231,16 +527,21 @@ def _run_pull_with_repo_fallback(
     err_joined = _append_text(err_joined, err)
 
     if rc == 0:
-      out_joined = _append_text(out_joined, f"[image-manager] Fallback no repositório {prefix} concluído com sucesso.")
+      if attempt_idx > 0:
+        out_joined = _append_text(out_joined, f"[image-manager] Fallback no repositório {repo_id} concluído com sucesso.")
       return {
         "rc": 0,
         "output": out_joined,
         "stderr": err_joined,
-        "final_output": out,
-        "fallback_attempted": True,
-        "fallback_used": True,
-        "fallback_prefix": prefix,
+        "final_output": out or last_out,
+        "fallback_attempted": attempt_idx > 0,
+        "fallback_used": attempt_idx > 0,
+        "fallback_prefix": repo_id if attempt_idx > 0 else "",
+        "fallback_prefixes": ranked_ids[1:],
         "tested_prefixes": tested_prefixes,
+        "ranked_prefixes": ranked_ids,
+        "latency_ms": latency_map,
+        "attempt_details": attempt_details,
       }
 
   return {
@@ -248,10 +549,13 @@ def _run_pull_with_repo_fallback(
     "output": out_joined,
     "stderr": err_joined,
     "final_output": last_out,
-    "fallback_attempted": bool(fallback_prefixes),
+    "fallback_attempted": len(tested_prefixes) > 1,
     "fallback_used": False,
-    "fallback_prefixes": fallback_prefixes,
+    "fallback_prefixes": ranked_ids[1:],
     "tested_prefixes": tested_prefixes,
+    "ranked_prefixes": ranked_ids,
+    "latency_ms": latency_map,
+    "attempt_details": attempt_details,
   }
 
 
@@ -393,6 +697,12 @@ def _create_job() -> str:
     "eve_ip": "",
     "eve_user": "",
     "eve_pass": "",
+    "ranked_prefixes": [],
+    "tested_prefixes": [],
+    "fallback_prefixes": [],
+    "fallback_prefix": "",
+    "latency_ms": {},
+    "attempt_details": [],
   }
   return job_id
 
@@ -829,6 +1139,9 @@ def install():
   fallback_prefix = (pull_result.get("fallback_prefix") or "").strip()
   fallback_prefixes = pull_result.get("fallback_prefixes") or []
   tested_prefixes = pull_result.get("tested_prefixes") or []
+  ranked_prefixes = pull_result.get("ranked_prefixes") or []
+  latency_ms = pull_result.get("latency_ms") or {}
+  attempt_details = pull_result.get("attempt_details") or []
   quota_info = _detect_labhub_quota_issue(clean_out, clean_err)
   quota_detected = bool(quota_info.get("detected"))
   quota_matches = quota_info.get("matches") or []
@@ -839,7 +1152,10 @@ def install():
       fail_message = "Falha ao executar ishare2 pull mesmo após tentar fallbacks de repositório."
     if quota_detected:
       fail_message = f"{fail_message} {_QUOTA_HINT_MESSAGE}"
-    if tested_prefixes:
+    attempts_summary = _summarize_attempts_for_user(attempt_details)
+    if attempts_summary:
+      fail_message = f"{fail_message} Detalhes por repositório: {attempts_summary}."
+    elif tested_prefixes:
       fail_message = f"{fail_message} Repositórios testados: {', '.join(tested_prefixes)}."
     return (
       jsonify(
@@ -851,6 +1167,9 @@ def install():
         fallback_attempted=fallback_attempted,
         fallback_prefixes=fallback_prefixes,
         tested_prefixes=tested_prefixes,
+        ranked_prefixes=ranked_prefixes,
+        latency_ms=latency_ms,
+        attempt_details=attempt_details,
         quota_detected=quota_detected,
         quota_matches=quota_matches,
       ),
@@ -932,6 +1251,9 @@ def install():
       fallback_prefix=fallback_prefix,
       fallback_prefixes=fallback_prefixes,
       tested_prefixes=tested_prefixes,
+      ranked_prefixes=ranked_prefixes,
+      latency_ms=latency_ms,
+      attempt_details=attempt_details,
       quota_detected=quota_detected,
       quota_matches=quota_matches,
     ),
@@ -995,9 +1317,21 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
   fallback_prefix = (pull_result.get("fallback_prefix") or "").strip()
   fallback_prefixes = pull_result.get("fallback_prefixes") or []
   tested_prefixes = pull_result.get("tested_prefixes") or []
+  ranked_prefixes = pull_result.get("ranked_prefixes") or []
+  latency_ms = pull_result.get("latency_ms") or {}
+  attempt_details = pull_result.get("attempt_details") or []
   quota_info = _detect_labhub_quota_issue(clean_out, clean_err)
   quota_detected = bool(quota_info.get("detected"))
   quota_matches = quota_info.get("matches") or []
+  _update_job(
+    job_id,
+    ranked_prefixes=ranked_prefixes,
+    tested_prefixes=tested_prefixes,
+    fallback_prefixes=fallback_prefixes,
+    fallback_prefix=fallback_prefix,
+    latency_ms=latency_ms,
+    attempt_details=attempt_details,
+  )
   if fallback_used:
     if fallback_prefix:
       _append_job_logs(job_id, stdout=f"[image-manager] Download concluído via fallback no repositório {fallback_prefix}.\n")
@@ -1012,6 +1346,9 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
       fail_message = "Falha ao executar ishare2 pull mesmo após tentar fallbacks de repositório."
     if quota_detected:
       fail_message = f"{fail_message} {_QUOTA_HINT_MESSAGE}"
+    attempts_summary = _summarize_attempts_for_user(attempt_details)
+    if attempts_summary:
+      fail_message = f"{fail_message} Detalhes por repositório: {attempts_summary}."
     _update_job(
       job_id,
       status="error",
@@ -1019,11 +1356,9 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
       progress=0,
       message=fail_message,
       error=(
-        clean_err
-        + (f"\nRepos testados: {', '.join(tested_prefixes)}" if tested_prefixes else "")
-        + (f"\nFallbacks disponíveis: {', '.join(fallback_prefixes)}" if fallback_prefixes else "")
+        (f"Detalhes por repositório: {attempts_summary}" if attempts_summary else "")
         + (f"\nQuota matches: {', '.join(quota_matches)}" if quota_matches else "")
-      ) or "Falha ao executar ishare2 pull.",
+      ).strip() or "Falha ao executar ishare2 pull.",
     )
     return
 
@@ -1265,6 +1600,12 @@ def install_progress():
       current_name=job.get("current_name", ""),
       suggested_name=job.get("suggested_name", ""),
       base_dir=job.get("base_dir", ""),
+      ranked_prefixes=job.get("ranked_prefixes", []),
+      tested_prefixes=job.get("tested_prefixes", []),
+      fallback_prefixes=job.get("fallback_prefixes", []),
+      fallback_prefix=job.get("fallback_prefix", ""),
+      latency_ms=job.get("latency_ms", {}),
+      attempt_details=job.get("attempt_details", []),
     ),
     200,
   )

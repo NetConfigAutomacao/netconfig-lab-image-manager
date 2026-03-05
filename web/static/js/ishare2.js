@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', function () {
   let lastSections = [];
   let installProgressInterval = null;
   let pendingNameJobId = null;
+  let lastLatencyRankingJobId = '';
 
   if (!searchBtn || !outputDiv) {
     return;
@@ -276,6 +277,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 800);
   }
 
+  function formatLatencyValue(value) {
+    if (typeof value === 'number' && isFinite(value)) {
+      return value.toFixed(1) + 'ms';
+    }
+    return t('ishare2.install.latencyUnavailable');
+  }
+
+  function buildLatencyRankingMessage(resp) {
+    if (!resp || typeof resp !== 'object') {
+      return '';
+    }
+    var ranked = Array.isArray(resp.ranked_prefixes) ? resp.ranked_prefixes : [];
+    if (!ranked.length) {
+      return '';
+    }
+    var latencyMap = (resp.latency_ms && typeof resp.latency_ms === 'object') ? resp.latency_ms : {};
+    var ranking = ranked.map(function (repoId) {
+      var latency = Object.prototype.hasOwnProperty.call(latencyMap, repoId) ? latencyMap[repoId] : null;
+      return repoId + ' (' + formatLatencyValue(latency) + ')';
+    }).join(' -> ');
+
+    return t('ishare2.install.latencyRanking', { ranking: ranking });
+  }
+
   function startInstallPolling(jobId) {
     if (!jobId) {
       return;
@@ -285,6 +310,7 @@ document.addEventListener('DOMContentLoaded', function () {
       clearInterval(installProgressInterval);
       installProgressInterval = null;
     }
+    lastLatencyRankingJobId = '';
 
     function poll() {
       var xhr = new XMLHttpRequest();
@@ -320,6 +346,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
           if (!resp) {
             return;
+          }
+
+          var latencyRankingMessage = buildLatencyRankingMessage(resp);
+          if (latencyRankingMessage && lastLatencyRankingJobId !== jobId) {
+            showMessage('success', latencyRankingMessage);
+            lastLatencyRankingJobId = jobId;
           }
 
           var progress = typeof resp.progress === 'number' ? resp.progress : 0;

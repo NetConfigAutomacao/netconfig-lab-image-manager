@@ -13,6 +13,7 @@ import uuid
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Callable, Dict, List
 
@@ -30,10 +31,37 @@ _PULL_HOSTNAME_TOKEN = "hostname=$(jq -r --arg mirror \"$mirror\" '.url_properti
 _PULL_PREFIX_TOKEN = "prefix=$(jq -r --arg mirror \"$mirror\" '.url_properties.prefixes[$mirror]' \"$TEMP_JSON\")"
 _LABHUB_INDEX_URL = "https://labhub.eu.org/"
 _LABHUB_HOST = "labhub.eu.org"
-_HEXA_REPO_HOST = "repo.hexanetworks.com.br"
-_HEXA_REPO_PREFIX = "/api/raw?path="
-_HEXA_REPO_ID = "repo.hexanetworks.com.br"
+_NETCONFIG_REPO_HOST = "repo.netconfig.com.br"
+_NETCONFIG_REPO_PREFIX = "/api/raw?path="
+_NETCONFIG_REPO_ID = "repo.netconfig.com.br"
 _REPO_PROBE_TIMEOUT = 2.0
+_LABHUB_DEFAULT_PREFIXES = ["/0:", "/1:"]
+_LABHUB_USEFUL_PATHS = [
+  "addons/dynamips",
+  "addons/iol",
+  "addons/qemu",
+]
+_STATIC_REPOSITORIES = [
+  {
+    "id": _NETCONFIG_REPO_ID,
+    "host": _NETCONFIG_REPO_HOST,
+    "prefix": _NETCONFIG_REPO_PREFIX,
+    "protocol": "https",
+    "kind": "catalog",
+  },
+]
+_LABHUB_PREFIX_CONTENT_CACHE_TTL = 300.0
+_LABHUB_PREFIX_MAX_SCAN_DEPTH = 2
+_LABHUB_PREFIX_MAX_SCANNED_DIRS = 32
+_LABHUB_FOLDER_MIME = "application/vnd.google-apps.folder"
+_LABHUB_PREFIX_CONTENT_CACHE: Dict[str, tuple[float, bool]] = {}
+_LABHUB_PREFIX_CONTENT_CACHE_LOCK = threading.Lock()
+_REPO_API_CONTENT_CACHE: Dict[str, tuple[float, bool]] = {}
+_REPO_API_CONTENT_CACHE_LOCK = threading.Lock()
+_REPO_API_LISTING_CACHE: Dict[str, tuple[float, List[Dict[str, Any]] | None]] = {}
+_REPO_API_LISTING_CACHE_LOCK = threading.Lock()
+_LABHUB_LISTING_CACHE: Dict[str, tuple[float, List[Dict[str, Any]] | None]] = {}
+_LABHUB_LISTING_CACHE_LOCK = threading.Lock()
 _QUOTA_HINT_MESSAGE = (
   "Possível limite de quota dos mirrors LabHub detectado. "
   "Tente novamente em alguns minutos ou use outro repositório."
@@ -195,6 +223,408 @@ def _discover_repo_prefixes_from_labhub() -> List[str]:
   return prefixes
 
 
+def _labhub_prefix_has_content(prefix: str, timeout: float = _REPO_PROBE_TIMEOUT) -> bool:
+  """
+  Valida se um prefix do LabHub expõe arquivos úteis do iShare2
+  dentro da árvore addons/. Prefixes vazios ou redirecionados são ignorados.
+  """
+  normalized_prefix = (prefix or "").strip()
+  if not normalized_prefix:
+    return False
+
+  now = time.time()
+  with _LABHUB_PREFIX_CONTENT_CACHE_LOCK:
+    cached = _LABHUB_PREFIX_CONTENT_CACHE.get(normalized_prefix)
+    if cached and (now - cached[0]) < _LABHUB_PREFIX_CONTENT_CACHE_TTL:
+      return cached[1]
+
+  result = False
+  for relative_path in _LABHUB_USEFUL_PATHS:
+    start_path = _labhub_build_path(normalized_prefix, relative_path)
+    if _labhub_path_has_downloadable_files(
+      start_path,
+      timeout=timeout,
+      max_depth=_LABHUB_PREFIX_MAX_SCAN_DEPTH,
+      max_scanned_dirs=_LABHUB_PREFIX_MAX_SCANNED_DIRS,
+    ):
+      result = True
+      break
+
+  with _LABHUB_PREFIX_CONTENT_CACHE_LOCK:
+    _LABHUB_PREFIX_CONTENT_CACHE[normalized_prefix] = (now, result)
+  return result
+
+
+def _labhub_build_path(prefix: str, relative_path: str = "") -> str:
+  path = (prefix or "").strip().rstrip("/")
+  rel = (relative_path or "").strip().strip("/")
+  if rel:
+    return f"{path}/{rel}"
+  return path
+
+
+def _labhub_path_to_url(path: str) -> str:
+  normalized = "/" + (path or "").strip().strip("/")
+  return f"https://{_LABHUB_HOST}{normalized}/"
+
+
+def _labhub_fetch_listing(path: str, timeout: float) -> List[Dict[str, Any]] | None:
+  normalized_path = (path or "").strip()
+  if not normalized_path:
+    return None
+
+  now = time.time()
+  with _LABHUB_LISTING_CACHE_LOCK:
+    cached = _LABHUB_LISTING_CACHE.get(normalized_path)
+    if cached and (now - cached[0]) < _LABHUB_PREFIX_CONTENT_CACHE_TTL:
+      return cached[1]
+
+  payload = json.dumps({"password": ""}).encode("utf-8")
+  request_url = _labhub_path_to_url(normalized_path)
+  req = urllib.request.Request(
+    request_url,
+    data=payload,
+    headers={
+      "User-Agent": "Mozilla/5.0",
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+    },
+    method="POST",
+  )
+
+  try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+      final_url = (resp.geturl() or "").rstrip("/")
+      if final_url and final_url != request_url.rstrip("/"):
+        with _LABHUB_LISTING_CACHE_LOCK:
+          _LABHUB_LISTING_CACHE[normalized_path] = (now, None)
+        return None
+      body = resp.read().decode("utf-8", errors="ignore")
+  except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
+    with _LABHUB_LISTING_CACHE_LOCK:
+      _LABHUB_LISTING_CACHE[normalized_path] = (now, None)
+    return None
+
+  try:
+    parsed = json.loads(body)
+  except json.JSONDecodeError:
+    with _LABHUB_LISTING_CACHE_LOCK:
+      _LABHUB_LISTING_CACHE[normalized_path] = (now, None)
+    return None
+
+  files = parsed.get("data", {}).get("files")
+  if not isinstance(files, list):
+    with _LABHUB_LISTING_CACHE_LOCK:
+      _LABHUB_LISTING_CACHE[normalized_path] = (now, None)
+    return None
+  with _LABHUB_LISTING_CACHE_LOCK:
+    _LABHUB_LISTING_CACHE[normalized_path] = (now, files)
+  return files
+
+
+def _labhub_entry_is_folder(entry: Dict[str, Any]) -> bool:
+  return (entry.get("mimeType") or "").strip() == _LABHUB_FOLDER_MIME
+
+
+def _labhub_entry_is_downloadable(entry: Dict[str, Any]) -> bool:
+  if _labhub_entry_is_folder(entry):
+    return False
+  return bool(entry.get("link"))
+
+
+def _labhub_join_child_path(parent_path: str, child_name: str) -> str:
+  encoded_name = urllib.parse.quote((child_name or "").strip(), safe="")
+  return f"{parent_path.rstrip('/')}/{encoded_name}"
+
+
+def _labhub_path_has_downloadable_files(
+  start_path: str,
+  *,
+  timeout: float,
+  max_depth: int,
+  max_scanned_dirs: int,
+) -> bool:
+  queue: List[tuple[str, int]] = [(start_path, 0)]
+  scanned_dirs = 0
+  visited = set()
+
+  while queue and scanned_dirs < max_scanned_dirs:
+    current_path, depth = queue.pop(0)
+    if current_path in visited:
+      continue
+    visited.add(current_path)
+    scanned_dirs += 1
+
+    files = _labhub_fetch_listing(current_path, timeout)
+    if not files:
+      continue
+    if any(_labhub_entry_is_downloadable(entry) for entry in files):
+      return True
+    if depth >= max_depth:
+      continue
+
+    for entry in files:
+      if not _labhub_entry_is_folder(entry):
+        continue
+      child_name = str(entry.get("name") or "").strip()
+      if not child_name:
+        continue
+      queue.append((_labhub_join_child_path(current_path, child_name), depth + 1))
+
+  return False
+
+
+def _repository_has_content(repository: Dict[str, str], timeout: float = _REPO_PROBE_TIMEOUT) -> bool:
+  kind = (repository.get("kind") or "").strip()
+  if kind == "labhub":
+    return _labhub_prefix_has_content(repository.get("prefix", ""), timeout=timeout)
+  if kind == "catalog":
+    return _repo_api_repository_has_content(repository, timeout=timeout)
+  return True
+
+
+def _repo_api_repository_has_content(repository: Dict[str, str], timeout: float = _REPO_PROBE_TIMEOUT) -> bool:
+  repo_id = (repository.get("id") or "").strip()
+  if not repo_id:
+    return False
+
+  now = time.time()
+  with _REPO_API_CONTENT_CACHE_LOCK:
+    cached = _REPO_API_CONTENT_CACHE.get(repo_id)
+    if cached and (now - cached[0]) < _LABHUB_PREFIX_CONTENT_CACHE_TTL:
+      return cached[1]
+
+  result = False
+  for relative_path in _LABHUB_USEFUL_PATHS:
+    if _repo_api_path_has_downloadable_files(
+      repository,
+      relative_path,
+      timeout=timeout,
+      max_depth=_LABHUB_PREFIX_MAX_SCAN_DEPTH,
+      max_scanned_dirs=_LABHUB_PREFIX_MAX_SCANNED_DIRS,
+    ):
+      result = True
+      break
+
+  with _REPO_API_CONTENT_CACHE_LOCK:
+    _REPO_API_CONTENT_CACHE[repo_id] = (now, result)
+  return result
+
+
+def _repo_api_fetch_listing(
+  repository: Dict[str, str],
+  path: str,
+  timeout: float,
+) -> List[Dict[str, Any]] | None:
+  protocol = (repository.get("protocol") or "https").strip() or "https"
+  host = (repository.get("host") or "").strip()
+  normalized_path = (path or "").strip().strip("/")
+  if not host or not normalized_path:
+    return None
+
+  cache_key = f"{host}|{normalized_path}"
+  now = time.time()
+  with _REPO_API_LISTING_CACHE_LOCK:
+    cached = _REPO_API_LISTING_CACHE.get(cache_key)
+    if cached and (now - cached[0]) < _LABHUB_PREFIX_CONTENT_CACHE_TTL:
+      return cached[1]
+
+  request_url = f"{protocol}://{host}/api/item?path={urllib.parse.quote(normalized_path, safe='')}"
+  req = urllib.request.Request(
+    request_url,
+    headers={
+      "User-Agent": "Mozilla/5.0",
+      "Accept": "application/json",
+    },
+    method="GET",
+  )
+
+  try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+      final_url = (resp.geturl() or "").rstrip("/")
+      if final_url and final_url != request_url.rstrip("/"):
+        with _REPO_API_LISTING_CACHE_LOCK:
+          _REPO_API_LISTING_CACHE[cache_key] = (now, None)
+        return None
+      body = resp.read().decode("utf-8", errors="ignore")
+  except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
+    with _REPO_API_LISTING_CACHE_LOCK:
+      _REPO_API_LISTING_CACHE[cache_key] = (now, None)
+    return None
+
+  try:
+    parsed = json.loads(body)
+  except json.JSONDecodeError:
+    with _REPO_API_LISTING_CACHE_LOCK:
+      _REPO_API_LISTING_CACHE[cache_key] = (now, None)
+    return None
+
+  entries = parsed.get("entries")
+  if not isinstance(entries, list):
+    with _REPO_API_LISTING_CACHE_LOCK:
+      _REPO_API_LISTING_CACHE[cache_key] = (now, None)
+    return None
+  with _REPO_API_LISTING_CACHE_LOCK:
+    _REPO_API_LISTING_CACHE[cache_key] = (now, entries)
+  return entries
+
+
+def _repo_api_entry_is_folder(entry: Dict[str, Any]) -> bool:
+  return (entry.get("kind") or "").strip() == "folder"
+
+
+def _repo_api_entry_is_downloadable(entry: Dict[str, Any]) -> bool:
+  return (entry.get("kind") or "").strip() == "file"
+
+
+def _repo_api_path_has_downloadable_files(
+  repository: Dict[str, str],
+  start_path: str,
+  *,
+  timeout: float,
+  max_depth: int,
+  max_scanned_dirs: int,
+) -> bool:
+  queue: List[tuple[str, int]] = [((start_path or "").strip().strip("/"), 0)]
+  scanned_dirs = 0
+  visited = set()
+
+  while queue and scanned_dirs < max_scanned_dirs:
+    current_path, depth = queue.pop(0)
+    if not current_path or current_path in visited:
+      continue
+    visited.add(current_path)
+    scanned_dirs += 1
+
+    entries = _repo_api_fetch_listing(repository, current_path, timeout)
+    if not entries:
+      continue
+    if any(_repo_api_entry_is_downloadable(entry) for entry in entries):
+      return True
+    if depth >= max_depth:
+      continue
+
+    for entry in entries:
+      if not _repo_api_entry_is_folder(entry):
+        continue
+      child_path = str(entry.get("path") or "").strip().strip("/")
+      if not child_path:
+        continue
+      queue.append((child_path, depth + 1))
+
+  return False
+
+
+def _repository_has_image_content(
+  repository: Dict[str, str],
+  type_arg: str,
+  image_name: str,
+  timeout: float = _REPO_PROBE_TIMEOUT,
+) -> bool:
+  normalized_type = (type_arg or "").strip().lower()
+  normalized_name = (image_name or "").strip()
+  if normalized_type not in {"qemu", "iol", "dynamips"} or not normalized_name:
+    return True
+
+  kind = (repository.get("kind") or "").strip()
+  if kind == "labhub":
+    return _labhub_image_has_content(repository, normalized_type, normalized_name, timeout=timeout)
+  if kind == "catalog":
+    return _repo_api_image_has_content(repository, normalized_type, normalized_name, timeout=timeout)
+  return True
+
+
+def _repo_api_image_has_content(
+  repository: Dict[str, str],
+  image_type: str,
+  image_name: str,
+  timeout: float = _REPO_PROBE_TIMEOUT,
+) -> bool:
+  base_path = f"addons/{image_type.strip().strip('/')}"
+  image_path = f"{base_path}/{image_name.strip().strip('/')}"
+  entries = _repo_api_fetch_listing(repository, image_path, timeout)
+  if entries is not None:
+    if not entries:
+      return False
+    if any(_repo_api_entry_is_downloadable(entry) for entry in entries):
+      return True
+    return _repo_api_path_has_downloadable_files(
+      repository,
+      image_path,
+      timeout=timeout,
+      max_depth=1,
+      max_scanned_dirs=12,
+    )
+
+  parent_entries = _repo_api_fetch_listing(repository, base_path, timeout)
+  if not parent_entries:
+    return False
+
+  for entry in parent_entries:
+    if str(entry.get("name") or "").strip() != image_name:
+      continue
+    if _repo_api_entry_is_downloadable(entry):
+      return True
+    if _repo_api_entry_is_folder(entry):
+      child_path = str(entry.get("path") or "").strip().strip("/")
+      if not child_path:
+        return False
+      return _repo_api_path_has_downloadable_files(
+        repository,
+        child_path,
+        timeout=timeout,
+        max_depth=1,
+        max_scanned_dirs=12,
+      )
+  return False
+
+
+def _labhub_image_has_content(
+  repository: Dict[str, str],
+  image_type: str,
+  image_name: str,
+  timeout: float = _REPO_PROBE_TIMEOUT,
+) -> bool:
+  prefix = (repository.get("prefix") or "").strip()
+  if not prefix:
+    return False
+
+  base_path = f"addons/{image_type.strip().strip('/')}"
+  image_path = _labhub_build_path(prefix, f"{base_path}/{image_name.strip().strip('/')}")
+  files = _labhub_fetch_listing(image_path, timeout)
+  if files is not None:
+    if not files:
+      return False
+    if any(_labhub_entry_is_downloadable(entry) for entry in files):
+      return True
+    return _labhub_path_has_downloadable_files(
+      image_path,
+      timeout=timeout,
+      max_depth=1,
+      max_scanned_dirs=12,
+    )
+
+  parent_path = _labhub_build_path(prefix, base_path)
+  parent_entries = _labhub_fetch_listing(parent_path, timeout)
+  if not parent_entries:
+    return False
+
+  for entry in parent_entries:
+    if str(entry.get("name") or "").strip() != image_name:
+      continue
+    if _labhub_entry_is_downloadable(entry):
+      return True
+    if _labhub_entry_is_folder(entry):
+      child_path = _labhub_join_child_path(parent_path, str(entry.get("name") or "").strip())
+      return _labhub_path_has_downloadable_files(
+        child_path,
+        timeout=timeout,
+        max_depth=1,
+        max_scanned_dirs=12,
+      )
+  return False
+
+
 def _run_pull_command(
   type_arg: str,
   image_id: str,
@@ -238,33 +668,31 @@ def _run_pull_command(
 def _build_repository_candidates() -> List[Dict[str, str]]:
   """
   Monta lista de repositórios candidatos:
-  - repo.hexanetworks.com.br
+  - repo.netconfig.com.br
   - mirrors descobertos dinamicamente em labhub.eu.org
   """
-  candidates: List[Dict[str, str]] = [
-    {
-      "id": _HEXA_REPO_ID,
-      "host": _HEXA_REPO_HOST,
-      "prefix": _HEXA_REPO_PREFIX,
-      "protocol": "https",
-      "kind": "hexa",
-    }
-  ]
+  candidates: List[Dict[str, str]] = []
+
+  for repository in _STATIC_REPOSITORIES:
+    if not _repository_has_content(repository):
+      continue
+    candidates.append(dict(repository))
 
   discovered_prefixes = _discover_repo_prefixes_from_labhub()
   if not discovered_prefixes:
-    discovered_prefixes = ["/0:", "/1:"]
+    discovered_prefixes = list(_LABHUB_DEFAULT_PREFIXES)
 
   for prefix in discovered_prefixes:
-    candidates.append(
-      {
-        "id": prefix,
-        "host": _LABHUB_HOST,
-        "prefix": prefix,
-        "protocol": "https",
-        "kind": "labhub",
-      }
-    )
+    repository = {
+      "id": prefix,
+      "host": _LABHUB_HOST,
+      "prefix": prefix,
+      "protocol": "https",
+      "kind": "labhub",
+    }
+    if not _repository_has_content(repository):
+      continue
+    candidates.append(repository)
 
   deduped: List[Dict[str, str]] = []
   seen_ids = set()
@@ -286,7 +714,7 @@ def _probe_repository_latency(repository: Dict[str, str], timeout: float = _REPO
     if not host:
       return None
 
-    if kind == "hexa":
+    if kind == "catalog":
       url = f"{protocol}://{host}/api/item?path=%2F"
       req = urllib.request.Request(
         url,
@@ -429,16 +857,37 @@ def _summarize_attempts_for_user(attempt_details: List[Dict[str, Any]]) -> str:
 def _run_pull_with_repo_fallback(
   type_arg: str,
   image_id: str,
+  image_name: str = "",
   on_attempt: Callable[[str], None] | None = None,
 ) -> Dict[str, Any]:
   repositories = _build_repository_candidates()
-  ordered_repositories, latency_map = _order_repositories_by_latency(repositories)
+  eligible_repositories: List[Dict[str, str]] = []
+  skipped_prefixes: List[str] = []
+  skip_reasons: Dict[str, str] = {}
+  normalized_image_name = (image_name or "").strip()
+
+  for repository in repositories:
+    repo_id = (repository.get("id") or "").strip()
+    if normalized_image_name and not _repository_has_image_content(repository, type_arg, normalized_image_name):
+      if repo_id:
+        skipped_prefixes.append(repo_id)
+        skip_reasons[repo_id] = "imagem ausente ou pasta vazia neste repositório"
+      continue
+    eligible_repositories.append(repository)
+
+  ordered_repositories, latency_map = _order_repositories_by_latency(eligible_repositories)
   ranked_ids = [repo.get("id", "") for repo in ordered_repositories if repo.get("id")]
   if not ranked_ids:
+    detail = ""
+    if normalized_image_name and skipped_prefixes:
+      detail = (
+        f"Nenhum repositório contém conteúdo para a imagem '{normalized_image_name}'. "
+        f"Repositórios descartados: {', '.join(skipped_prefixes)}."
+      )
     return {
       "rc": 1,
       "output": "",
-      "stderr": "Nenhum repositório disponível para tentativa de download.",
+      "stderr": detail or "Nenhum repositório disponível para tentativa de download.",
       "final_output": "",
       "fallback_attempted": False,
       "fallback_used": False,
@@ -447,6 +896,8 @@ def _run_pull_with_repo_fallback(
       "ranked_prefixes": [],
       "latency_ms": {},
       "attempt_details": [],
+      "skipped_prefixes": skipped_prefixes,
+      "skip_reasons": skip_reasons,
     }
 
   tested_prefixes: List[str] = []
@@ -463,6 +914,12 @@ def _run_pull_with_repo_fallback(
     out_joined,
     f"[image-manager] Ordem de tentativa por latência: {ranking_message}.",
   )
+  for repo_id in skipped_prefixes:
+    reason = skip_reasons.get(repo_id) or "imagem ausente neste repositório"
+    out_joined = _append_text(
+      out_joined,
+      f"[image-manager] Repositório {repo_id} descartado antes do pull: {reason}.",
+    )
 
   for idx, repository in enumerate(ordered_repositories):
     repo_id = repository.get("id", "").strip()
@@ -556,6 +1013,8 @@ def _run_pull_with_repo_fallback(
     "ranked_prefixes": ranked_ids,
     "latency_ms": latency_map,
     "attempt_details": attempt_details,
+    "skipped_prefixes": skipped_prefixes,
+    "skip_reasons": skip_reasons,
   }
 
 
@@ -1003,6 +1462,98 @@ def _parse_search_output(text: str) -> List[Dict[str, Any]]:
   return sections
 
 
+def _repository_image_names(repository: Dict[str, str], image_type: str) -> set[str] | None:
+  kind = (repository.get("kind") or "").strip()
+  normalized_type = (image_type or "").strip().lower()
+  if normalized_type not in {"qemu", "iol", "dynamips"}:
+    return None
+
+  names = set()
+  if kind == "catalog":
+    entries = _repo_api_fetch_listing(repository, f"addons/{normalized_type}", _REPO_PROBE_TIMEOUT)
+    if entries is None:
+      return None
+    for entry in entries:
+      name = str(entry.get("name") or "").strip()
+      if name:
+        names.add(name)
+    return names
+
+  if kind == "labhub":
+    prefix = (repository.get("prefix") or "").strip()
+    if not prefix:
+      return None
+    files = _labhub_fetch_listing(_labhub_build_path(prefix, f"addons/{normalized_type}"), _REPO_PROBE_TIMEOUT)
+    if files is None:
+      return None
+    for entry in files:
+      name = str(entry.get("name") or "").strip()
+      if name:
+        names.add(name)
+    return names
+
+  return None
+
+
+def _available_image_names_for_type(image_type: str) -> set[str] | None:
+  repositories = _build_repository_candidates()
+  if not repositories:
+    return None
+
+  available_names: set[str] = set()
+  any_repository_responded = False
+  for repository in repositories:
+    repo_names = _repository_image_names(repository, image_type)
+    if repo_names is None:
+      continue
+    any_repository_responded = True
+    available_names.update(repo_names)
+
+  if not any_repository_responded:
+    return None
+  return available_names
+
+
+def _filter_search_sections_with_available_repositories(
+  sections: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+  if not sections:
+    return sections
+
+  filtered_sections: List[Dict[str, Any]] = []
+
+  for section in sections:
+    section_type = str(section.get("type") or "").strip().lower()
+    items = section.get("items") or []
+    if section_type not in {"qemu", "iol", "dynamips"}:
+      filtered_sections.append(section)
+      continue
+
+    available_names = _available_image_names_for_type(section_type)
+    if available_names is None:
+      filtered_sections.append(section)
+      continue
+
+    kept_items: List[Dict[str, Any]] = []
+    for item in items:
+      image_name = str(item.get("name") or "").strip()
+      if not image_name:
+        continue
+      if image_name in available_names:
+        kept_items.append(item)
+
+    if kept_items:
+      filtered_sections.append(
+        {
+          "type": section.get("type", ""),
+          "label": section.get("label", ""),
+          "items": kept_items,
+        }
+      )
+
+  return filtered_sections
+
+
 @app.route("/search_all", methods=["POST"])
 def search_all():
   """
@@ -1053,6 +1604,7 @@ def search_all():
   clean_out = _strip_ansi(stdout or "")
   clean_err = _strip_ansi(stderr or "")
   sections = _parse_search_output(clean_out)
+  sections = _filter_search_sections_with_available_repositories(sections)
 
   if rc != 0:
     return (
@@ -1109,7 +1661,7 @@ def install():
 
   type_arg = image_type.lower()
   try:
-    pull_result = _run_pull_with_repo_fallback(type_arg, image_id)
+    pull_result = _run_pull_with_repo_fallback(type_arg, image_id, image_name=image_name)
   except FileNotFoundError:
     return (
       jsonify(
@@ -1285,7 +1837,12 @@ def _run_install_job(job_id: str, image_type: str, image_id: str, eve_ip: str, e
     )
 
   try:
-    pull_result = _run_pull_with_repo_fallback(type_arg, image_id, on_attempt=_notify_repo_attempt)
+    pull_result = _run_pull_with_repo_fallback(
+      type_arg,
+      image_id,
+      image_name=image_name,
+      on_attempt=_notify_repo_attempt,
+    )
   except FileNotFoundError:
     _update_job(
       job_id,

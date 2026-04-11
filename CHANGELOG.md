@@ -2,6 +2,19 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.4
+
+- Removido o campo obsoleto `version` do `docker-compose.yml`.
+- Versão incrementada para 1.1.4.
+
+## 1.1.3
+
+- Versão incrementada para 1.1.3.
+
+## 1.1.2
+
+- Versão incrementada para 1.1.2.
+
 ## 1.1.1
 
 - Versão incrementada para 1.1.1.

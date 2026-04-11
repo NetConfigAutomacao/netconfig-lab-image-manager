@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
-version: "3.9"
-
 services:
   api:
     build:

@@ -35,7 +35,7 @@ _NETCONFIG_REPO_HOST = "repo.netconfig.com.br"
 _NETCONFIG_REPO_PREFIX = "/api/raw?path="
 _NETCONFIG_REPO_ID = "repo.netconfig.com.br"
 _REPO_PROBE_TIMEOUT = 2.0
-_LABHUB_DEFAULT_PREFIXES = ["/0:", "/1:"]
+_LABHUB_DEFAULT_PREFIXES = ["/0:"]
 _LABHUB_USEFUL_PATHS = [
   "addons/dynamips",
   "addons/iol",
@@ -198,7 +198,7 @@ def _build_patched_ishare2_script(
 def _discover_repo_prefixes_from_labhub() -> List[str]:
   """
   Descobre dinamicamente os repositórios publicados na home do LabHub.
-  Ex.: /0:/, /1:/, /2:/ ...
+  Ex.: /0:/, /2:/ ...
   """
   try:
     req = urllib.request.Request(
@@ -835,6 +835,75 @@ def _classify_attempt_failure(output: str, stderr: str) -> tuple[str, str]:
   return code, reason
 
 
+def _probe_labhub_download_failure(
+  repository: Dict[str, str],
+  type_arg: str,
+  image_name: str,
+  timeout: float = _REPO_PROBE_TIMEOUT,
+) -> Dict[str, Any]:
+  kind = (repository.get("kind") or "").strip()
+  prefix = (repository.get("prefix") or "").strip()
+  host = (repository.get("host") or "").strip()
+  protocol = (repository.get("protocol") or "https").strip() or "https"
+  normalized_type = (type_arg or "").strip().lower()
+  normalized_name = (image_name or "").strip().strip("/")
+
+  if kind != "labhub" or not prefix or not host or not normalized_name:
+    return {"detected": False, "code": "", "reason": "", "detail": ""}
+  if normalized_type not in {"qemu", "iol", "dynamips"}:
+    return {"detected": False, "code": "", "reason": "", "detail": ""}
+
+  image_path = _labhub_build_path(prefix, f"addons/{normalized_type}/{normalized_name}")
+  files = _labhub_fetch_listing(image_path, timeout)
+  if not files:
+    return {"detected": False, "code": "", "reason": "", "detail": ""}
+
+  download_link = ""
+  for entry in files:
+    if _labhub_entry_is_downloadable(entry):
+      download_link = str(entry.get("link") or "").strip()
+      if download_link:
+        break
+
+  if not download_link:
+    return {"detected": False, "code": "", "reason": "", "detail": ""}
+
+  download_url = urllib.parse.urljoin(f"{protocol}://{host}/", download_link.lstrip("/"))
+  req = urllib.request.Request(
+    download_url,
+    headers={
+      "User-Agent": "Mozilla/5.0",
+      "Accept": "*/*",
+      "Range": "bytes=0-0",
+    },
+    method="GET",
+  )
+
+  body = ""
+  try:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+      body = resp.read(512).decode("utf-8", errors="ignore")
+  except urllib.error.HTTPError as exc:
+    try:
+      body = exc.read().decode("utf-8", errors="ignore")
+    except Exception:
+      body = str(exc)
+  except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+    return {"detected": False, "code": "", "reason": "", "detail": ""}
+
+  quota_info = _detect_labhub_quota_issue(body)
+  if quota_info.get("detected"):
+    detail = _extract_relevant_error_line(body) or "download quota exceeded"
+    return {
+      "detected": True,
+      "code": "quota",
+      "reason": f"quota/rate-limit no repositório ({detail})",
+      "detail": detail,
+    }
+
+  return {"detected": False, "code": "", "reason": "", "detail": ""}
+
+
 def _summarize_attempts_for_user(attempt_details: List[Dict[str, Any]]) -> str:
   if not attempt_details:
     return ""
@@ -965,6 +1034,14 @@ def _run_pull_with_repo_fallback(
     reason = ""
     if rc != 0:
       reason_code, reason = _classify_attempt_failure(out, err)
+      if reason_code == "download_failed" and normalized_image_name:
+        probed = _probe_labhub_download_failure(repository, type_arg, normalized_image_name)
+        if probed.get("detected"):
+          reason_code = str(probed.get("code") or reason_code)
+          reason = str(probed.get("reason") or reason)
+          probe_detail = str(probed.get("detail") or "").strip()
+          if probe_detail:
+            err = _append_text(err, f"[image-manager] {probe_detail}")
     attempt_details.append(
       {
         "repo_id": repo_id,

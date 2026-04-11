@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import sys
 import types
 import unittest
@@ -129,6 +130,102 @@ class TestIshare2Api(unittest.TestCase):
 
         self.assertFalse(info["detected"])
         self.assertEqual(info["matches"], [])
+
+    def test_probe_labhub_download_failure_detects_quota_from_signed_link(self):
+        ishare2_api = _import_ishare2_api()
+        repository = {
+            "id": "/0:",
+            "host": ishare2_api._LABHUB_HOST,
+            "prefix": "/0:",
+            "protocol": "https",
+            "kind": "labhub",
+        }
+        http_error = ishare2_api.urllib.error.HTTPError(
+            "https://labhub.eu.org/download.aspx?file=abc",
+            403,
+            "Forbidden",
+            hdrs=None,
+            fp=io.BytesIO(
+                b'{"error":{"code":403,"message":"The download quota for this file has been exceeded."}}'
+            ),
+        )
+
+        with patch.object(
+            ishare2_api,
+            "_labhub_fetch_listing",
+            return_value=[
+                {
+                    "name": "hda.qcow2",
+                    "mimeType": "application/x-qemu-disk",
+                    "link": "/download.aspx?file=abc",
+                }
+            ],
+        ), patch.object(
+            ishare2_api.urllib.request,
+            "urlopen",
+            side_effect=http_error,
+        ):
+            info = ishare2_api._probe_labhub_download_failure(
+                repository,
+                "qemu",
+                "cips-ips7",
+            )
+
+        self.assertTrue(info["detected"])
+        self.assertEqual(info["code"], "quota")
+        self.assertIn("download quota", info["detail"].lower())
+
+    def test_run_pull_with_repo_fallback_reclassifies_generic_labhub_download_error_as_quota(self):
+        ishare2_api = _import_ishare2_api()
+        repositories = [
+            {
+                "id": "/0:",
+                "host": ishare2_api._LABHUB_HOST,
+                "prefix": "/0:",
+                "protocol": "https",
+                "kind": "labhub",
+            },
+        ]
+        latency_map = {
+            "/0:": 12.3,
+        }
+
+        with patch.object(
+            ishare2_api,
+            "_build_repository_candidates",
+            return_value=repositories,
+        ), patch.object(
+            ishare2_api,
+            "_order_repositories_by_latency",
+            return_value=(repositories, latency_map),
+        ), patch.object(
+            ishare2_api,
+            "_repository_has_image_content",
+            return_value=True,
+        ), patch.object(
+            ishare2_api,
+            "_run_pull_command",
+            return_value=(1, "[-] Error: Unable to download the file.", ""),
+        ), patch.object(
+            ishare2_api,
+            "_probe_labhub_download_failure",
+            return_value={
+                "detected": True,
+                "code": "quota",
+                "reason": "quota/rate-limit no repositório (The download quota for this file has been exceeded.)",
+                "detail": "The download quota for this file has been exceeded.",
+            },
+        ):
+            result = ishare2_api._run_pull_with_repo_fallback(
+                "qemu",
+                "73",
+                image_name="cips-ips7",
+            )
+
+        self.assertEqual(result["rc"], 1)
+        self.assertEqual(result["attempt_details"][0]["reason_code"], "quota")
+        self.assertIn("quota", result["attempt_details"][0]["reason"])
+        self.assertIn("download quota", result["stderr"].lower())
 
     def test_discover_repo_prefixes_from_labhub(self):
         ishare2_api = _import_ishare2_api()
@@ -433,6 +530,7 @@ class TestIshare2Api(unittest.TestCase):
 
     def test_build_repository_candidates_filters_default_empty_prefixes(self):
         ishare2_api = _import_ishare2_api()
+        inspected_ids = []
 
         with patch.object(
             ishare2_api,
@@ -453,15 +551,25 @@ class TestIshare2Api(unittest.TestCase):
         ), patch.object(
             ishare2_api,
             "_repository_has_content",
-            side_effect=lambda repository: repository.get("id") in {
-                ishare2_api._NETCONFIG_REPO_ID,
-                "/0:",
-            },
+            side_effect=lambda repository: (
+                inspected_ids.append(repository.get("id")),
+                repository.get("id") in {
+                    ishare2_api._NETCONFIG_REPO_ID,
+                    "/0:",
+                },
+            )[1],
         ):
             candidates = ishare2_api._build_repository_candidates()
 
         self.assertEqual(
             [candidate["id"] for candidate in candidates],
+            [
+                ishare2_api._NETCONFIG_REPO_ID,
+                "/0:",
+            ],
+        )
+        self.assertEqual(
+            inspected_ids,
             [
                 ishare2_api._NETCONFIG_REPO_ID,
                 "/0:",

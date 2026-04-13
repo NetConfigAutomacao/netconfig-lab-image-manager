@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (currentAppVersion) {
         pill.title = t('ui.version.tooltip', { version: currentAppVersion });
       }
+      renderUpdateNotice(null);
       return;
     }
 
@@ -105,6 +106,94 @@ document.addEventListener('DOMContentLoaded', function () {
         window.open(releaseUrl, '_blank', 'noopener');
       };
     }
+
+    renderUpdateNotice(updateInfo);
+  }
+
+  function renderUpdateNotice(updateInfo) {
+    const notice = document.getElementById('updateNotice');
+    const text = document.getElementById('updateNoticeText');
+    const meta = document.getElementById('updateNoticeMeta');
+    const commandLabel = document.getElementById('updateCommandLabel');
+    const commandText = document.getElementById('updateCommandText');
+    const releaseBtn = document.getElementById('updateReleaseBtn');
+    const copyBtn = document.getElementById('updateCopyBtn');
+    if (!notice || !text || !meta || !commandLabel || !commandText || !releaseBtn || !copyBtn) return;
+
+    if (!updateInfo || updateInfo.success !== true || updateInfo.update_available !== true) {
+      notice.style.display = 'none';
+      text.textContent = '';
+      meta.textContent = '';
+      meta.style.display = 'none';
+      commandLabel.style.display = 'none';
+      commandText.style.display = 'none';
+      commandText.textContent = '';
+      releaseBtn.style.display = 'none';
+      releaseBtn.onclick = null;
+      copyBtn.style.display = 'none';
+      copyBtn.onclick = null;
+      return;
+    }
+
+    const current = (updateInfo.current_version || currentAppVersion || '').trim();
+    const latest = (updateInfo.latest_version || '').trim();
+    const releaseUrl = (updateInfo.release_url || '').trim();
+    const updateCommand = (updateInfo.update_command || '').trim();
+    const dirtyWorktree = updateInfo.dirty_worktree === true;
+
+    text.textContent = t('ui.update.summary', { current: current, latest: latest });
+
+    if (dirtyWorktree) {
+      meta.textContent = t('ui.update.dirtyWarning');
+      meta.style.display = 'block';
+    } else {
+      meta.textContent = '';
+      meta.style.display = 'none';
+    }
+
+    if (updateCommand) {
+      commandLabel.style.display = 'block';
+      commandText.style.display = 'block';
+      commandText.textContent = updateCommand;
+      copyBtn.style.display = 'inline-flex';
+      copyBtn.onclick = function () {
+        copyUpdateCommand(updateCommand);
+      };
+    } else {
+      commandLabel.style.display = 'none';
+      commandText.style.display = 'none';
+      commandText.textContent = '';
+      copyBtn.style.display = 'none';
+      copyBtn.onclick = null;
+    }
+
+    if (releaseUrl) {
+      releaseBtn.style.display = 'inline-flex';
+      releaseBtn.onclick = function () {
+        window.open(releaseUrl, '_blank', 'noopener');
+      };
+    } else {
+      releaseBtn.style.display = 'none';
+      releaseBtn.onclick = null;
+    }
+
+    notice.style.display = 'block';
+  }
+
+  function copyUpdateCommand(command) {
+    if (!command) return;
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+      showMessage('error', t('ui.update.copyFail'));
+      return;
+    }
+
+    navigator.clipboard.writeText(command)
+      .then(function () {
+        showMessage('success', t('ui.update.copySuccess'));
+      })
+      .catch(function () {
+        showMessage('error', t('ui.update.copyFail'));
+      });
   }
 
   function loadAppVersionFromStaticFile() {
@@ -178,7 +267,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.addEventListener('netconfig:language-changed', function () {
     if (currentAppVersion) setAppVersionBadge(currentAppVersion);
-    if (lastUpdateInfo) applyUpdateState(lastUpdateInfo);
+    if (lastUpdateInfo) {
+      applyUpdateState(lastUpdateInfo);
+    } else {
+      renderUpdateNotice(null);
+    }
   });
 
   loadAppVersionFromApi()

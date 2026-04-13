@@ -95,9 +95,30 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `1.1.4` (arquivo `VERSION`)
+- Versão atual: `1.1.6` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
+- Checar update disponível: `curl -s http://localhost:8080/api/update`
+
+### Atualização do projeto
+
+Ao detectar uma versão nova no GitHub, a interface exibe um aviso no topo com link para a release e o comando sugerido.
+
+No host onde o projeto está instalado:
+
+```bash
+cd /opt/netconfig-lab-image-manager
+./scripts/update.sh
+```
+
+Opções úteis:
+
+```bash
+./scripts/update.sh --check
+./scripts/update.sh --no-build
+```
+
+> O script aborta por padrão se houver alterações locais no repositório, para evitar sobrescrever customizações sem revisão.
 
 ---
 
@@ -192,9 +213,30 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `1.1.4` (file `VERSION`)
+- Current version: `1.1.6` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
+- Check whether an update is available: `curl -s http://localhost:8080/api/update`
+
+### Updating the project
+
+When a new version is found on GitHub, the UI shows a banner at the top with a release link and the suggested update command.
+
+On the host where the project is installed:
+
+```bash
+cd /opt/netconfig-lab-image-manager
+./scripts/update.sh
+```
+
+Useful options:
+
+```bash
+./scripts/update.sh --check
+./scripts/update.sh --no-build
+```
+
+> By default, the script aborts if the git repository has local changes, to avoid overwriting customizations without review.
 
 ---
 
@@ -286,6 +328,27 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `1.1.4` (archivo `VERSION`)
+- Versión actual: `1.1.6` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
+- Verificar si hay actualización: `curl -s http://localhost:8080/api/update`
+
+### Actualización del proyecto
+
+Cuando GitHub indica una versión más nueva, la interfaz muestra un aviso en la parte superior con enlace a la release y el comando sugerido.
+
+En el host donde está instalado el proyecto:
+
+```bash
+cd /opt/netconfig-lab-image-manager
+./scripts/update.sh
+```
+
+Opciones útiles:
+
+```bash
+./scripts/update.sh --check
+./scripts/update.sh --no-build
+```
+
+> El script aborta por defecto si el repositorio git tiene cambios locales, para evitar sobrescribir personalizaciones sin revisión.

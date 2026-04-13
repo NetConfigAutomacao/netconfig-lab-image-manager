@@ -115,6 +115,17 @@ class TestVersion(unittest.TestCase):
         self.assertEqual(info["update_script_path"], "/opt/eve-image-manager/scripts/update.sh")
         self.assertEqual(info["update_command"], "cd /opt/eve-image-manager && ./scripts/update.sh")
 
+    def test_get_project_root_supports_container_layout(self):
+        version = self._import_version()
+
+        def _exists(self):
+            return self == version.Path("/app/VERSION")
+
+        with patch.object(version, "__file__", "/app/version.py"), patch.object(version.Path, "exists", _exists):
+            root = version.get_project_root()
+
+        self.assertEqual(root, version.Path("/app"))
+
 
 if __name__ == "__main__":
     unittest.main()

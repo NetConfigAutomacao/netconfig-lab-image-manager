@@ -2,6 +2,17 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.8
+
+- Correção da checagem de update no frontend, com revalidação forçada quando a primeira resposta vier do cache do backend.
+- Endpoint `/api/update` passa a aceitar `force=1` para ignorar o cache em memória.
+- Correção da detecção de diretório raiz do projeto dentro do container da API.
+- Versão incrementada para 1.1.8.
+
+## 1.1.7
+
+- Versão reservada em tag externa.
+
 ## 1.1.6
 
 - Versão incrementada para 1.1.6.

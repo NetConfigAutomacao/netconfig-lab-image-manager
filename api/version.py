@@ -22,14 +22,29 @@ from pathlib import Path
 import requests
 
 
-DEFAULT_VERSION = "1.1.6"
+DEFAULT_VERSION = "1.1.8"
 DEFAULT_GITHUB_REPO = "NetConfigAutomacao/netconfig-lab-image-manager"
 UPDATE_CACHE_TTL_SECONDS = 300
 _update_cache = {"checked_at": 0.0, "data": None}
 
 
 def get_project_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    module_dir = Path(__file__).resolve().parent
+    candidates = [
+        module_dir.parent,
+        module_dir,
+        Path("/app"),
+        Path.cwd(),
+    ]
+
+    for candidate in candidates:
+        try:
+            if (candidate / "VERSION").exists():
+                return candidate
+        except Exception:
+            continue
+
+    return module_dir.parent
 
 
 def get_app_version():

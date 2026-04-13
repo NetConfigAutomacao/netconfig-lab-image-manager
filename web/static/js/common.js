@@ -58,10 +58,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function loadUpdateInfoFromApi() {
+  function loadUpdateInfoFromApi(force) {
     return new Promise(function (resolve, reject) {
       const xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/update', true);
+      const url = force ? '/api/update?force=1' : '/api/update';
+      xhr.open('GET', url, true);
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
       if (window.NetConfigApp && window.NetConfigApp.setLanguageHeader) {
         window.NetConfigApp.setLanguageHeader(xhr);
@@ -284,6 +285,15 @@ document.addEventListener('DOMContentLoaded', function () {
       return loadUpdateInfoFromApi()
         .then(function (updateInfo) {
           applyUpdateState(updateInfo);
+          if (updateInfo && updateInfo.cached === true) {
+            return loadUpdateInfoFromApi(true)
+              .then(function (freshUpdateInfo) {
+                applyUpdateState(freshUpdateInfo);
+              })
+              .catch(function () {
+                // Mantém o estado anterior se a revalidação falhar
+              });
+          }
         })
         .catch(function () {
           // Não falha a UI se a checagem de update falhar

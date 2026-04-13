@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 from upload_routes import upload_bp
 from image_routes import images_bp
@@ -58,7 +58,8 @@ def create_app() -> Flask:
 
     @app.route("/update", methods=["GET"])
     def update():
-        return jsonify(check_for_update()), 200
+        force = str(request.args.get("force", "")).strip().lower() in {"1", "true", "yes", "on"}
+        return jsonify(check_for_update(force=force)), 200
 
     @app.after_request
     def add_version_header(response):

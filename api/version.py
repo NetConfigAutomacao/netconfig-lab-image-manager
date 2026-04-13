@@ -14,16 +14,22 @@
 # along with NetConfig Lab Image Manager.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
+import shlex
+import subprocess
+import time
 from pathlib import Path
 
-import time
 import requests
 
 
-DEFAULT_VERSION = "1.1.1"
+DEFAULT_VERSION = "1.1.6"
 DEFAULT_GITHUB_REPO = "NetConfigAutomacao/netconfig-lab-image-manager"
 UPDATE_CACHE_TTL_SECONDS = 300
 _update_cache = {"checked_at": 0.0, "data": None}
+
+
+def get_project_root() -> Path:
+    return Path(__file__).resolve().parent.parent
 
 
 def get_app_version():
@@ -54,6 +60,50 @@ def get_app_version():
             continue
 
     return DEFAULT_VERSION
+
+
+def _run_git_command(args):
+    try:
+        return subprocess.check_output(
+            ["git", "-C", str(get_project_root()), *args],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return ""
+
+
+def get_git_branch():
+    branch = _run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch == "HEAD":
+        return ""
+    return branch
+
+
+def get_git_remote_url(remote: str = "origin"):
+    return _run_git_command(["remote", "get-url", remote])
+
+
+def is_git_worktree_dirty():
+    return bool(_run_git_command(["status", "--short"]))
+
+
+def get_update_helper_info():
+    project_root = get_project_root()
+    script_path = project_root / "scripts" / "update.sh"
+    command = ""
+    if script_path.exists():
+        command = f"cd {shlex.quote(str(project_root))} && ./scripts/update.sh"
+
+    return {
+        "project_dir": str(project_root),
+        "git_branch": get_git_branch(),
+        "git_remote_url": get_git_remote_url(),
+        "dirty_worktree": is_git_worktree_dirty(),
+        "update_script_path": str(script_path),
+        "update_script_exists": script_path.exists(),
+        "update_command": command,
+    }
 
 
 def _normalize_tag_to_semver(tag: str):
@@ -163,11 +213,12 @@ def get_latest_github_release(repo: str = None):
 
 def check_for_update(force: bool = False):
     now = time.time()
+    helper_info = get_update_helper_info()
     if not force:
         cached = _update_cache.get("data")
         checked_at = float(_update_cache.get("checked_at") or 0.0)
         if cached and (now - checked_at) < UPDATE_CACHE_TTL_SECONDS:
-            return {**cached, "cached": True}
+            return {**cached, **helper_info, "cached": True}
 
     current = get_app_version()
     try:
@@ -218,6 +269,7 @@ def check_for_update(force: bool = False):
             "cached": False,
         }
 
+    result.update(helper_info)
     _update_cache["checked_at"] = now
     _update_cache["data"] = result
     return result

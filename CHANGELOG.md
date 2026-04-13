@@ -2,6 +2,17 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.6
+
+- Versão incrementada para 1.1.6.
+
+## 1.1.5
+
+- Aviso visual de atualização disponível no frontend, baseado na checagem do GitHub já exposta em `/api/update`.
+- Inclusão do script `scripts/update.sh` para facilitar `git pull` com `docker compose up -d --build`.
+- Endpoint de update enriquecido com metadados locais do projeto e comando sugerido para atualização.
+- Versão incrementada para 1.1.5.
+
 ## 1.1.4
 
 - Removido o campo obsoleto `version` do `docker-compose.yml`.

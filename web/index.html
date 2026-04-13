@@ -268,6 +268,68 @@
       margin-bottom: 8px;
     }
 
+    .update-notice {
+      display: none;
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      background: linear-gradient(135deg, rgba(21, 128, 61, 0.18) 0%, rgba(15, 23, 42, 0.96) 55%);
+      box-shadow: inset 0 1px 0 rgba(187, 247, 208, 0.08), 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .update-notice-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #dcfce7;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .update-notice-text {
+      font-size: 13px;
+      color: var(--text-main);
+      line-height: 1.5;
+    }
+
+    .update-notice-meta {
+      margin-top: 6px;
+      font-size: 11px;
+      color: #bbf7d0;
+      line-height: 1.45;
+    }
+
+    .update-notice-command-label {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .update-notice-command {
+      margin: 6px 0 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(2, 6, 23, 0.95);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #e2e8f0;
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .update-notice-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
     .load-row {
       display: flex;
       align-items: center;
@@ -1163,6 +1225,12 @@
         margin: 8px 0;
       }
 
+      .update-notice-actions .btn-primary,
+      .update-notice-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
+      }
+
       .tabs {
         flex-wrap: wrap;
       }
@@ -1211,6 +1279,23 @@
         <hr class="divider">
 
         <div id="messages" class="messages"></div>
+        <div id="updateNotice" class="update-notice">
+          <div class="update-notice-title" data-i18n="ui.update.available">Atualização disponível</div>
+          <div class="update-notice-text" id="updateNoticeText"></div>
+          <div class="update-notice-meta" id="updateNoticeMeta" style="display:none;"></div>
+          <div class="update-notice-command-label" id="updateCommandLabel" data-i18n="ui.update.commandLabel" style="display:none;">Comando sugerido no host</div>
+          <pre class="update-notice-command" id="updateCommandText" style="display:none;"></pre>
+          <div class="update-notice-actions">
+            <button type="button" class="btn-secondary" id="updateReleaseBtn" style="display:none;">
+              <span class="icon">↗</span>
+              <span data-i18n="ui.update.openRelease">Abrir release</span>
+            </button>
+            <button type="button" class="btn-primary" id="updateCopyBtn" style="display:none;">
+              <span class="icon">📋</span>
+              <span data-i18n="ui.update.copyCommand">Copiar comando</span>
+            </button>
+          </div>
+        </div>
 
         <form id="uploadForm" enctype="multipart/form-data">
           <!-- CAMPOS COMUNS (USADOS EM IMAGES / TEMPLATES / ICONS) -->

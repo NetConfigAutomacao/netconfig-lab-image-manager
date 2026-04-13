@@ -74,15 +74,46 @@ class TestVersion(unittest.TestCase):
 
         with patch.object(version, "get_app_version", return_value="1.0.0"), patch.object(
             version, "get_latest_github_release", return_value={"tag_name": "v1.0.1", "html_url": "x", "repo": "r", "source": "release"}
+        ), patch.object(
+            version,
+            "get_update_helper_info",
+            return_value={
+                "project_dir": "/opt/eve-image-manager",
+                "git_branch": "main",
+                "git_remote_url": "https://github.com/example/repo.git",
+                "dirty_worktree": False,
+                "update_script_path": "/opt/eve-image-manager/scripts/update.sh",
+                "update_script_exists": True,
+                "update_command": "cd /opt/eve-image-manager && ./scripts/update.sh",
+            },
         ):
             first = version.check_for_update(force=True)
             self.assertTrue(first["success"])
             self.assertTrue(first["update_available"])
             self.assertFalse(first["cached"])
+            self.assertEqual(first["update_command"], "cd /opt/eve-image-manager && ./scripts/update.sh")
 
             second = version.check_for_update(force=False)
             self.assertTrue(second["success"])
             self.assertTrue(second["cached"])
+            self.assertEqual(second["git_branch"], "main")
+
+    def test_get_update_helper_info(self):
+        version = self._import_version()
+
+        with patch.object(version, "get_project_root", return_value=version.Path("/opt/eve-image-manager")), patch.object(
+            version,
+            "_run_git_command",
+            side_effect=["version-check", "https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git", " M api/version.py"],
+        ), patch.object(version.Path, "exists", return_value=True):
+            info = version.get_update_helper_info()
+
+        self.assertEqual(info["project_dir"], "/opt/eve-image-manager")
+        self.assertEqual(info["git_branch"], "version-check")
+        self.assertTrue(info["git_remote_url"].startswith("https://github.com/NetConfigAutomacao/"))
+        self.assertTrue(info["dirty_worktree"])
+        self.assertEqual(info["update_script_path"], "/opt/eve-image-manager/scripts/update.sh")
+        self.assertEqual(info["update_command"], "cd /opt/eve-image-manager && ./scripts/update.sh")
 
 
 if __name__ == "__main__":

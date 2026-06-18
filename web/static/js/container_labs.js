@@ -1183,6 +1183,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleLoad() {
     resetLabCache();
     setLoading(true);
+    if (listEl) listEl.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.labs.loading') + '</span></div>';
     requestLabs({ skipMessage: false })
       .then(function (resp) {
         if (resp && resp.missing_dir) {
@@ -1195,7 +1196,8 @@ document.addEventListener('DOMContentLoaded', function () {
         prefetchLabFiles(resp.labs || []);
       })
       .catch(function () {
-        // mensagem já exibida
+        // mensagem já exibida; limpa o spinner
+        renderList([]);
       })
       .finally(function () {
         setLoading(false);

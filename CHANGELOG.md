@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.14
+
+- Refatoração da interface (issue #34) — entrega 8 (estado da aba Laboratórios):
+  - Spinner de carregamento na lista de laboratórios, com estado vazio restaurado em erros.
+  - Conclui a cobertura de estados loading/empty/erro/sucesso (F20) em todas as listagens.
+
 ## 1.1.13
 
 - Refatoração da interface (issue #34) — entrega 7 (estados das abas ContainerLab):

@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.17
+
+- Refatoração da interface (issue #34) — entrega 11 (painel de latência iShare2):
+  - Novo endpoint `GET /api/ishare2/repositories` (proxy) e `GET /repositories` no serviço ishare2, retornando os mirrors ordenados por latência medida.
+  - Painel "Ranking de latência dos mirrors" exibido na aba iShare2 ao buscar, com barras coloridas por faixa (<40ms verde, <100ms accent, senão âmbar).
+  - Nova chave i18n `ui.ishare2.latencyTitle` (PT/EN/ES).
+  - Observação: única alteração de backend do refactor, estritamente para suportar a UI (exceção prevista no requisito O1/R7 da issue).
+
 ## 1.1.16
 
 - Refatoração da interface (issue #34) — entrega 10 (TopoViewer):

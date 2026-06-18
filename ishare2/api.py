@@ -1631,6 +1631,34 @@ def _filter_search_sections_with_available_repositories(
   return filtered_sections
 
 
+@app.route("/repositories", methods=["GET"])
+def repositories():
+  """
+  Lista os repositórios candidatos (catalog + mirrors LabHub) já ordenados
+  por latência, com a latência medida de cada um. Usado pelo frontend para
+  exibir o ranking de latência dos mirrors antes/junto da busca.
+  """
+  try:
+    candidates = _build_repository_candidates()
+    ordered, latency_map = _order_repositories_by_latency(candidates)
+    ranked: List[Dict[str, Any]] = []
+    for repo in ordered:
+      repo_id = (repo.get("id") or "").strip()
+      if not repo_id:
+        continue
+      ranked.append(
+        {
+          "id": repo_id,
+          "host": repo.get("host", ""),
+          "kind": repo.get("kind", ""),
+          "latency_ms": latency_map.get(repo_id),
+        }
+      )
+    return jsonify(success=True, repositories=ranked, latency_ms=latency_map), 200
+  except Exception as exc:  # pragma: no cover
+    return jsonify(success=False, message=str(exc), repositories=[], latency_ms={}), 200
+
+
 @app.route("/search_all", methods=["POST"])
 def search_all():
   """

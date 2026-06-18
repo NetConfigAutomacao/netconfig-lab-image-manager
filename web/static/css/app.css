@@ -496,6 +496,19 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .resource-bar-fill.is-critical { background: linear-gradient(90deg, var(--warn), #ef6b82); }
 .disk-warning { display: none; align-items: center; gap: 9px; margin-top: 14px; padding: 11px 14px; border-radius: var(--radius-sm); background: var(--warn-bg); border: 1px solid rgba(244, 183, 64, .4); color: var(--warn); font-size: 12.5px; }
 
+/* ============================= EMPTY / LOADING ============================= */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 40px 20px; margin-top: 8px; text-align: center;
+  border: 1px dashed var(--border-2); border-radius: var(--radius-sm);
+  color: var(--text-3); font-size: 13px; background: var(--surface-3);
+}
+.empty-state-icon {
+  width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  background: rgba(56, 189, 248, .08); color: var(--accent-from);
+}
+.loading-state { display: flex; align-items: center; gap: 11px; padding: 28px 20px; color: var(--text-2); font-size: 13px; justify-content: center; }
+
 /* ============================= TAB CONTENT ============================= */
 .tab-content { display: none; }
 .tab-content.active { display: block; }

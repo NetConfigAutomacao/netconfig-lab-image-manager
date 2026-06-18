@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.16
+
+- Refatoração da interface (issue #34) — entrega 10 (TopoViewer):
+  - Modal de topologia agora renderiza um grafo (nós posicionados + arestas em SVG) sobre grade pontilhada, no lugar das listas de texto.
+  - Toolbar com contador "N nós · M enlaces"; listas de nós/links mantidas como detalhe abaixo do grafo.
+  - Novas chaves i18n `ui.topo.canvasTitle`, `ui.topo.counter`, `ui.topo.empty` (PT/EN/ES).
+
 ## 1.1.15
 
 - Refatoração da interface (issue #34) — entrega 9 (ajuste do tema light):

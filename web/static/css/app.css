@@ -494,6 +494,7 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .resource-bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
 .resource-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-from), var(--accent-to)); transition: width .25s ease-out; }
 .resource-bar-fill.is-critical { background: linear-gradient(90deg, var(--warn), #ef6b82); }
+.disk-warning { display: none; align-items: center; gap: 9px; margin-top: 14px; padding: 11px 14px; border-radius: var(--radius-sm); background: var(--warn-bg); border: 1px solid rgba(244, 183, 64, .4); color: var(--warn); font-size: 12.5px; }
 
 /* ============================= TAB CONTENT ============================= */
 .tab-content { display: none; }

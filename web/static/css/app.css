@@ -112,6 +112,14 @@ code { font-family: var(--mono); font-size: .92em; color: var(--accent-from); }
 .brand-logo { height: 30px; max-width: 130px; object-fit: contain; }
 .brand-logo-main { height: 72px; max-width: 100%; object-fit: contain; display: block; }
 
+/* Logos são PNGs claros; no tema light recebem um chip escuro para manter legibilidade. */
+[data-theme="light"] .brand-logo,
+[data-theme="light"] .brand-logo-main,
+[data-theme="light"] .sidebar-logo,
+[data-theme="light"] .sidebar-hexa {
+  background: #0d1626; border-radius: 10px; padding: 6px 10px;
+}
+
 /* ====================== FIELDS / INPUTS ====================== */
 .field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }

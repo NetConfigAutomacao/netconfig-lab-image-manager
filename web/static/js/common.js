@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
       releaseBtn.onclick = null;
     }
 
-    notice.style.display = 'block';
+    notice.style.display = 'flex';
   }
 
   function copyUpdateCommand(command) {

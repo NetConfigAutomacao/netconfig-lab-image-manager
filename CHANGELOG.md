@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.12
+
+- Refatoração da interface (issue #34) — entrega 6 (estados de Templates e Ícones):
+  - Spinner de carregamento ao listar templates e ícones, com limpeza em erros.
+  - Estados vazios já existentes preservados (`templates.none` / `icons.none`).
+  - Novas chaves i18n `templates.loading` e `icons.loading` (PT/EN/ES).
+
 ## 1.1.11
 
 - Refatoração da interface (issue #34) — entrega 5 (estados da aba Imagens):

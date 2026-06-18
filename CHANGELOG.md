@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.13
+
+- Refatoração da interface (issue #34) — entrega 7 (estados das abas ContainerLab):
+  - Spinner de carregamento nas listas de Container Images e VRNETLAB, com estado vazio restaurado em erros.
+  - Estados vazios e labels de loading nos botões já existentes preservados.
+
 ## 1.1.12
 
 - Refatoração da interface (issue #34) — entrega 6 (estados de Templates e Ícones):

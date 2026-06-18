@@ -477,6 +477,16 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .ishare2-item-size { text-align: right; font-family: var(--mono); color: var(--text-3); }
 .ishare2-install-btn { justify-self: flex-end; }
 
+/* ============================= ISHARE2 LATENCY PANEL ============================= */
+.latency-panel { margin-top: 8px; padding: 14px; border-radius: var(--radius-sm); background: var(--surface-3); border: 1px solid var(--border-2); }
+.latency-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.latency-row { display: grid; grid-template-columns: 14px minmax(140px, 1fr) minmax(80px, 2fr) 64px; align-items: center; gap: 10px; padding: 5px 0; }
+.latency-dot { width: 9px; height: 9px; border-radius: 50%; }
+.latency-host { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.latency-track { height: 7px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.latency-fill { display: block; height: 100%; border-radius: 999px; }
+.latency-value { font-size: 12px; color: var(--text-2); text-align: right; }
+
 /* ============================= VRNETLAB / CONTAINER ============================= */
 .vrnetlab-actions { display: flex; align-items: center; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
 .vrnetlab-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }

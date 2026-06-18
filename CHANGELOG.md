@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.11
+
+- Refatoração da interface (issue #34) — entrega 5 (estados da aba Imagens):
+  - Estado vazio no card "Imagens existentes" antes da primeira checagem.
+  - Spinner de carregamento durante a listagem, com restauração do estado vazio em erros.
+  - Novas chaves i18n `ui.images.emptyState` e `images.loading` (PT/EN/ES).
+
 ## 1.1.10
 
 - Refatoração da interface (issue #34) — entrega 4 (estados da aba iShare2):

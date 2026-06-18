@@ -2,6 +2,11 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.15
+
+- Refatoração da interface (issue #34) — entrega 9 (ajuste do tema light):
+  - Chip escuro atrás dos logos (PNGs claros) no tema light para manter legibilidade no gate e na sidebar.
+
 ## 1.1.14
 
 - Refatoração da interface (issue #34) — entrega 8 (estado da aba Laboratórios):

@@ -41,6 +41,26 @@ document.addEventListener('DOMContentLoaded', function () {
     'system-tab': 'ui.sub.system'
   };
 
+  /* -------------------- Tema (dark/light) -------------------- */
+  var THEME_KEY = 'netconfig-theme';
+  function applyTheme(theme) {
+    var resolved = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', resolved);
+    document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+      btn.textContent = resolved === 'light' ? '☀️' : '🌙';
+    });
+  }
+  var savedTheme = 'dark';
+  try { savedTheme = localStorage.getItem(THEME_KEY) || 'dark'; } catch (e) {}
+  applyTheme(savedTheme);
+  document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      applyTheme(next);
+    });
+  });
+
   /* -------------------- Idioma segmentado -------------------- */
   function syncLangButtons() {
     var current = (app.getLanguage && app.getLanguage()) || 'pt';
@@ -167,6 +187,71 @@ document.addEventListener('DOMContentLoaded', function () {
       });
       setConnected(false);
     });
+  }
+
+  /* -------------------- Animação de sync no gate -------------------- */
+  var loadBtn = document.getElementById('loadDataBtn');
+  var gateSyncing = document.getElementById('gateSyncing');
+  var gateIdle = document.querySelector('.gate-sync');
+  var syncTimers = [];
+  var syncActive = false;
+
+  function clearSyncTimers() {
+    syncTimers.forEach(function (id) { clearTimeout(id); });
+    syncTimers = [];
+  }
+
+  function resetSyncSteps() {
+    document.querySelectorAll('#gateSyncing .sync-step').forEach(function (li) {
+      li.classList.remove('active', 'done');
+    });
+  }
+
+  function startGateSync() {
+    if (!gateSyncing) return;
+    syncActive = true;
+    clearSyncTimers();
+    resetSyncSteps();
+    if (gateIdle) gateIdle.style.display = 'none';
+    gateSyncing.style.display = 'block';
+
+    var steps = ['ssh', 'auth', 'detect', 'sync'];
+    var stepEls = steps.map(function (s) { return document.querySelector('#gateSyncing .sync-step[data-step="' + s + '"]'); });
+    // Avança visualmente os passos enquanto a carga real acontece em paralelo.
+    stepEls.forEach(function (el, i) {
+      if (!el) return;
+      syncTimers.push(setTimeout(function () {
+        for (var j = 0; j < i; j++) { if (stepEls[j]) { stepEls[j].classList.remove('active'); stepEls[j].classList.add('done'); } }
+        el.classList.add('active');
+      }, i * 620));
+    });
+  }
+
+  function stopGateSync(success) {
+    if (!gateSyncing) return;
+    clearSyncTimers();
+    if (success) {
+      document.querySelectorAll('#gateSyncing .sync-step').forEach(function (li) { li.classList.remove('active'); li.classList.add('done'); });
+    }
+    gateSyncing.style.display = 'none';
+    if (gateIdle) gateIdle.style.display = '';
+    resetSyncSteps();
+    syncActive = false;
+  }
+
+  if (loadBtn) {
+    loadBtn.addEventListener('click', function () {
+      var creds = getCreds();
+      if (creds.eve_ip && creds.eve_user && creds.eve_pass) startGateSync();
+    });
+    // Observa fim do carregamento (main.js reabilita o botão no finally).
+    new MutationObserver(function () {
+      if (!syncActive) return;
+      if (!loadBtn.disabled) {
+        var connected = body.getAttribute('data-connected') === 'true';
+        stopGateSync(connected);
+      }
+    }).observe(loadBtn, { attributes: true, attributeFilter: ['disabled', 'class'] });
   }
 
   /* -------------------- Drawer da sidebar (mobile) -------------------- */

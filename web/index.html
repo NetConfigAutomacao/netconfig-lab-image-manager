@@ -58,11 +58,14 @@
           <div class="version-pill" id="appVersionPill" title="">
             <strong>v</strong><span id="appVersionValue">--</span>
           </div>
-          <div class="lang-seg" data-lang-seg>
-            <span class="lang-seg-label" data-i18n="ui.language.label">Idioma</span>
-            <button type="button" class="lang-seg-btn" data-lang="pt">PT</button>
-            <button type="button" class="lang-seg-btn" data-lang="en">EN</button>
-            <button type="button" class="lang-seg-btn" data-lang="es">ES</button>
+          <div class="head-controls">
+            <button type="button" class="theme-toggle" data-theme-toggle aria-label="Tema" title="Tema">🌙</button>
+            <div class="lang-seg" data-lang-seg>
+              <span class="lang-seg-label" data-i18n="ui.language.label">Idioma</span>
+              <button type="button" class="lang-seg-btn" data-lang="pt">PT</button>
+              <button type="button" class="lang-seg-btn" data-lang="en">EN</button>
+              <button type="button" class="lang-seg-btn" data-lang="es">ES</button>
+            </div>
           </div>
         </div>
 
@@ -98,6 +101,19 @@
               <span class="icon">⚡</span>
               <span data-i18n="ui.loadDataBtn">Carregar dados</span>
             </button>
+          </div>
+
+          <div class="gate-syncing" id="gateSyncing" style="display:none;">
+            <div class="gate-syncing-head">
+              <span class="spinner"></span>
+              <span data-i18n="ui.gate.connecting">Sincronizando com a ponta...</span>
+            </div>
+            <ul class="sync-steps">
+              <li class="sync-step" data-step="ssh"><span class="sync-dot"></span><span data-i18n="ui.gate.step.ssh">Conectando via SSH ao host</span></li>
+              <li class="sync-step" data-step="auth"><span class="sync-dot"></span><span data-i18n="ui.gate.step.auth">Autenticando credenciais</span></li>
+              <li class="sync-step" data-step="detect"><span class="sync-dot"></span><span data-i18n="ui.gate.step.detect">Detectando o ambiente de lab</span></li>
+              <li class="sync-step" data-step="sync"><span class="sync-dot"></span><span data-i18n="ui.gate.step.sync">Sincronizando imagens, ícones e templates</span></li>
+            </ul>
           </div>
         </div>
       </div>
@@ -208,6 +224,7 @@
               <span class="mono" id="hostChipIp">--</span>
               <span class="host-chip-user" id="hostChipUser">--</span>
             </div>
+            <button type="button" class="theme-toggle" data-theme-toggle aria-label="Tema" title="Tema">🌙</button>
             <div class="lang-seg" data-lang-seg>
               <button type="button" class="lang-seg-btn" data-lang="pt">PT</button>
               <button type="button" class="lang-seg-btn" data-lang="en">EN</button>

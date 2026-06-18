@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.8
+
+- Refatoração da interface (issue #34) — entrega 2 (interações do shell):
+  - Toasts (`#messages`) com auto-dismiss após 7s, mantendo o fechamento manual.
+  - Toggle de tema dark/light no gate e na top bar, persistido em `localStorage` (`netconfig-theme`).
+  - Animação de sincronização no gate ao carregar dados: passos SSH → autenticação → detecção do ambiente → sync, sincronizada com o carregamento real.
+  - Novas chaves i18n (PT/EN/ES) para os passos de sincronização.
+
 ## 1.1.7
 
 - Refatoração da interface (issue #34) — entrega 1 (shell): novo layout de dashboard com sidebar fixa de 248px, top bar e tela de gate de conexão dedicada, baseado no design handoff.

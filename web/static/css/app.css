@@ -197,6 +197,36 @@ button:disabled, .btn-disabled { opacity: .55; cursor: not-allowed; filter: gray
 .version-pill strong { color: var(--accent-from); font-weight: 700; font-family: var(--font); }
 .version-pill.has-update { border-color: var(--green-bd); cursor: pointer; }
 
+.head-controls { display: inline-flex; align-items: center; gap: 10px; }
+.theme-toggle {
+  width: 36px; height: 36px; flex: none; border-radius: 999px;
+  background: var(--surface-3); border: 1px solid var(--border-2); color: var(--text);
+  font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.theme-toggle:hover { background: var(--surface-hover); }
+
+.spinner {
+  width: 16px; height: 16px; flex: none; display: inline-block; border-radius: 50%;
+  border: 2px solid var(--border-2); border-top-color: var(--accent-from);
+  animation: ncspin .7s linear infinite;
+}
+
+.gate-syncing {
+  margin-top: 8px; padding: 20px 22px;
+  background: linear-gradient(110deg, rgba(56, 189, 248, .07), rgba(37, 99, 235, .03));
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm); animation: ncfade .25s ease;
+}
+.gate-syncing-head { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; font-weight: 700; font-size: 14px; }
+.sync-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+.sync-step { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--text-3); }
+.sync-dot { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid var(--border-2); position: relative; }
+.sync-step.active { color: var(--text); }
+.sync-step.active .sync-dot { border-color: var(--accent-from); border-top-color: transparent; animation: ncspin .7s linear infinite; }
+.sync-step.done { color: var(--text-2); }
+.sync-step.done .sync-dot { border-color: var(--green); background: var(--green); }
+.sync-step.done .sync-dot::after { content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #04210f; font-weight: 700; }
+
 /* ============================= GATE ============================= */
 .gate { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 26px; }
 body[data-connected="true"] .gate { display: none; }

@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.9
+
+- Refatoração da interface (issue #34) — entrega 3 (paridade da aba Sistema):
+  - Barra de disco fica em estado crítico (gradiente âmbar→vermelho) quando o uso passa de 85%.
+  - Banner de aviso "Disco quase cheio" exibido automaticamente acima de 85% de uso.
+  - Nova chave i18n `ui.system.diskWarning` (PT/EN/ES).
+
 ## 1.1.8
 
 - Refatoração da interface (issue #34) — entrega 2 (interações do shell):

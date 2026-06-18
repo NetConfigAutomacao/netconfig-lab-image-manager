@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.7
+
+- Refatoração da interface (issue #34) — entrega 1 (shell): novo layout de dashboard com sidebar fixa de 248px, top bar e tela de gate de conexão dedicada, baseado no design handoff.
+- Novo sistema de design em `web/static/css/app.css` com tokens (tema dark padrão + light), fontes IBM Plex Sans/Mono e componentes (cards, botões pílula, toasts, barras de progresso).
+- Novo `web/static/js/ui_shell.js`: alterna gate/dashboard, seletor de idioma segmentado (PT/EN/ES), título por aba, card de status, botão Desconectar e drawer responsivo da sidebar.
+- Navegação por abas migrada para itens de sidebar preservando todos os IDs e contratos de JS existentes; toasts movidos para pilha fixa; banner de atualização no topo da área principal.
+
 ## 1.1.6
 
 - Versão incrementada para 1.1.6.

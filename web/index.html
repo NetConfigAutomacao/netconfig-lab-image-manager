@@ -16,1310 +16,82 @@
 -->
 
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 
 <head>
   <meta charset="utf-8">
   <title>NetConfig Lab Image Manager</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="/static/img/favicons/favicon.ico">
-  <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicons/favicon-16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicons/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="48x48" href="/static/img/favicons/favicon-48.png">
-  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicons/favicon-64.png">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/img/favicons/favicon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/img/favicons/favicon-512.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/img/favicons/apple-touch-icon.png">
-  <style>
-    :root {
-      --bg-color: #020617;
-      --card-bg: #020617;
-      --accent: #38bdf8;
-      --border-color: #1e293b;
-      --text-main: #e5e7eb;
-      --text-muted: #94a3b8;
-      --badge-bg: rgba(15, 23, 42, 0.95);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
-      background: radial-gradient(circle at top, #1e293b 0, #020617 55%, #000 100%);
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-
-    body.is-loading,
-    body.is-loading * {
-      cursor: progress !important;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 640px;
-    }
-
-    .card {
-      background: linear-gradient(145deg, #020617 0%, #020617 60%, #020617 100%);
-      border-radius: 18px;
-      padding: 22px 22px 18px;
-      box-shadow:
-        0 18px 45px rgba(0, 0, 0, 0.9),
-        0 0 0 1px rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(148, 163, 184, 0.15);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card-inner {
-      position: relative;
-      z-index: 1;
-    }
-
-    .header {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .brand-left,
-    .brand-right {
-      display: flex;
-      align-items: center;
-    }
-
-    .brand-left {
-      justify-content: flex-start;
-    }
-
-    .brand-right {
-      justify-content: flex-end;
-      gap: 10px;
-    }
-
-    .version-pill {
-      display: none;
-      align-items: center;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      background: rgba(15, 23, 42, 0.9);
-      color: var(--text-muted);
-      font-size: 11px;
-      white-space: nowrap;
-      user-select: none;
-    }
-
-    .version-pill.has-update {
-      border-color: rgba(34, 197, 94, 0.65);
-      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2);
-      cursor: pointer;
-    }
-
-    .version-pill strong {
-      color: var(--text-main);
-      font-weight: 700;
-      margin-right: 4px;
-    }
-
-    .brand-logo {
-      height: 32px;
-      max-width: 110px;
-      object-fit: contain;
-      filter: drop-shadow(0 0 6px rgba(15, 23, 42, 0.9));
-    }
-
-    .brand-logo-main {
-      height: 80px;
-      max-width: 100%;
-      object-fit: contain;
-      filter: drop-shadow(0 0 8px rgba(15, 23, 42, 0.9));
-      display: block;
-      margin: 0 auto;
-    }
-
-    .project-title {
-      text-align: center;
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: var(--text-main);
-      white-space: nowrap;
-    }
-
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    .divider {
-      margin: 12px 0 14px;
-      border: none;
-      border-top: 1px solid rgba(30, 41, 59, 0.9);
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .field-group {
-      display: flex;
-      gap: 10px;
-    }
-
-    .field-group .field {
-      flex: 1;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-
-    label {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-
-    input[type="text"],
-    input[type="password"],
-    input[type="file"],
-    textarea {
-      background-color: rgba(15, 23, 42, 0.85);
-      border-radius: 10px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      padding: 8px 10px;
-      font-size: 13px;
-      color: var(--text-main);
-      outline: none;
-    }
-
-    input[type="file"] {
-      padding: 6px 10px;
-    }
-
-    textarea {
-      font-size: 12px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      min-height: 160px;
-      resize: vertical;
-    }
-
-    input::placeholder,
-    textarea::placeholder {
-      color: rgba(148, 163, 184, 0.7);
-    }
-
-    input:focus,
-    textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4);
-      background-color: rgba(15, 23, 42, 0.95);
-    }
-
-    .radio-group {
-      display: flex;
-      gap: 18px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .radio-group label {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 13px;
-      cursor: pointer;
-      color: var(--text-main);
-    }
-
-    .radio-group input[type="radio"] {
-      width: 15px;
-      height: 15px;
-    }
-
-    .hint {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .messages {
-      margin-bottom: 8px;
-    }
-
-    .update-notice {
-      display: none;
-      margin-bottom: 10px;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(34, 197, 94, 0.45);
-      background: linear-gradient(135deg, rgba(21, 128, 61, 0.18) 0%, rgba(15, 23, 42, 0.96) 55%);
-      box-shadow: inset 0 1px 0 rgba(187, 247, 208, 0.08), 0 10px 30px rgba(0, 0, 0, 0.25);
-    }
-
-    .update-notice-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #dcfce7;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-
-    .update-notice-text {
-      font-size: 13px;
-      color: var(--text-main);
-      line-height: 1.5;
-    }
-
-    .update-notice-meta {
-      margin-top: 6px;
-      font-size: 11px;
-      color: #bbf7d0;
-      line-height: 1.45;
-    }
-
-    .update-notice-command-label {
-      margin-top: 10px;
-      font-size: 11px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 600;
-    }
-
-    .update-notice-command {
-      margin: 6px 0 0;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(2, 6, 23, 0.95);
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      color: #e2e8f0;
-      font-size: 12px;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-
-    .update-notice-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .load-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      justify-content: space-between;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background-color: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      box-shadow: inset 0 1px 0 rgba(56, 189, 248, 0.15);
-    }
-
-    .load-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .load-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-main);
-      margin-bottom: 2px;
-    }
-
-    .load-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .platform-pill {
-      display: none;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(56, 189, 248, 0.5);
-      background: rgba(15, 23, 42, 0.9);
-      color: var(--text-main);
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .platform-pill::before {
-      content: "●";
-      font-size: 10px;
-      color: var(--accent);
-    }
-
-    .platform-identity {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .platform-logo {
-      display: none;
-      height: 32px;
-      max-width: 110px;
-      object-fit: contain;
-      filter: drop-shadow(0 0 6px rgba(15, 23, 42, 0.9));
-      background: rgba(15, 23, 42, 0.7);
-      border-radius: 8px;
-      padding: 4px 6px;
-      border: 1px solid rgba(56, 189, 248, 0.2);
-    }
-
-    .resource-box {
-      display: none;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 8px;
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      background-color: rgba(15, 23, 42, 0.85);
-    }
-
-    .resource-item {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .resource-label {
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .resource-value {
-      font-size: 13px;
-      color: var(--text-main);
-      font-weight: 600;
-    }
-
-    .resource-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .resource-bar {
-      height: 8px;
-      border-radius: 999px;
-      background: rgba(148, 163, 184, 0.15);
-      overflow: hidden;
-      border: 1px solid rgba(56, 189, 248, 0.25);
-    }
-
-    .resource-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #38bdf8, #0ea5e9, #2563eb);
-      transition: width 0.25s ease-out;
-      border-radius: 999px;
-    }
-
-    .system-card {
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.92) 0, #020617 70%);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 10px 35px rgba(0, 0, 0, 0.35);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .system-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .system-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      letter-spacing: 0.02em;
-    }
-
-    .system-title::before {
-      content: "🖥";
-      font-size: 14px;
-    }
-
-    .alert {
-      border-radius: 10px;
-      padding: 8px 10px;
-      font-size: 12px;
-      margin-bottom: 6px;
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      background-color: rgba(15, 23, 42, 0.9);
-      white-space: pre-wrap;
-      word-break: break-word;
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-    }
-
-    .alert-content {
-      min-width: 0;
-      flex: 1;
-    }
-
-    .alert-close {
-      appearance: none;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font-size: 16px;
-      line-height: 1;
-      padding: 0 2px;
-      cursor: pointer;
-      opacity: 0.8;
-      transition: opacity 0.15s ease;
-    }
-
-    .alert-close:hover {
-      opacity: 1;
-    }
-
-    .alert-success {
-      border-color: rgba(34, 197, 94, 0.7);
-      background-color: rgba(22, 163, 74, 0.12);
-      color: #bbf7d0;
-    }
-
-    .alert-error {
-      border-color: rgba(248, 113, 113, 0.7);
-      background-color: rgba(248, 113, 113, 0.12);
-      color: #fecaca;
-    }
-
-    .progress-container {
-      margin: 4px 0 4px;
-      background-color: rgba(15, 23, 42, 0.9);
-      border-radius: 999px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      height: 12px;
-      width: 100%;
-      overflow: hidden;
-      display: none;
-    }
-
-    .progress-bar {
-      height: 100%;
-      width: 0%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #38bdf8, #0ea5e9, #1d4ed8);
-      transition: width 0.15s ease-out;
-    }
-
-    .progress-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-      display: none;
-    }
-
-    .footer {
-      margin-top: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .actions-row {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: flex-start;
-      flex-wrap: wrap;
-    }
-
-    .small-info {
-      font-size: 11px;
-      color: var(--text-muted);
-      max-width: 260px;
-      line-height: 1.4;
-    }
-
-    .btn-primary {
-      border: none;
-      border-radius: 999px;
-      padding: 9px 18px;
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      background: radial-gradient(circle at 0 0, #38bdf8 0, #0ea5e9 35%, #1d4ed8 100%);
-      color: white;
-      cursor: pointer;
-      box-shadow:
-        0 10px 25px rgba(8, 47, 73, 0.9),
-        0 0 0 1px rgba(56, 189, 248, 0.6);
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      white-space: nowrap;
-    }
-
-    .actions-row .btn-primary,
-    .actions-row .btn-secondary {
-      justify-content: center;
-      min-width: 180px;
-    }
-
-    .btn-primary span.icon {
-      font-size: 14px;
-    }
-
-    button:disabled,
-    .btn-disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-      filter: grayscale(0.2);
-    }
-
-    .btn-secondary {
-      border-radius: 999px;
-      padding: 7px 14px;
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      background: transparent;
-      color: var(--text-muted);
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-secondary span.icon {
-      font-size: 13px;
-    }
-
-    .language-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin: 4px 0 4px;
-      flex-wrap: wrap;
-      width: 100%;
-    }
-
-    .language-switcher {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background-color: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      border-radius: 999px;
-      padding: 6px 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-      min-width: 240px;
-      justify-content: space-between;
-    }
-
-    .language-switcher label {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 600;
-      letter-spacing: 0.02em;
-      white-space: nowrap;
-    }
-
-    .language-select {
-      background-color: rgba(15, 23, 42, 0.95);
-      border: 1px solid rgba(56, 189, 248, 0.5);
-      color: var(--text-main);
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 12px;
-      outline: none;
-      min-width: 130px;
-    }
-
-    /* --- TABS --- */
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }
-
-    .tab-button {
-      padding: 8px 14px;
-      background-color: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      border-radius: 8px;
-      cursor: pointer;
-      color: #e5e7eb;
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .tab-button.active {
-      background-color: #0ea5e9;
-      color: white;
-      border-color: #0ea5e9;
-    }
-
-    .tab-content {
-      display: none;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    /* --- VRNETLAB --- */
-    .vrnetlab-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 8px 0 10px;
-      flex-wrap: wrap;
-    }
-
-    .vrnetlab-meta {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .vrnetlab-card {
-      background-color: rgba(15, 23, 42, 0.92);
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      border-radius: 12px;
-      padding: 10px 12px;
-    }
-
-    .vrnetlab-card-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-    }
-
-    .vrnetlab-card-value {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-main);
-    }
-
-    .vrnetlab-card-sub {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .vrnetlab-images {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .vrnetlab-image-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 8px;
-      border-radius: 8px;
-      background-color: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(51, 65, 85, 0.8);
-      font-size: 12px;
-    }
-
-    .vrnetlab-image-name {
-      font-weight: 600;
-    }
-
-    .vrnetlab-image-size {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    #featureArea[data-state="locked"] {
-      display: none;
-    }
-
-    #featureArea[data-state="ready"] {
-      display: block;
-    }
-
-    /* --- ÁREA DE IMAGENS EXISTENTES --- */
-
-    #imagesResultWrapper {
-      margin-top: 12px;
-    }
-
-    #imagesResult {
-      display: none;
-      margin-top: 4px;
-      padding: 10px 10px 8px;
-      border-radius: 12px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      background: radial-gradient(circle at top left, rgba(15, 23, 42, 1) 0, #020617 60%);
-      font-size: 12px;
-      max-height: 260px;
-      overflow-y: auto;
-    }
-
-    .images-title-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .images-title-row span {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .images-sections {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .images-section {
-      border-radius: 10px;
-      padding: 8px 8px 6px;
-      background-color: rgba(15, 23, 42, 0.95);
-      border: 1px solid rgba(30, 64, 175, 0.4);
-    }
-
-    .images-section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .images-section-main {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      align-items: center;
-    }
-
-    .images-section-title {
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .images-section-path {
-      font-size: 10px;
-      color: var(--text-muted);
-    }
-
-    .images-section-count {
-      font-size: 10px;
-      color: var(--accent);
-      background-color: rgba(15, 23, 42, 1);
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      white-space: nowrap;
-    }
-
-    .images-empty {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .vendor-group {
-      margin-bottom: 6px;
-    }
-
-    .vendor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px;
-      margin-bottom: 2px;
-    }
-
-    .vendor-name {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: lowercase;
-      color: var(--text-main);
-    }
-
-    .vendor-count {
-      font-size: 10px;
-      color: var(--text-muted);
-      white-space: nowrap;
-    }
-
-    .vendor-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      margin-left: 2px;
-    }
-
-    .tag-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background-color: rgba(15, 23, 42, 1);
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--text-main);
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .pill-name {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .pill-action {
-      border: 1px solid rgba(248, 113, 113, 0.6);
-      background: rgba(248, 113, 113, 0.12);
-      color: #fecaca;
-      border-radius: 999px;
-      padding: 2px 9px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: all 0.12s ease-out;
-      flex-shrink: 0;
-    }
-
-    .pill-action:hover {
-      background: rgba(248, 113, 113, 0.2);
-      border-color: rgba(248, 113, 113, 0.8);
-      color: #fecdd3;
-    }
-
-    .pill-action:active {
-      transform: translateY(1px);
-    }
-
-    .tag-pill::before {
-      content: "◆";
-      font-size: 8px;
-      margin-right: 4px;
-      color: var(--accent);
-    }
-
-    /* --- LISTA DE TEMPLATES --- */
-
-    .template-search-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    #template_search {
-      flex: 1;
-      min-width: 0;
-    }
-
-    #templatesList {
-      margin-top: 6px;
-      max-height: 220px;
-      overflow-y: auto;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      border-radius: 10px;
-      padding: 6px;
-      border: 1px solid rgba(30, 64, 175, 0.4);
-      background-color: rgba(15, 23, 42, 0.95);
-    }
-
-    .templates-empty {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .template-pill {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      background-color: rgba(15, 23, 42, 1);
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--text-main);
-      cursor: pointer;
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      transition: background-color 0.12s ease-out, border-color 0.12s ease-out, transform 0.08s ease-out;
-    }
-
-    .template-pill:hover {
-      border-color: rgba(56, 189, 248, 0.7);
-      background-color: rgba(15, 23, 42, 0.9);
-      transform: translateY(-1px);
-    }
-
-    .template-pill.active {
-      border-color: rgba(56, 189, 248, 1);
-      background-color: rgba(37, 99, 235, 0.7);
-    }
-
-    /* --- LISTA DE ÍCONES --- */
-
-    #iconsList {
-      margin-top: 6px;
-      max-height: 220px;
-      overflow-y: auto;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      border-radius: 10px;
-      padding: 6px;
-      border: 1px solid rgba(30, 64, 175, 0.4);
-      background-color: rgba(15, 23, 42, 0.95);
-    }
-
-    .icons-empty {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .icon-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      background-color: rgba(15, 23, 42, 1);
-      font-size: 11px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--text-main);
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .icon-pill img {
-      width: 24px;
-      height: 24px;
-      object-fit: contain;
-      border-radius: 4px;
-      background-color: #020617;
-    }
-
-    /* --- ISHARE2 --- */
-
-    #ishare2Output {
-      margin-top: 6px;
-      max-height: 260px;
-      overflow-y: auto;
-      border-radius: 10px;
-      padding: 8px 10px;
-      border: 1px solid rgba(30, 64, 175, 0.4);
-      background-color: rgba(15, 23, 42, 0.95);
-      font-size: 12px;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
-      color: var(--text-main);
-    }
-
-    .ishare2-tabs {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-    }
-
-    .ishare2-tab-button {
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      background-color: rgba(15, 23, 42, 1);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 500;
-      cursor: pointer;
-    }
-
-    .ishare2-tab-button.active {
-      border-color: rgba(56, 189, 248, 1);
-      background-color: rgba(37, 99, 235, 0.7);
-      color: #e5e7eb;
-    }
-
-    .ishare2-tab-panel {
-      display: none;
-    }
-
-    .ishare2-tab-panel.active {
-      display: block;
-    }
-
-    .ishare2-section {
-      margin-bottom: 10px;
-      padding: 8px 8px 6px;
-      border-radius: 10px;
-      background-color: rgba(15, 23, 42, 1);
-      border: 1px solid rgba(30, 64, 175, 0.6);
-    }
-
-    .ishare2-section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .ishare2-section-title {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .ishare2-items-header,
-    .ishare2-item-row {
-      display: grid;
-      grid-template-columns: 40px minmax(0, 1fr) 80px auto;
-      gap: 6px;
-      align-items: center;
-      font-size: 11px;
-    }
-
-    .ishare2-items-header {
-      margin-bottom: 4px;
-      color: var(--text-muted);
-    }
-
-    .ishare2-item-row {
-      padding: 4px 0;
-      border-top: 1px solid rgba(30, 64, 175, 0.4);
-    }
-
-    .ishare2-item-row:first-of-type {
-      border-top: none;
-    }
-
-    .ishare2-item-id {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--text-muted);
-    }
-
-    .ishare2-item-name {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    }
-
-    .ishare2-item-size {
-      text-align: right;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      color: var(--text-muted);
-    }
-
-    .ishare2-install-btn {
-      justify-self: flex-end;
-    }
-
-
-    @media (max-width: 600px) {
-      .card {
-        padding: 20px 18px 16px;
-      }
-
-      .field-group {
-        flex-direction: column;
-      }
-
-      .footer {
-        flex-direction: column-reverse;
-        align-items: stretch;
-      }
-
-      .small-info {
-        max-width: 100%;
-      }
-
-      .btn-primary {
-        justify-content: center;
-        width: 100%;
-      }
-
-      .header {
-        grid-template-columns: auto;
-        row-gap: 8px;
-        text-align: center;
-      }
-
-      .brand-left,
-      .brand-right {
-        justify-content: center;
-      }
-
-      .project-title {
-        margin-top: 4px;
-        white-space: normal;
-      }
-
-      .language-row {
-        justify-content: space-between;
-        margin: 8px 0;
-      }
-
-      .update-notice-actions .btn-primary,
-      .update-notice-actions .btn-secondary {
-        width: 100%;
-        justify-content: center;
-      }
-
-      .tabs {
-        flex-wrap: wrap;
-      }
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
 </head>
 
-<body>
-  <div class="container">
-    <div class="card">
-      <div class="card-inner">
-        <div class="header">
-          <div class="brand-left">
-            <a href="https://www.hexanetworks.com.br" target="_blank" rel="noopener noreferrer">
-              <img src="/static/img/hexa-logo.png" alt="Hexa Networks" class="brand-logo">
-            </a>
-          </div>
+<body data-connected="false">
 
-          <div class="project-title">
-            <img src="/static/img/netconfig-lab-logo.png" alt="NetConfig Lab Image Manager" class="brand-logo-main">
-            <span class="sr-only" data-i18n="ui.projectTitle">NetConfig Lab Image Manager</span>
-          </div>
+  <!-- Toast stack (fixed, visible in any state) -->
+  <div id="messages" class="toast-stack"></div>
 
-          <div class="brand-right">
-            <a href="https://www.netconfig.com.br" target="_blank" rel="noopener noreferrer">
-              <img src="/static/img/netconfig-logo.png" alt="NetConfig" class="brand-logo">
-            </a>
-          </div>
-        </div>
+  <form id="uploadForm" enctype="multipart/form-data">
 
-        <div class="language-row">
+    <!-- ============================================================= -->
+    <!-- ===================== CONNECTION GATE ======================== -->
+    <!-- ============================================================= -->
+    <section id="gateScreen" class="gate">
+      <div class="gate-brand">
+        <a href="https://www.hexanetworks.com.br" target="_blank" rel="noopener noreferrer" class="gate-brand-hexa">
+          <img src="/static/img/hexa-logo.png" alt="Hexa Networks" class="brand-logo">
+        </a>
+        <a href="https://www.netconfig.com.br" target="_blank" rel="noopener noreferrer" class="gate-brand-main">
+          <img src="/static/img/netconfig-lab-logo.png" alt="NetConfig Lab Image Manager" class="brand-logo-main">
+          <span class="sr-only" data-i18n="ui.projectTitle">NetConfig Lab Image Manager</span>
+        </a>
+      </div>
+
+      <div class="gate-card">
+        <div class="gate-card-head">
           <div class="version-pill" id="appVersionPill" title="">
             <strong>v</strong><span id="appVersionValue">--</span>
           </div>
-          <div class="language-switcher">
-            <label for="languageSelect" data-i18n="ui.language.label">Idioma</label>
-            <select id="languageSelect" class="language-select">
-              <option value="auto" data-i18n="ui.language.auto">Automático</option>
-              <option value="pt" data-i18n="ui.language.pt">Português</option>
-              <option value="en" data-i18n="ui.language.en">English</option>
-              <option value="es" data-i18n="ui.language.es">Español</option>
-            </select>
+          <div class="lang-seg" data-lang-seg>
+            <span class="lang-seg-label" data-i18n="ui.language.label">Idioma</span>
+            <button type="button" class="lang-seg-btn" data-lang="pt">PT</button>
+            <button type="button" class="lang-seg-btn" data-lang="en">EN</button>
+            <button type="button" class="lang-seg-btn" data-lang="es">ES</button>
           </div>
         </div>
 
-        <hr class="divider">
-
-        <div id="messages" class="messages"></div>
-        <div id="updateNotice" class="update-notice">
-          <div class="update-notice-title" data-i18n="ui.update.available">Atualização disponível</div>
-          <div class="update-notice-text" id="updateNoticeText"></div>
-          <div class="update-notice-meta" id="updateNoticeMeta" style="display:none;"></div>
-          <div class="update-notice-command-label" id="updateCommandLabel" data-i18n="ui.update.commandLabel" style="display:none;">Comando sugerido no host</div>
-          <pre class="update-notice-command" id="updateCommandText" style="display:none;"></pre>
-          <div class="update-notice-actions">
-            <button type="button" class="btn-secondary" id="updateReleaseBtn" style="display:none;">
-              <span class="icon">↗</span>
-              <span data-i18n="ui.update.openRelease">Abrir release</span>
-            </button>
-            <button type="button" class="btn-primary" id="updateCopyBtn" style="display:none;">
-              <span class="icon">📋</span>
-              <span data-i18n="ui.update.copyCommand">Copiar comando</span>
-            </button>
-          </div>
-        </div>
-
-        <form id="uploadForm" enctype="multipart/form-data">
-          <!-- CAMPOS COMUNS (USADOS EM IMAGES / TEMPLATES / ICONS) -->
-          <div class="field-group">
+        <div class="gate-card-body">
+          <div class="field-grid">
             <div class="field">
               <label data-i18n="ui.eveIpLabel">IP do EVE-NG</label>
-              <input type="text" name="eve_ip" placeholder="Ex: 10.0.0.10" data-i18n-placeholder="ui.eveIpPlaceholder" required>
+              <input type="text" name="eve_ip" class="mono" placeholder="Ex: 10.0.0.10" data-i18n-placeholder="ui.eveIpPlaceholder" required>
             </div>
             <div class="field">
               <label data-i18n="ui.eveUserLabel">Usuário SSH</label>
-              <input type="text" name="eve_user" placeholder="Ex: root" data-i18n-placeholder="ui.eveUserPlaceholder" required>
+              <input type="text" name="eve_user" class="mono" placeholder="Ex: root" data-i18n-placeholder="ui.eveUserPlaceholder" required>
             </div>
           </div>
-
           <div class="field">
             <label data-i18n="ui.evePassLabel">Senha SSH</label>
             <input type="password" name="eve_pass" placeholder="Senha do usuário no EVE" data-i18n-placeholder="ui.evePassPlaceholder" required>
           </div>
 
-          <div class="load-row">
-            <div class="load-info">
-              <div class="load-title" data-i18n="ui.loadDataTitle">Carregar dados do EVE</div>
-              <div class="load-hint" data-i18n="ui.loadDataHint">
-                Preencha IP, usuário e senha e clique para listar imagens, ícones e templates existentes no servidor.
+          <div class="gate-sync">
+            <div class="gate-sync-info">
+              <span class="gate-sync-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+              </span>
+              <div>
+                <div class="gate-sync-title" data-i18n="ui.loadDataTitle">Carregar dados do EVE</div>
+                <div class="gate-sync-desc" data-i18n="ui.loadDataHint">
+                  Preencha IP, usuário e senha e clique para sincronizar com o host.
+                </div>
               </div>
             </div>
             <button type="button" class="btn-primary" id="loadDataBtn">
@@ -1327,392 +99,504 @@
               <span data-i18n="ui.loadDataBtn">Carregar dados</span>
             </button>
           </div>
+        </div>
+      </div>
+    </section>
 
-            <div id="featureArea" data-state="locked">
-              <!-- ABAS -->
-              <div class="tabs">
-              <button type="button" class="tab-button active" data-tab="images-tab" data-i18n="ui.tabs.images">Images</button>
-              <button type="button" class="tab-button" data-tab="vrnetlab-tab" data-i18n="ui.tabs.vrnetlab" style="display:none;">VRNETLAB</button>
-              <button type="button" class="tab-button" data-tab="container-images-tab" data-i18n="ui.tabs.containerImages" style="display:none;">Container Images</button>
-              <button type="button" class="tab-button" data-tab="labs-tab" data-i18n="ui.tabs.labs" style="display:none;">Laboratorios</button>
-              <button type="button" class="tab-button" data-tab="templates-tab" data-i18n="ui.tabs.templates">Templates</button>
-              <button type="button" class="tab-button" data-tab="icons-tab" data-i18n="ui.tabs.icons">Icons</button>
-              <button type="button" class="tab-button" data-tab="ishare2-tab" data-i18n="ui.tabs.ishare2">iShare2</button>
-              <button type="button" class="tab-button" data-tab="system-tab" data-i18n="ui.tabs.system">Sistema</button>
+    <!-- ============================================================= -->
+    <!-- ======================== DASHBOARD ========================== -->
+    <!-- ============================================================= -->
+    <div id="dashboard" class="dashboard">
+
+      <!-- ---------------------- SIDEBAR ------------------------- -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <img src="/static/img/netconfig-lab-logo.png" alt="NetConfig" class="sidebar-logo">
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="sidebar-nav-label" data-i18n="ui.nav.section">GERENCIAMENTO</div>
+          <button type="button" class="tab-button nav-item active" data-tab="images-tab">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+            <span data-i18n="ui.tabs.images">Imagens</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="templates-tab">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg></span>
+            <span data-i18n="ui.tabs.templates">Templates</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="icons-tab">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+            <span data-i18n="ui.tabs.icons">Ícones</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="ishare2-tab">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+            <span data-i18n="ui.tabs.ishare2">iShare2</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="vrnetlab-tab" style="display:none;">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18v10H3z"/><path d="M7 7V5h10v2M3 12h18"/></svg></span>
+            <span data-i18n="ui.tabs.vrnetlab">VRNETLAB</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="container-images-tab" style="display:none;">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg></span>
+            <span data-i18n="ui.tabs.containerImages">Container Images</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="labs-tab" style="display:none;">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5 8a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3l-5-8V3M8 3h8"/></svg></span>
+            <span data-i18n="ui.tabs.labs">Laboratórios</span>
+          </button>
+          <button type="button" class="tab-button nav-item" data-tab="system-tab">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+            <span data-i18n="ui.tabs.system">Sistema</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="status-card">
+            <div class="status-line">
+              <span class="status-dot"></span>
+              <span class="status-text" data-i18n="ui.shell.connected">Conectado</span>
             </div>
+            <div class="status-host mono" id="statusHost">--</div>
+            <div class="status-meta" id="statusMeta">--</div>
+            <button type="button" class="btn-ghost btn-block" id="disconnectBtn">
+              <span data-i18n="ui.shell.disconnect">Desconectar</span>
+            </button>
+          </div>
+          <div class="sidebar-version">
+            <img src="/static/img/hexa-logo.png" alt="Hexa Networks" class="sidebar-hexa">
+            <span class="mono">v<span id="sidebarVersion">--</span></span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ----------------------- MAIN -------------------------- -->
+      <div class="main">
+        <!-- Update banner -->
+        <div id="updateNotice" class="update-banner">
+          <span class="update-banner-icon" aria-hidden="true">↑</span>
+          <div class="update-banner-body">
+            <div class="update-notice-title" data-i18n="ui.update.available">Atualização disponível</div>
+            <div class="update-notice-text" id="updateNoticeText"></div>
+            <div class="update-notice-meta" id="updateNoticeMeta" style="display:none;"></div>
+            <div class="update-notice-command-label" id="updateCommandLabel" data-i18n="ui.update.commandLabel" style="display:none;">Comando sugerido no host</div>
+            <pre class="update-notice-command" id="updateCommandText" style="display:none;"></pre>
+          </div>
+          <div class="update-banner-actions">
+            <button type="button" class="btn-ghost" id="updateReleaseBtn" style="display:none;">
+              <span data-i18n="ui.update.openRelease">Abrir release</span> <span class="icon">→</span>
+            </button>
+            <button type="button" class="btn-primary" id="updateCopyBtn" style="display:none;">
+              <span class="icon">📋</span><span data-i18n="ui.update.copyCommand">Copiar comando</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Top bar -->
+        <header class="topbar">
+          <button type="button" class="topbar-burger" id="sidebarToggle" aria-label="Menu">☰</button>
+          <div class="topbar-titles">
+            <div class="topbar-title-row">
+              <h1 class="page-title" id="pageTitle" data-i18n="ui.tabs.images">Imagens</h1>
+              <span class="platform-pill" id="platformBadge"></span>
+              <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
+            </div>
+            <div class="page-subtitle" id="pageSubtitle" data-i18n="ui.sub.images">Upload e gestão de imagens QEMU / IOL / Dynamips.</div>
+          </div>
+          <div class="topbar-right">
+            <div class="host-chip" id="hostChip" style="display:none;">
+              <span class="status-dot"></span>
+              <span class="mono" id="hostChipIp">--</span>
+              <span class="host-chip-user" id="hostChipUser">--</span>
+            </div>
+            <div class="lang-seg" data-lang-seg>
+              <button type="button" class="lang-seg-btn" data-lang="pt">PT</button>
+              <button type="button" class="lang-seg-btn" data-lang="en">EN</button>
+              <button type="button" class="lang-seg-btn" data-lang="es">ES</button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Content -->
+        <div class="content">
+          <div id="featureArea" data-state="locked">
 
             <!-- ==================== ABA IMAGES ==================== -->
             <div id="images-tab" class="tab-content active">
-              <div class="field">
-                <label data-i18n="ui.images.typeLabel">Tipo de imagem (Destino)</label>
-                <div class="radio-group">
-                  <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
-                  <label><input type="radio" name="image_type" value="iol"> IOL</label>
-                  <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
+              <div class="grid-2">
+                <div class="view-card">
+                  <div class="view-card-head">
+                    <h2 class="view-card-title" data-i18n="ui.images.uploadCardTitle">Enviar imagens</h2>
+                    <p class="view-card-sub" data-i18n="ui.images.uploadCardSub">Publique imagens QEMU, IOL ou Dynamips no host.</p>
+                  </div>
+
+                  <div class="field">
+                    <label data-i18n="ui.images.typeLabel">Tipo de imagem (Destino)</label>
+                    <div class="radio-group">
+                      <label><input type="radio" name="image_type" value="qemu" checked> QEMU</label>
+                      <label><input type="radio" name="image_type" value="iol"> IOL</label>
+                      <label><input type="radio" name="image_type" value="dynamips"> Dynamips</label>
+                    </div>
+                    <div class="hint" data-i18n="ui.images.typeHint">
+                      Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label data-i18n="ui.images.baseDirLabel">Diretório base no EVE</label>
+                    <input type="text" name="eve_base_dir" id="eve_base_dir" class="mono" value="/opt/unetlab/addons/qemu" required>
+                    <div class="hint" data-i18n-html="ui.images.baseDirHint">
+                      QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
+                      <code>/opt/unetlab/addons/dynamips</code>.
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label data-i18n="ui.images.templateLabel">Nome do Template (diretório)</label>
+                    <input type="text" name="template_name" class="mono" placeholder="Ex: mikrotik-6.38.4" data-i18n-placeholder="ui.images.templatePlaceholder" required>
+                  </div>
+
+                  <div class="field">
+                    <label data-i18n="ui.images.filesLabel">Imagens (pode selecionar várias)</label>
+                    <input type="file" name="image" multiple required aria-label="Upload images">
+                    <div class="hint" data-i18n-html="ui.images.filesHint">
+                      Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
+                    </div>
+                  </div>
+
+                  <div class="progress-label" id="progressText" data-i18n="ui.images.progressShort">Enviando...</div>
+                  <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar" id="progressBar"></div>
+                  </div>
+
+                  <div class="actions-row">
+                    <button type="button" class="btn-ghost" id="checkImagesBtn" data-requires-load="true">
+                      <span class="icon">🔍</span>
+                      <span data-i18n="ui.images.checkBtn">Check Existent Images</span>
+                    </button>
+                    <button type="submit" class="btn-primary">
+                      <span class="icon">⬆</span>
+                      <span data-i18n="ui.images.uploadBtn">Enviar imagens</span>
+                    </button>
+                    <button type="button" class="btn-ghost" id="fixPermissionsBtn">
+                      <span class="icon">🛠</span>
+                      <span data-i18n="ui.images.fixBtn">Fix Permissions</span>
+                    </button>
+                  </div>
                 </div>
-                <div class="hint" data-i18n="ui.images.typeHint">
-                  Isso só preenche o diretório base automaticamente. Você ainda pode editar abaixo.
+
+                <div class="view-card">
+                  <div class="view-card-head">
+                    <h2 class="view-card-title" data-i18n="ui.images.existingTitle">Imagens existentes</h2>
+                  </div>
+                  <div id="imagesResultWrapper">
+                    <div id="imagesResult"></div>
+                  </div>
                 </div>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.images.baseDirLabel">Diretório base no EVE</label>
-                <input type="text" name="eve_base_dir" id="eve_base_dir" value="/opt/unetlab/addons/qemu" required>
-                <div class="hint" data-i18n-html="ui.images.baseDirHint">
-                  QEMU: <code>/opt/unetlab/addons/qemu</code> · IOL: <code>/opt/unetlab/addons/iol/bin</code> · Dynamips:
-                  <code>/opt/unetlab/addons/dynamips</code>.
-                </div>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.images.templateLabel">Nome do Template (diretório)</label>
-                <input type="text" name="template_name" placeholder="Ex: mikrotik-6.38.4" data-i18n-placeholder="ui.images.templatePlaceholder" required>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.images.filesLabel">Imagens (pode selecionar várias)</label>
-                <input type="file" name="image" multiple required aria-label="Upload images">
-                <div class="hint" data-i18n-html="ui.images.filesHint">
-                  Use nomes como <code>hda.qcow2</code>, <code>hdb.qcow2</code>, <code>virtioa.qcow2</code>, etc.
-                </div>
-              </div>
-
-              <div class="progress-label" id="progressText" data-i18n="ui.images.progressShort">Enviando...</div>
-              <div class="progress-container" id="progressContainer">
-                <div class="progress-bar" id="progressBar"></div>
-              </div>
-
-              <div class="footer">
-                <div class="small-info" data-i18n="ui.images.footerInfo">
-                  Selecione os arquivos e clique em enviar para publicar no seu EVE-NG.
-                </div>
-                <div class="actions-row">
-                  <!-- ORDEM: CHECK  -> ENVIAR -> FIX -->
-                  <button type="button" class="btn-secondary" id="checkImagesBtn" data-requires-load="true">
-                    <span class="icon">🔍</span>
-                    <span data-i18n="ui.images.checkBtn">Check Existent Images</span>
-                  </button>
-
-                  <button type="submit" class="btn-primary">
-                    <span class="icon">⬆</span>
-                    <span data-i18n="ui.images.uploadBtn">Enviar imagens</span>
-                  </button>
-
-                  <!-- BOTÃO FIX PERMISSIONS -->
-                  <button type="button" class="btn-secondary" id="fixPermissionsBtn">
-                    <span class="icon">🛠</span>
-                    <span data-i18n="ui.images.fixBtn">Fix Permissions</span>
-                  </button>
-                </div>
-              </div>
-
-              <div id="imagesResultWrapper">
-                <div id="imagesResult"></div>
               </div>
             </div>
-            <!-- ==================== FIM ABA IMAGES ==================== -->
 
             <!-- ==================== ABA TEMPLATES ==================== -->
             <div id="templates-tab" class="tab-content">
-              <div class="field">
-                <label data-i18n="ui.templates.existingLabel">Templates existentes no EVE</label>
-                <div class="template-search-row">
-                  <input type="text" id="template_search"
-                    placeholder="Filtrar por nome (ex: huawei, juniper, mikrotik...)" data-i18n-placeholder="ui.templates.searchPlaceholder">
-                  <button type="button" class="btn-secondary" id="listTemplatesBtn" data-requires-load="true">
-                    <span class="icon">📂</span>
-                    <span data-i18n="ui.templates.listBtn">Listar templates</span>
-                  </button>
+              <div class="grid-tpl">
+                <div class="view-card">
+                  <div class="field">
+                    <label data-i18n="ui.templates.existingLabel">Templates existentes no EVE</label>
+                    <div class="template-search-row">
+                      <input type="text" id="template_search" class="mono"
+                        placeholder="Filtrar por nome (ex: huawei, juniper, mikrotik...)" data-i18n-placeholder="ui.templates.searchPlaceholder">
+                      <button type="button" class="btn-ghost" id="listTemplatesBtn" data-requires-load="true">
+                        <span class="icon">📂</span>
+                        <span data-i18n="ui.templates.listBtn">Listar templates</span>
+                      </button>
+                    </div>
+                    <div id="templatesList"></div>
+                    <div class="hint" data-i18n="ui.templates.listHint">
+                      Clique em um template da lista para carregar o conteúdo no editor abaixo.
+                    </div>
+                  </div>
                 </div>
-                <div id="templatesList"></div>
-                <div class="hint" data-i18n="ui.templates.listHint">
-                  Clique em um template da lista para carregar o conteúdo no editor abaixo.
+
+                <div class="view-card">
+                  <div class="field">
+                    <label data-i18n="ui.templates.fileLabel">Nome do arquivo de template</label>
+                    <input type="text" name="template_yaml_name" id="template_yaml_name" class="mono" placeholder="Ex: huaweine40.yml" data-i18n-placeholder="ui.templates.filePlaceholder">
+                    <div class="hint" data-i18n-html="ui.templates.fileHint">
+                      Se não informar a extensão, será usado <code>.yml</code> automaticamente.
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label data-i18n="ui.templates.contentLabel">Conteúdo do template YAML</label>
+                    <textarea id="template_content" name="template_content"
+                      placeholder="# Cole ou edite aqui o conteúdo YAML do template..." data-i18n-placeholder="ui.templates.contentPlaceholder"></textarea>
+                    <div class="hint" data-i18n-html="ui.templates.contentHint">
+                      O arquivo será enviado para:
+                      <code>/opt/unetlab/html/templates/amd</code> e
+                      <code>/opt/unetlab/html/templates/intel</code>.
+                    </div>
+                  </div>
+
+                  <div class="actions-row">
+                    <button type="button" class="btn-ghost" id="loadTemplateBtn">
+                      <span class="icon">📥</span>
+                      <span data-i18n="ui.templates.loadBtn">Carregar template do EVE</span>
+                    </button>
+                    <button type="button" class="btn-primary" id="saveTemplateBtn">
+                      <span class="icon">💾</span>
+                      <span data-i18n="ui.templates.saveBtn">Salvar template no EVE</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.templates.fileLabel">Nome do arquivo de template</label>
-                <input type="text" name="template_yaml_name" id="template_yaml_name" placeholder="Ex: huaweine40.yml" data-i18n-placeholder="ui.templates.filePlaceholder">
-                <div class="hint" data-i18n-html="ui.templates.fileHint">
-                  Se não informar a extensão, será usado <code>.yml</code> automaticamente.
-                </div>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.templates.contentLabel">Conteúdo do template YAML</label>
-                <textarea id="template_content" name="template_content"
-                  placeholder="# Cole ou edite aqui o conteúdo YAML do template..." data-i18n-placeholder="ui.templates.contentPlaceholder"></textarea>
-                <div class="hint" data-i18n-html="ui.templates.contentHint">
-                  O arquivo será enviado para:
-                  <code>/opt/unetlab/html/templates/amd</code> e
-                  <code>/opt/unetlab/html/templates/intel</code>.
-                </div>
-              </div>
-
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button type="button" class="btn-secondary" id="loadTemplateBtn">
-                  <span class="icon">📥</span>
-                  <span data-i18n="ui.templates.loadBtn">Carregar template do EVE</span>
-                </button>
-
-                <button type="button" class="btn-secondary" id="saveTemplateBtn">
-                  <span class="icon">💾</span>
-                  <span data-i18n="ui.templates.saveBtn">Salvar template no EVE</span>
-                </button>
               </div>
             </div>
-            <!-- ==================== FIM ABA TEMPLATES ==================== -->
 
             <!-- ==================== ABA ICONS ==================== -->
             <div id="icons-tab" class="tab-content">
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.icons.existingLabel">Ícones existentes no EVE</label>
+                  <div class="template-search-row">
+                    <button type="button" class="btn-ghost" id="listIconsBtn" data-requires-load="true">
+                      <span class="icon">🎨</span>
+                      <span data-i18n="ui.icons.listBtn">Listar ícones</span>
+                    </button>
+                  </div>
+                  <div id="iconsList"></div>
+                  <div class="hint" data-i18n-html="ui.icons.hint">
+                    Lista de arquivos de ícones disponíveis no EVE-NG
+                    (ex: <code>/opt/unetlab/html/images/icons</code>).
+                  </div>
+                </div>
+              </div>
 
-              <div class="field">
-                <label data-i18n="ui.icons.existingLabel">Ícones existentes no EVE</label>
-                <div class="template-search-row">
-                  <button type="button" class="btn-secondary" id="listIconsBtn" data-requires-load="true">
-                    <span class="icon">🎨</span>
-                    <span data-i18n="ui.icons.listBtn">Listar ícones</span>
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.icons.uploadLabel">Enviar novo ícone (PNG)</label>
+                  <input type="file" id="icon_file" name="icon_file" accept=".png">
+                  <div class="hint" data-i18n="ui.icons.uploadHint">
+                    O arquivo será enviado para o diretório de ícones do EVE-NG.
+                    Recomenda-se PNG com dimensões apropriadas (ex: 64x64).
+                  </div>
+                </div>
+                <div class="actions-row">
+                  <button type="button" class="btn-primary" id="uploadIconBtn">
+                    <span class="icon">⬆</span>
+                    <span data-i18n="ui.icons.uploadBtn">Enviar ícone</span>
                   </button>
                 </div>
-
-                <div id="iconsList"></div>
-
-                <div class="hint" data-i18n-html="ui.icons.hint">
-                  Lista de arquivos de ícones disponíveis no EVE-NG
-                  (ex: <code>/opt/unetlab/html/images/icons</code>).
-                </div>
               </div>
-
-              <div class="field">
-                <label data-i18n="ui.icons.uploadLabel">Enviar novo ícone (PNG)</label>
-                <input type="file" id="icon_file" name="icon_file" accept=".png">
-                <div class="hint" data-i18n="ui.icons.uploadHint">
-                  O arquivo será enviado para o diretório de ícones do EVE-NG.
-                  Recomenda-se PNG com dimensões apropriadas (ex: 64x64).
-                </div>
-              </div>
-
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button type="button" class="btn-secondary" id="uploadIconBtn">
-                  <span class="icon">⬆</span>
-                  <span data-i18n="ui.icons.uploadBtn">Enviar ícone</span>
-                </button>
-              </div>
-
             </div>
-            <!-- ==================== FIM ABA ICONS ==================== -->
 
             <!-- ==================== ABA VRNETLAB ==================== -->
             <div id="vrnetlab-tab" class="tab-content" style="display:none;">
-
-              <div class="field">
-                <label data-i18n="ui.vrnetlab.aboutTitle">VRNETLAB para ContainerLab</label>
-                <div class="hint" data-i18n="ui.vrnetlab.aboutText">
-                  VRNETLAB empacota appliances baseados em QEMU dentro de containers, permitindo usar plataformas
-                  não suportadas nativamente no ContainerLab.
-                </div>
-              </div>
-
-              <div class="vrnetlab-actions">
-                <button type="button" class="btn-primary" id="vrnetlabStatusBtn" data-requires-load="true">
-                  <span class="icon">🔍</span>
-                  <span data-i18n="ui.vrnetlab.statusBtn">Checar ambiente</span>
-                </button>
-                <button type="button" class="btn-secondary" id="vrnetlabInstallBtn" data-requires-load="true" style="display:none;">
-                  <span class="icon">⬇</span>
-                  <span data-i18n="ui.vrnetlab.installBtn">Instalar VRNETLAB</span>
-                </button>
-                <div class="small-info" data-i18n="ui.vrnetlab.statusHint">
-                  Consulta runtime de container e imagens com prefixo vrnetlab no host remoto.
-                </div>
-                <div class="small-info" id="vrnetlabInstallHint" style="display:none;" data-i18n="ui.vrnetlab.installHint">
-                  Se /opt/containerlab/vrnetlab não existe no host, será feito git clone do repositório oficial.
-                </div>
-              </div>
-
-              <div class="vrnetlab-meta">
-                <div class="vrnetlab-card">
-                  <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.runtimeLabel">Runtime detectado</div>
-                  <div class="vrnetlab-card-value" id="vrnetlabRuntime">--</div>
-                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.runtimeHint">Procura por docker ou podman no host remoto.</div>
-                </div>
-                <div class="vrnetlab-card">
-                  <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.repoLabel">Repositório vrnetlab</div>
-                  <div class="vrnetlab-card-value" id="vrnetlabRepo">--</div>
-                  <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.repoHint">Diretório padrão /opt/containerlab/vrnetlab quando presente.</div>
-                </div>
-              </div>
-
-              <div class="images-section" id="vrnetlabImagesSection">
-                <div class="images-section-header">
-                  <div class="images-section-main">
-                    <div class="images-section-title" data-i18n="ui.vrnetlab.imagesTitle">Imagens VRNETLAB</div>
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.vrnetlab.aboutTitle">VRNETLAB para ContainerLab</label>
+                  <div class="hint" data-i18n="ui.vrnetlab.aboutText">
+                    VRNETLAB empacota appliances baseados em QEMU dentro de containers, permitindo usar plataformas
+                    não suportadas nativamente no ContainerLab.
                   </div>
-                  <div class="images-section-count" id="vrnetlabImagesCount">0</div>
                 </div>
-                <div class="vrnetlab-images" id="vrnetlabImagesList"></div>
-              </div>
 
+                <div class="vrnetlab-actions">
+                  <button type="button" class="btn-primary" id="vrnetlabStatusBtn" data-requires-load="true">
+                    <span class="icon">🔍</span>
+                    <span data-i18n="ui.vrnetlab.statusBtn">Checar ambiente</span>
+                  </button>
+                  <button type="button" class="btn-ghost" id="vrnetlabInstallBtn" data-requires-load="true" style="display:none;">
+                    <span class="icon">⬇</span>
+                    <span data-i18n="ui.vrnetlab.installBtn">Instalar VRNETLAB</span>
+                  </button>
+                  <div class="small-info" data-i18n="ui.vrnetlab.statusHint">
+                    Consulta runtime de container e imagens com prefixo vrnetlab no host remoto.
+                  </div>
+                  <div class="small-info" id="vrnetlabInstallHint" style="display:none;" data-i18n="ui.vrnetlab.installHint">
+                    Se /opt/containerlab/vrnetlab não existe no host, será feito git clone do repositório oficial.
+                  </div>
+                </div>
+
+                <div class="vrnetlab-meta">
+                  <div class="vrnetlab-card">
+                    <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.runtimeLabel">Runtime detectado</div>
+                    <div class="vrnetlab-card-value" id="vrnetlabRuntime">--</div>
+                    <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.runtimeHint">Procura por docker ou podman no host remoto.</div>
+                  </div>
+                  <div class="vrnetlab-card">
+                    <div class="vrnetlab-card-label" data-i18n="ui.vrnetlab.repoLabel">Repositório vrnetlab</div>
+                    <div class="vrnetlab-card-value" id="vrnetlabRepo">--</div>
+                    <div class="vrnetlab-card-sub" data-i18n="ui.vrnetlab.repoHint">Diretório padrão /opt/containerlab/vrnetlab quando presente.</div>
+                  </div>
+                </div>
+
+                <div class="images-section" id="vrnetlabImagesSection">
+                  <div class="images-section-header">
+                    <div class="images-section-main">
+                      <div class="images-section-title" data-i18n="ui.vrnetlab.imagesTitle">Imagens VRNETLAB</div>
+                    </div>
+                    <div class="images-section-count" id="vrnetlabImagesCount">0</div>
+                  </div>
+                  <div class="vrnetlab-images" id="vrnetlabImagesList"></div>
+                </div>
+              </div>
             </div>
-            <!-- ==================== FIM ABA VRNETLAB ==================== -->
 
             <!-- ==================== ABA CONTAINER IMAGES ==================== -->
             <div id="container-images-tab" class="tab-content" style="display:none;">
-              <div class="field">
-                <label data-i18n="ui.containerImages.title">Imagens de container (docker/podman)</label>
-                <div class="hint" data-i18n="ui.containerImages.hint">
-                  Lista imagens disponíveis no runtime (docker/podman) do host ContainerLab.
-                </div>
-              </div>
-
-              <div class="vrnetlab-actions">
-                <button type="button" class="btn-primary" id="containerImagesBtn" data-requires-load="true">
-                  <span class="icon">📦</span>
-                  <span data-i18n="ui.containerImages.loadBtn">Listar imagens</span>
-                </button>
-                <div class="small-info" data-i18n="ui.containerImages.loadHint">
-                  Executa <code>docker images</code> (ou podman) no host remoto.
-                </div>
-              </div>
-
-              <div class="images-section">
-                <div class="images-section-header">
-                  <div class="images-section-main">
-                    <div class="images-section-title" data-i18n="ui.containerImages.listTitle">Imagens encontradas</div>
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.containerImages.title">Imagens de container (docker/podman)</label>
+                  <div class="hint" data-i18n="ui.containerImages.hint">
+                    Lista imagens disponíveis no runtime (docker/podman) do host ContainerLab.
                   </div>
-                  <div class="images-section-count" id="containerImagesCount">0</div>
                 </div>
 
-                <div class="vrnetlab-images" id="containerImagesList"></div>
+                <div class="vrnetlab-actions">
+                  <button type="button" class="btn-primary" id="containerImagesBtn" data-requires-load="true">
+                    <span class="icon">📦</span>
+                    <span data-i18n="ui.containerImages.loadBtn">Listar imagens</span>
+                  </button>
+                  <div class="small-info" data-i18n="ui.containerImages.loadHint">
+                    Executa <code>docker images</code> (ou podman) no host remoto.
+                  </div>
+                </div>
+
+                <div class="images-section">
+                  <div class="images-section-header">
+                    <div class="images-section-main">
+                      <div class="images-section-title" data-i18n="ui.containerImages.listTitle">Imagens encontradas</div>
+                    </div>
+                    <div class="images-section-count" id="containerImagesCount">0</div>
+                  </div>
+                  <div class="vrnetlab-images" id="containerImagesList"></div>
+                </div>
               </div>
             </div>
-            <!-- ==================== FIM ABA CONTAINER IMAGES ==================== -->
 
             <!-- ==================== ABA LABORATORIOS ==================== -->
             <div id="labs-tab" class="tab-content" style="display:none;">
-              <div class="field">
-                <label data-i18n="ui.labs.title">Laboratórios do ContainerLab</label>
-                <div class="hint" data-i18n="ui.labs.hint">
-                  Lista os diretórios existentes em <code>/opt/containerlab/labs</code> no host remoto.
-                </div>
-                <input type="text" id="labsDirInput" placeholder="/opt/containerlab/labs" value="/opt/containerlab/labs" style="margin-top:6px;">
-              </div>
-
-              <div class="vrnetlab-actions">
-                <button type="button" class="btn-primary" id="labsListBtn" data-requires-load="true">
-                  <span class="icon">📂</span>
-                  <span data-i18n="ui.labs.loadBtn">Listar laboratórios</span>
-                </button>
-                <button type="button" class="btn-secondary" id="labsCreateBtn" data-requires-load="true" style="display:none;">
-                  <span class="icon">➕</span>
-                  <span data-i18n="ui.labs.createBtn">Criar diretório de labs</span>
-                </button>
-                <div class="small-info" data-i18n="ui.labs.loadHint">
-                  Executa uma listagem simples dos diretórios de labs.
-                </div>
-                <div class="small-info" id="labsCreateHint" style="display:none;" data-i18n="ui.labs.createHint">
-                  Cria /opt/containerlab/labs no host remoto.
-                </div>
-              </div>
-
-              <div class="images-section">
-                <div class="images-section-header">
-                  <div class="images-section-main">
-                    <div class="images-section-title" data-i18n="ui.labs.listTitle">Labs encontrados</div>
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.labs.title">Laboratórios do ContainerLab</label>
+                  <div class="hint" data-i18n="ui.labs.hint">
+                    Lista os diretórios existentes em <code>/opt/containerlab/labs</code> no host remoto.
                   </div>
-                  <div class="images-section-count" id="labsCount">0</div>
+                  <input type="text" id="labsDirInput" class="mono" placeholder="/opt/containerlab/labs" value="/opt/containerlab/labs" style="margin-top:6px;">
                 </div>
 
-                <div class="field" style="margin-top:8px;">
-                  <label data-i18n="ui.labs.searchLabel">Busca</label>
-                  <input type="text" id="labsFilter" placeholder="Buscar por laboratório ou arquivo" data-i18n-placeholder="ui.labs.searchPlaceholder" style="margin-top:6px;">
-                  <div class="hint" data-i18n="ui.labs.searchHint">Filtra laboratórios e arquivos (busca recursiva).</div>
+                <div class="vrnetlab-actions">
+                  <button type="button" class="btn-primary" id="labsListBtn" data-requires-load="true">
+                    <span class="icon">📂</span>
+                    <span data-i18n="ui.labs.loadBtn">Listar laboratórios</span>
+                  </button>
+                  <button type="button" class="btn-ghost" id="labsCreateBtn" data-requires-load="true" style="display:none;">
+                    <span class="icon">➕</span>
+                    <span data-i18n="ui.labs.createBtn">Criar diretório de labs</span>
+                  </button>
+                  <div class="small-info" data-i18n="ui.labs.loadHint">
+                    Executa uma listagem simples dos diretórios de labs.
+                  </div>
+                  <div class="small-info" id="labsCreateHint" style="display:none;" data-i18n="ui.labs.createHint">
+                    Cria /opt/containerlab/labs no host remoto.
+                  </div>
                 </div>
 
-                <div class="vrnetlab-images" id="labsList"></div>
+                <div class="images-section">
+                  <div class="images-section-header">
+                    <div class="images-section-main">
+                      <div class="images-section-title" data-i18n="ui.labs.listTitle">Labs encontrados</div>
+                    </div>
+                    <div class="images-section-count" id="labsCount">0</div>
+                  </div>
+
+                  <div class="field" style="margin-top:8px;">
+                    <label data-i18n="ui.labs.searchLabel">Busca</label>
+                    <input type="text" id="labsFilter" placeholder="Buscar por laboratório ou arquivo" data-i18n-placeholder="ui.labs.searchPlaceholder" style="margin-top:6px;">
+                    <div class="hint" data-i18n="ui.labs.searchHint">Filtra laboratórios e arquivos (busca recursiva).</div>
+                  </div>
+
+                  <div class="vrnetlab-images" id="labsList"></div>
+                </div>
               </div>
             </div>
-            <!-- ==================== FIM ABA LABORATORIOS ==================== -->
-
 
             <!-- ==================== ABA ISHARE2 ==================== -->
             <div id="ishare2-tab" class="tab-content">
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.ishare2.searchLabel">Busca no iShare2 (search all)</label>
+                  <div class="template-search-row">
+                    <button type="button" class="btn-primary" id="ishare2_search_btn">
+                      <span class="icon">🌐</span>
+                      <span data-i18n="ui.ishare2.searchBtn">Buscar no iShare2</span>
+                    </button>
+                  </div>
+                  <div class="hint" data-i18n-html="ui.ishare2.searchHint">
+                    Esta busca usa o comando <code>ishare2 search all</code> para listar imagens disponíveis
+                    nos mirrors do projeto iShare2.
+                  </div>
+                </div>
 
-              <div class="field">
-                <label data-i18n="ui.ishare2.searchLabel">Busca no iShare2 (search all)</label>
-                <div class="template-search-row">
-                  <button type="button" class="btn-secondary" id="ishare2_search_btn">
-                    <span class="icon">🌐</span>
-                    <span data-i18n="ui.ishare2.searchBtn">Buscar no iShare2</span>
+                <div class="field">
+                  <label data-i18n="ui.ishare2.resultLabel">Resultado</label>
+                  <div class="field" id="ishare2FilterWrapper" style="display:none; margin-bottom:6px;">
+                    <input type="text" id="ishare2_filter" class="mono"
+                      placeholder="Filtrar pelos nomes das imagens (ex: mikrotik, juniper...)" data-i18n-placeholder="ui.ishare2.filterPlaceholder">
+                  </div>
+                  <div class="progress-label" id="ishare2ProgressText" style="display:none;" data-i18n="ui.ishare2.progressLabel">Instalando...</div>
+                  <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
+                    <div class="progress-bar" id="ishare2ProgressBar"></div>
+                  </div>
+                  <div id="ishare2Output"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ==================== ABA SISTEMA ==================== -->
+            <div id="system-tab" class="tab-content">
+              <div class="view-card system-card">
+                <div class="system-header">
+                  <div class="system-title" data-i18n="ui.system.resourcesTitle">Recursos do servidor</div>
+                  <button type="button" class="btn-ghost" id="systemReloadBtn">
+                    <span class="icon">🔄</span>
+                    <span data-i18n="ui.system.reload">Recarregar</span>
                   </button>
                 </div>
-                <div class="hint" data-i18n-html="ui.ishare2.searchHint">
-                  Esta busca usa o comando <code>ishare2 search all</code> para listar imagens disponíveis
-                  nos mirrors do projeto iShare2.
+                <div class="platform-identity">
+                  <div class="platform-pill" id="platformBadgeSystem" style="display:none;"></div>
+                  <img id="platformLogoSystem" class="platform-logo" src="" alt="Platform logo" style="display:none;">
                 </div>
-              </div>
-
-              <div class="field">
-                <label data-i18n="ui.ishare2.resultLabel">Resultado</label>
-                <div class="field" id="ishare2FilterWrapper" style="display:none; margin-bottom:6px;">
-                  <input type="text" id="ishare2_filter"
-                    placeholder="Filtrar pelos nomes das imagens (ex: mikrotik, juniper...)" data-i18n-placeholder="ui.ishare2.filterPlaceholder">
-                </div>
-                <div class="progress-label" id="ishare2ProgressText" style="display:none;" data-i18n="ui.ishare2.progressLabel">Instalando...</div>
-                <div class="progress-container" id="ishare2ProgressContainer" style="display:none;">
-                  <div class="progress-bar" id="ishare2ProgressBar"></div>
-                </div>
-              <div id="ishare2Output"></div>
-            </div>
-
-          </div>
-          <!-- ==================== FIM ABA ISHARE2 ==================== -->
-
-          <!-- ==================== ABA SISTEMA ==================== -->
-          <div id="system-tab" class="tab-content">
-            <div class="system-card">
-              <div class="system-header">
-                <div class="system-title" data-i18n="ui.system.resourcesTitle">Recursos do servidor</div>
-                <button type="button" class="btn-secondary" id="systemReloadBtn">
-                  <span class="icon">🔄</span>
-                  <span data-i18n="ui.system.reload">Recarregar</span>
-                </button>
-              </div>
-              <div class="platform-identity">
-                <div class="platform-pill" id="platformBadge"></div>
-                <img id="platformLogo" class="platform-logo" src="" alt="Platform logo">
-              </div>
-              <div class="resource-box" id="resourceBox">
-                <div class="resource-item">
-                  <span class="resource-label" data-i18n="ui.system.cpu">CPU</span>
-                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceCpuBar"></div></div>
-                  <span class="resource-value" id="resourceCpu">--</span>
-                </div>
-                <div class="resource-item">
-                  <span class="resource-label" data-i18n="ui.system.ram">RAM</span>
-                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceMemBar"></div></div>
-                  <span class="resource-value" id="resourceMem">--</span>
-                  <span class="resource-sub" data-i18n="ui.system.ramHint">Uso de memória</span>
-                </div>
-                <div class="resource-item">
-                  <span class="resource-label" data-i18n="ui.system.disk">DISK</span>
-                  <div class="resource-bar"><div class="resource-bar-fill" id="resourceDiskBar"></div></div>
-                  <span class="resource-value" id="resourceDisk">--</span>
-                  <span class="resource-sub" data-i18n="ui.system.diskHint">Partição raiz</span>
+                <div class="resource-box" id="resourceBox">
+                  <div class="resource-item">
+                    <span class="resource-label" data-i18n="ui.system.cpu">CPU</span>
+                    <div class="resource-bar"><div class="resource-bar-fill" id="resourceCpuBar"></div></div>
+                    <span class="resource-value" id="resourceCpu">--</span>
+                  </div>
+                  <div class="resource-item">
+                    <span class="resource-label" data-i18n="ui.system.ram">RAM</span>
+                    <div class="resource-bar"><div class="resource-bar-fill" id="resourceMemBar"></div></div>
+                    <span class="resource-value" id="resourceMem">--</span>
+                    <span class="resource-sub" data-i18n="ui.system.ramHint">Uso de memória</span>
+                  </div>
+                  <div class="resource-item">
+                    <span class="resource-label" data-i18n="ui.system.disk">DISK</span>
+                    <div class="resource-bar"><div class="resource-bar-fill" id="resourceDiskBar"></div></div>
+                    <span class="resource-value" id="resourceDisk">--</span>
+                    <span class="resource-sub" data-i18n="ui.system.diskHint">Partição raiz</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <!-- ==================== FIM ABA SISTEMA ==================== -->
-        </div>
-        </form>
-      </div>
-    </div>
-  </div>
+
+          </div><!-- /featureArea -->
+        </div><!-- /content -->
+      </div><!-- /main -->
+    </div><!-- /dashboard -->
+  </form>
 
   <script src="/static/js/i18n.js"></script>
   <script src="/static/js/common.js"></script>
   <script src="/static/js/tabs.js"></script>
+  <script src="/static/js/ui_shell.js"></script>
   <script src="/static/js/upload.js"></script>
   <script src="/static/js/images.js"></script>
   <script src="/static/js/templates.js"></script>

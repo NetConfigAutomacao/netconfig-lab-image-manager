@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function () {
         messages.innerHTML = '';
       }
     }
-    iconsListDiv.innerHTML = '';
+    iconsListDiv.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('icons.loading') + '</span></div>';
 
     const creds = getCommonCreds();
     const eve_ip = creds.eve_ip;
@@ -86,6 +86,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eve_pass = creds.eve_pass;
 
     if (!eve_ip || !eve_user || !eve_pass) {
+      iconsListDiv.innerHTML = '';
       if (!options.silent) {
         showMessage('error', t('icons.missingCreds'));
       }
@@ -113,10 +114,12 @@ document.addEventListener('DOMContentLoaded', function () {
               showMessage('error', t('icons.parseError') + '<br><pre>' +
                 (xhr.responseText || String(err)) + '</pre>');
             }
+            iconsListDiv.innerHTML = '';
             return resolve({ success: false, reason: 'parse' });
           }
 
           if (!resp) {
+            iconsListDiv.innerHTML = '';
             if (!options.silent) {
               showMessage('error', t('icons.emptyResponse'));
             }
@@ -140,6 +143,7 @@ document.addEventListener('DOMContentLoaded', function () {
       };
 
       xhr.onerror = function () {
+        iconsListDiv.innerHTML = '';
         if (!options.silent) {
           showMessage('error', t('msg.networkError'));
         }

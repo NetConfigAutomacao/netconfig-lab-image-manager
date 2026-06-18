@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.10
+
+- Refatoração da interface (issue #34) — entrega 4 (estados da aba iShare2):
+  - Estado vazio (placeholder com ícone de lupa) exibido antes da primeira busca.
+  - Estado de carregamento (spinner) durante a busca, substituindo o cursor de espera.
+  - Componentes reutilizáveis `.empty-state` e `.loading-state` no design system.
+  - Novas chaves i18n `ui.ishare2.emptyState` e `ishare2.searching` (PT/EN/ES).
+
 ## 1.1.9
 
 - Refatoração da interface (issue #34) — entrega 3 (paridade da aba Sistema):

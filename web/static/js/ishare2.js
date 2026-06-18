@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function () {
   const progressBar = document.getElementById('ishare2ProgressBar');
   const filterWrapper = document.getElementById('ishare2FilterWrapper');
   const filterInput = document.getElementById('ishare2_filter');
+  const emptyState = document.getElementById('ishare2Empty');
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
@@ -721,7 +722,8 @@ document.addEventListener('DOMContentLoaded', function () {
       messages.innerHTML = '';
     }
 
-    outputDiv.textContent = '';
+    if (emptyState) emptyState.style.display = 'none';
+    outputDiv.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ishare2.searching') + '</span></div>';
 
     setLoading(true);
 
@@ -735,6 +737,7 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
         setLoading(false);
+        outputDiv.innerHTML = '';
         var status = xhr.status || 0;
 
         if (status === 504) {
@@ -799,6 +802,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     xhr.onerror = function () {
       setLoading(false);
+      outputDiv.innerHTML = '';
       showMessage('error', t('ishare2.search.noServer'));
     };
 

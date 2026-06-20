@@ -527,6 +527,35 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 }
 .loading-state { display: flex; align-items: center; gap: 11px; padding: 28px 20px; color: var(--text-2); font-size: 13px; justify-content: center; }
 
+/* ============================= TOPOLOGY EDITOR (inline) ============================= */
+.topo-inline { margin: 8px 0 12px; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-2); background: var(--surface-2); }
+.topo-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.topo-counter { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.topo-canvas {
+  position: relative; height: 460px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-2); overflow: hidden;
+  background-color: rgba(7, 11, 21, 0.6);
+  background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+  background-size: 22px 22px;
+}
+.topo-node {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  min-width: 84px; padding: 9px 11px; border-radius: 12px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border-2); box-shadow: 0 10px 26px -12px rgba(0, 0, 0, .8);
+  cursor: grab; user-select: none; touch-action: none; z-index: 2;
+}
+.topo-node.dragging { cursor: grabbing; z-index: 3; }
+.topo-node.selected { border-color: var(--accent-from); box-shadow: 0 0 0 2px rgba(56, 189, 248, .3); }
+.topo-node.link-src { border-color: var(--green); box-shadow: 0 0 0 2px rgba(62, 196, 109, .35); }
+.topo-node-ico { color: var(--accent-from); display: inline-flex; }
+.topo-node-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.topo-node-kind { font-size: 10px; color: var(--text-3); }
+.topo-panel { margin-top: 10px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-3); border: 1px solid var(--border-2); }
+.topo-panel-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.topo-panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+
 /* ============================= TAB CONTENT ============================= */
 .tab-content { display: none; }
 .tab-content.active { display: block; }

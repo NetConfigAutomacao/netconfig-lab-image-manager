@@ -2,6 +2,15 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.1.0
+
+- Integração ContainerLab (issue #7) — entrega 1 (backend): novos endpoints no blueprint `/container-labs`:
+  - `POST /deploy` e `POST /destroy` (`containerlab deploy/destroy -t <topo>`, com `--reconfigure`/`--cleanup` opcionais).
+  - `POST /inspect` (`containerlab inspect [--all|-t] --format json`) com normalização tolerante a variações de formato.
+  - `POST /node/logs` e `POST /node/exec` (docker/podman, com fallback), comando único não interativo.
+  - Validação de nome de container (`^[A-Za-z0-9_.-]+$`) e `shlex.quote` para evitar injeção.
+  - Chaves i18n backend (PT/EN/ES) e testes unitários (validação, construção de comando, parsing do inspect).
+
 ## 2.0.1
 
 - Testes unitários para o endpoint `GET /repositories` do serviço ishare2 (ranking por latência e tratamento de erro).

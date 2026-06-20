@@ -177,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
       releaseBtn.onclick = null;
     }
 
-    notice.style.display = 'block';
+    notice.style.display = 'flex';
   }
 
   function copyUpdateCommand(command) {
@@ -240,6 +240,15 @@ document.addEventListener('DOMContentLoaded', function () {
     div.appendChild(content);
     div.appendChild(closeBtn);
     messages.appendChild(div);
+
+    // Auto-dismiss após 7s (mensagens de erro também são dispensáveis manualmente).
+    setTimeout(function () {
+      if (div && div.parentNode) {
+        div.style.transition = 'opacity .3s ease';
+        div.style.opacity = '0';
+        setTimeout(function () { if (div && div.parentNode) div.remove(); }, 320);
+      }
+    }, 7000);
   }
 
   function getCommonCreds() {

@@ -2,6 +2,82 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 1.1.17
+
+- Refatoração da interface (issue #34) — entrega 11 (painel de latência iShare2):
+  - Novo endpoint `GET /api/ishare2/repositories` (proxy) e `GET /repositories` no serviço ishare2, retornando os mirrors ordenados por latência medida.
+  - Painel "Ranking de latência dos mirrors" exibido na aba iShare2 ao buscar, com barras coloridas por faixa (<40ms verde, <100ms accent, senão âmbar).
+  - Nova chave i18n `ui.ishare2.latencyTitle` (PT/EN/ES).
+  - Observação: única alteração de backend do refactor, estritamente para suportar a UI (exceção prevista no requisito O1/R7 da issue).
+
+## 1.1.16
+
+- Refatoração da interface (issue #34) — entrega 10 (TopoViewer):
+  - Modal de topologia agora renderiza um grafo (nós posicionados + arestas em SVG) sobre grade pontilhada, no lugar das listas de texto.
+  - Toolbar com contador "N nós · M enlaces"; listas de nós/links mantidas como detalhe abaixo do grafo.
+  - Novas chaves i18n `ui.topo.canvasTitle`, `ui.topo.counter`, `ui.topo.empty` (PT/EN/ES).
+
+## 1.1.15
+
+- Refatoração da interface (issue #34) — entrega 9 (ajuste do tema light):
+  - Chip escuro atrás dos logos (PNGs claros) no tema light para manter legibilidade no gate e na sidebar.
+
+## 1.1.14
+
+- Refatoração da interface (issue #34) — entrega 8 (estado da aba Laboratórios):
+  - Spinner de carregamento na lista de laboratórios, com estado vazio restaurado em erros.
+  - Conclui a cobertura de estados loading/empty/erro/sucesso (F20) em todas as listagens.
+
+## 1.1.13
+
+- Refatoração da interface (issue #34) — entrega 7 (estados das abas ContainerLab):
+  - Spinner de carregamento nas listas de Container Images e VRNETLAB, com estado vazio restaurado em erros.
+  - Estados vazios e labels de loading nos botões já existentes preservados.
+
+## 1.1.12
+
+- Refatoração da interface (issue #34) — entrega 6 (estados de Templates e Ícones):
+  - Spinner de carregamento ao listar templates e ícones, com limpeza em erros.
+  - Estados vazios já existentes preservados (`templates.none` / `icons.none`).
+  - Novas chaves i18n `templates.loading` e `icons.loading` (PT/EN/ES).
+
+## 1.1.11
+
+- Refatoração da interface (issue #34) — entrega 5 (estados da aba Imagens):
+  - Estado vazio no card "Imagens existentes" antes da primeira checagem.
+  - Spinner de carregamento durante a listagem, com restauração do estado vazio em erros.
+  - Novas chaves i18n `ui.images.emptyState` e `images.loading` (PT/EN/ES).
+
+## 1.1.10
+
+- Refatoração da interface (issue #34) — entrega 4 (estados da aba iShare2):
+  - Estado vazio (placeholder com ícone de lupa) exibido antes da primeira busca.
+  - Estado de carregamento (spinner) durante a busca, substituindo o cursor de espera.
+  - Componentes reutilizáveis `.empty-state` e `.loading-state` no design system.
+  - Novas chaves i18n `ui.ishare2.emptyState` e `ishare2.searching` (PT/EN/ES).
+
+## 1.1.9
+
+- Refatoração da interface (issue #34) — entrega 3 (paridade da aba Sistema):
+  - Barra de disco fica em estado crítico (gradiente âmbar→vermelho) quando o uso passa de 85%.
+  - Banner de aviso "Disco quase cheio" exibido automaticamente acima de 85% de uso.
+  - Nova chave i18n `ui.system.diskWarning` (PT/EN/ES).
+
+## 1.1.8
+
+- Refatoração da interface (issue #34) — entrega 2 (interações do shell):
+  - Toasts (`#messages`) com auto-dismiss após 7s, mantendo o fechamento manual.
+  - Toggle de tema dark/light no gate e na top bar, persistido em `localStorage` (`netconfig-theme`).
+  - Animação de sincronização no gate ao carregar dados: passos SSH → autenticação → detecção do ambiente → sync, sincronizada com o carregamento real.
+  - Novas chaves i18n (PT/EN/ES) para os passos de sincronização.
+
+## 1.1.7
+
+- Refatoração da interface (issue #34) — entrega 1 (shell): novo layout de dashboard com sidebar fixa de 248px, top bar e tela de gate de conexão dedicada, baseado no design handoff.
+- Novo sistema de design em `web/static/css/app.css` com tokens (tema dark padrão + light), fontes IBM Plex Sans/Mono e componentes (cards, botões pílula, toasts, barras de progresso).
+- Novo `web/static/js/ui_shell.js`: alterna gate/dashboard, seletor de idioma segmentado (PT/EN/ES), título por aba, card de status, botão Desconectar e drawer responsivo da sidebar.
+- Navegação por abas migrada para itens de sidebar preservando todos os IDs e contratos de JS existentes; toasts movidos para pilha fixa; banner de atualização no topo da área principal.
+
 ## 1.1.6
 
 - Versão incrementada para 1.1.6.

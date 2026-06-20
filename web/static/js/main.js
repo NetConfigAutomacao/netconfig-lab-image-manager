@@ -194,7 +194,13 @@ document.addEventListener('DOMContentLoaded', function () {
       var totalD = formatDisk(resources.disk_total_kb);
       var percD = formatPercent(resources.disk_percent);
       resourceDisk.textContent = usedD + ' / ' + totalD + ' (' + percD + ')';
-      if (resourceDiskBar) resourceDiskBar.style.width = Math.min(100, Math.max(0, resources.disk_percent || 0)) + '%';
+      if (resourceDiskBar) {
+        var diskPct = Math.min(100, Math.max(0, resources.disk_percent || 0));
+        resourceDiskBar.style.width = diskPct + '%';
+        resourceDiskBar.classList.toggle('is-critical', diskPct > 85);
+      }
+      var diskWarning = document.getElementById('diskWarning');
+      if (diskWarning) diskWarning.style.display = (resources.disk_percent > 85) ? 'flex' : 'none';
     }
   }
 

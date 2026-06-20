@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.0.0
+
+- Release principal da nova interface (issue #34, PR #35) — consolida as entregas 1–11 (1.1.7 → 1.1.17) em um marco de versão maior.
+- Novo layout de dashboard (sidebar fixa de 248px + top bar + gate de conexão dedicado) substituindo a SPA de card central.
+- Sistema de design em `web/static/css/app.css` (tema dark padrão + light, IBM Plex, tokens, componentes reutilizáveis) e novo `web/static/js/ui_shell.js`.
+- Estados loading/empty/erro/sucesso em todas as listagens; aba Sistema com disco crítico; TopoViewer com grafo (nós + arestas SVG); painel de latência dos mirrors do iShare2.
+- Idiomas PT/EN/ES em toda a UI; IDs/contratos de JS preservados; única alteração de backend foi o endpoint `GET /api/ishare2/repositories` para suportar o painel de latência.
+
 ## 1.1.17
 
 - Refatoração da interface (issue #34) — entrega 11 (painel de latência iShare2):

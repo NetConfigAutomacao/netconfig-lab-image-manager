@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.1.1
+
+- Integração ContainerLab (issue #7) — entrega 2 (frontend deploy/destroy):
+  - Botões Deploy e Destroy por arquivo de topologia (*.clab.yml) na aba Laboratórios, com confirmação e modal de log da saída do containerlab.
+  - Novas chaves i18n `ui.labs.deploy*`/`ui.labs.destroy*`/`ui.labs.action*` (PT/EN/ES).
+  - Observado (pré-existente, não regressão): `web/static/js/vendor/js-yaml.min.js` está truncado (~7KB) e lança erro no load — não afeta deploy/destroy; rastrear separadamente.
+
 ## 2.1.0
 
 - Integração ContainerLab (issue #7) — entrega 1 (backend): novos endpoints no blueprint `/container-labs`:

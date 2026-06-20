@@ -205,6 +205,28 @@ document.addEventListener('DOMContentLoaded', function () {
             openTopologyFromFile(lab, entry.path);
           });
           actions.appendChild(topoBtn);
+
+          const deployBtn = document.createElement('button');
+          deployBtn.type = 'button';
+          deployBtn.className = 'btn-secondary';
+          deployBtn.style.padding = '3px 8px';
+          deployBtn.style.fontSize = '11px';
+          deployBtn.textContent = t('ui.labs.deployBtn');
+          deployBtn.addEventListener('click', function () {
+            runLabAction('deploy', lab, entry.path, deployBtn);
+          });
+          actions.appendChild(deployBtn);
+
+          const destroyBtn = document.createElement('button');
+          destroyBtn.type = 'button';
+          destroyBtn.className = 'pill-action';
+          destroyBtn.style.padding = '3px 8px';
+          destroyBtn.style.fontSize = '11px';
+          destroyBtn.textContent = t('ui.labs.destroyBtn');
+          destroyBtn.addEventListener('click', function () {
+            runLabAction('destroy', lab, entry.path, destroyBtn);
+          });
+          actions.appendChild(destroyBtn);
         }
       }
 
@@ -1039,6 +1061,93 @@ document.addEventListener('DOMContentLoaded', function () {
         document.removeEventListener('keydown', esc);
       }
     });
+  }
+
+  function showOutputModal(title, initialText) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lab-editor-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,11,21,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:18px';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'width:92%;max-width:840px;max-height:88vh;background:linear-gradient(180deg,#111d33,#0d1626);border:1px solid #2a3c5e;border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 60px -28px rgba(0,0,0,.8)';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1e2c49';
+    const h = document.createElement('div');
+    h.style.cssText = 'font-weight:700;font-size:14px;color:#e7eef9';
+    h.textContent = title;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-ghost';
+    closeBtn.style.cssText = 'padding:4px 12px';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { overlay.remove(); });
+    header.appendChild(h);
+    header.appendChild(closeBtn);
+
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'flex:1;overflow:auto;margin:0;padding:16px;font-family:var(--mono),monospace;font-size:12px;line-height:1.55;color:#9fb2cf;white-space:pre-wrap;word-break:break-word';
+    pre.textContent = initialText || '';
+
+    modal.appendChild(header);
+    modal.appendChild(pre);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    return { setText: function (txt) { pre.textContent = txt; }, close: function () { overlay.remove(); } };
+  }
+
+  function runLabAction(action, labName, relPath, btn) {
+    const creds = getCommonCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+      showMessage('error', t('container_labs.missing_creds'));
+      return;
+    }
+    const confirmKey = action === 'destroy' ? 'ui.labs.destroyConfirm' : 'ui.labs.deployConfirm';
+    if (!window.confirm(t(confirmKey, { lab: labName }))) return;
+
+    const titleKey = action === 'destroy' ? 'ui.labs.destroyTitle' : 'ui.labs.deployTitle';
+    const out = showOutputModal(t(titleKey, { lab: labName }), t('ui.labs.actionRunning'));
+
+    if (btn instanceof HTMLButtonElement) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    setBodyLoading(true);
+
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip);
+    fd.append('eve_user', creds.eve_user);
+    fd.append('eve_pass', creds.eve_pass);
+    fd.append('lab_name', labName);
+    fd.append('path', relPath);
+    if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/container-labs/' + action, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      let resp = null;
+      try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) {
+        out.setText(t('msg.parseError') + '\n\n' + (xhr.responseText || ''));
+        return;
+      }
+      const log = [resp.stdout || '', resp.stderr || ''].filter(Boolean).join('\n');
+      out.setText(log || resp.message || '');
+      if (resp.success) {
+        showMessage('success', resp.message || t('ui.labs.actionDone'));
+      } else {
+        showMessage('error', resp.message || t('ui.labs.actionFail'));
+      }
+    };
+    xhr.onerror = function () {
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      out.setText(t('msg.networkError'));
+      showMessage('error', t('msg.networkError'));
+    };
+    xhr.send(fd);
   }
 
   function openTopologyFromFile(labName, path) {

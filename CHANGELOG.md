@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.0
+
+- Integração ContainerLab (issue #7) — entrega 6 (editor de topologia nativo inline):
+  - Novo `web/static/js/topology_editor.js`: editor visual SVG próprio (sem dependência vendored) renderizado inline na aba Laboratórios ao clicar em "Topologia".
+  - Arrastar nós (posições persistem em labels graph-posX/Y), adicionar/remover nós, criar/remover enlaces (modo "Ligar nós") e editar nome/kind/imagem.
+  - Carrega via `/container-labs/topoviewer/cyto` e salva via `/container-labs/topoviewer/save` (merge no YAML existente).
+  - Botão "Tela cheia" mantém o TopoViewer vendored como opção. Estados loading/empty/erro; i18n PT/EN/ES.
+
 ## 2.1.4
 
 - Correção: `web/static/js/vendor/js-yaml.min.js` estava truncado (~7KB) e lançava erro no carregamento de toda página. Substituído pelo js-yaml 4.1.0 oficial (39KB); parsing de YAML no client volta a funcionar e o erro no console desaparece.

@@ -200,11 +200,22 @@ document.addEventListener('DOMContentLoaded', function () {
           topoBtn.className = 'btn-secondary';
           topoBtn.style.padding = '3px 8px';
           topoBtn.style.fontSize = '11px';
-          topoBtn.textContent = 'Topology';
+          topoBtn.textContent = t('ui.topo.viewBtn');
           topoBtn.addEventListener('click', function () {
-            openTopologyFromFile(lab, entry.path);
+            toggleInlineTopology(lab, entry.path, row, topoBtn);
           });
           actions.appendChild(topoBtn);
+
+          const topoFullBtn = document.createElement('button');
+          topoFullBtn.type = 'button';
+          topoFullBtn.className = 'btn-secondary';
+          topoFullBtn.style.padding = '3px 8px';
+          topoFullBtn.style.fontSize = '11px';
+          topoFullBtn.textContent = t('ui.topo.fullBtn');
+          topoFullBtn.addEventListener('click', function () {
+            openTopologyFromFile(lab, entry.path);
+          });
+          actions.appendChild(topoFullBtn);
 
           const deployBtn = document.createElement('button');
           deployBtn.type = 'button';
@@ -1159,6 +1170,28 @@ document.addEventListener('DOMContentLoaded', function () {
       showMessage('error', t('msg.networkError'));
     };
     xhr.send(fd);
+  }
+
+  function toggleInlineTopology(lab, path, row, btn) {
+    // Painel inline logo após a linha do arquivo.
+    const existing = row.nextSibling;
+    if (existing && existing.classList && existing.classList.contains('topo-inline')) {
+      existing.remove();
+      if (btn) btn.classList.remove('active');
+      return;
+    }
+    const panel = document.createElement('div');
+    panel.className = 'topo-inline';
+    if (row.parentNode) {
+      row.parentNode.insertBefore(panel, row.nextSibling);
+    }
+    if (btn) btn.classList.add('active');
+    const labsDir = (dirInput && dirInput.value) ? dirInput.value.trim() : '';
+    if (window.NetConfigTopology) {
+      window.NetConfigTopology.mount(panel, { lab: lab, path: path, labsDir: labsDir });
+    } else {
+      panel.textContent = 'Topology editor unavailable.';
+    }
   }
 
   function nodeRequest(endpoint, container, extra) {

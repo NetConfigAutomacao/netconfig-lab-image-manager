@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.1.2
+
+- Integração ContainerLab (issue #7) — entrega 3 (status + logs/exec por nó):
+  - Botão Status por topologia: chama `containerlab inspect` e abre modal com os containers do lab (nome, kind, estado, IPv4).
+  - Por nó rodando: botões Logs (últimas linhas via docker/podman) e Exec (comando único não interativo) com saída em modal.
+  - Novas chaves i18n `ui.labs.status*`/`ui.labs.logs*`/`ui.labs.exec*` (PT/EN/ES).
+
 ## 2.1.1
 
 - Integração ContainerLab (issue #7) — entrega 2 (frontend deploy/destroy):

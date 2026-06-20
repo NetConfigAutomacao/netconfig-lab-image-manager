@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.1.3
+
+- Integração ContainerLab (issue #7) — entrega 4 (salvar topologia do TopoViewer):
+  - Novo endpoint `POST /container-labs/topoviewer/save`: converte os elementos do editor (cytoscape) de volta para YAML ContainerLab fazendo **merge** no arquivo existente (preserva campos de node e chaves de topo-nível) e grava no host.
+  - Recusa gravar (sem destruir o arquivo) se o payload não contiver nós válidos.
+  - Stub do TopoViewer (`topoviewer.html`) passa a persistir de verdade nos endpoints de save do editor vendored.
+  - Testes do conversor cyto→YAML (merge e recusa de payload vazio). Nova chave i18n backend `container_labs.save_invalid_payload` (PT/EN/ES).
+
 ## 2.1.2
 
 - Integração ContainerLab (issue #7) — entrega 3 (status + logs/exec por nó):

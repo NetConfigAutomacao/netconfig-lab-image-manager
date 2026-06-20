@@ -117,6 +117,43 @@ class TestContainerLabsOps(unittest.TestCase):
         self.assertEqual(r._normalize_inspect(None), [])
         self.assertEqual(r._normalize_inspect("nope"), [])
 
+    def test_cyto_to_doc_preserves_existing_and_merges(self):
+        r = _import_routes()
+        existing = {
+            "name": "bgp",
+            "mgmt": {"network": "clab-mgmt"},
+            "topology": {"nodes": {"spine1": {"kind": "nokia_srlinux", "image": "srl:23", "startup-config": "x.cfg"}}},
+        }
+        elements = [
+            {"group": "nodes", "data": {"id": "spine1", "name": "spine1", "extraData": {"kind": "nokia_srlinux", "image": "srl:24"}}, "position": {"x": 10, "y": 20}},
+            {"group": "nodes", "data": {"id": "leaf1", "name": "leaf1", "extraData": {"kind": "arista_ceos"}}},
+            {"group": "nodes", "data": {"id": "grp:1", "topoViewerRole": "group"}},
+            {"group": "edges", "data": {"endpoints": ["spine1:e1-1", "leaf1:e1-1"]}},
+        ]
+        doc = r._cyto_to_doc(existing, elements)
+        # top-level preserved
+        self.assertEqual(doc["name"], "bgp")
+        self.assertEqual(doc["mgmt"], {"network": "clab-mgmt"})
+        nodes = doc["topology"]["nodes"]
+        # group element skipped
+        self.assertNotIn("grp:1", nodes)
+        self.assertIn("spine1", nodes)
+        self.assertIn("leaf1", nodes)
+        # existing field preserved, image updated, position stored
+        self.assertEqual(nodes["spine1"]["startup-config"], "x.cfg")
+        self.assertEqual(nodes["spine1"]["image"], "srl:24")
+        self.assertEqual(nodes["spine1"]["labels"]["graph-posX"], "10")
+        self.assertEqual(nodes["leaf1"]["kind"], "arista_ceos")
+        # link reconstructed
+        self.assertEqual(doc["topology"]["links"][0]["endpoints"], ["spine1:e1-1", "leaf1:e1-1"])
+
+    def test_cyto_to_doc_refuses_empty(self):
+        r = _import_routes()
+        self.assertIsNone(r._cyto_to_doc({"name": "x"}, []))
+        self.assertIsNone(r._cyto_to_doc({"name": "x"}, "not-a-list"))
+        # only a group node -> no real nodes -> refuse
+        self.assertIsNone(r._cyto_to_doc({}, [{"group": "nodes", "data": {"id": "g:1", "topoViewerRole": "group"}}]))
+
 
 if __name__ == "__main__":
     unittest.main()

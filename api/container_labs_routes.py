@@ -624,6 +624,143 @@ def _topology_target_cmd(labs_dir: str, lab_name: str, rel_path: str, action: st
     )
 
 
+def _cyto_to_doc(existing_doc, elements):
+    """
+    Converte elementos cytoscape (do editor TopoViewer) de volta para um doc
+    ContainerLab, **preservando** campos existentes de cada node e as chaves de
+    topo-nível (name, mgmt, prefix, etc.). Retorna None se nenhum node válido
+    for encontrado (recusa-se a gravar um arquivo destrutivo/vazio).
+    """
+    doc = dict(existing_doc) if isinstance(existing_doc, dict) else {}
+    topo = dict(doc.get("topology")) if isinstance(doc.get("topology"), dict) else {}
+
+    existing_nodes = topo.get("nodes")
+    if isinstance(existing_nodes, list):
+        existing_nodes = _normalize_nodes({"nodes": existing_nodes})
+    if not isinstance(existing_nodes, dict):
+        existing_nodes = {}
+
+    if not isinstance(elements, list):
+        return None
+
+    new_nodes = {}
+    new_links = []
+
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        group = el.get("group")
+        data = el.get("data") if isinstance(el.get("data"), dict) else {}
+
+        if group == "nodes":
+            if data.get("topoViewerRole") == "group":
+                continue
+            name = (data.get("name") or data.get("id") or "").strip()
+            if not name:
+                continue
+            base = dict(existing_nodes.get(name) or {})
+            extra = data.get("extraData") if isinstance(data.get("extraData"), dict) else {}
+            for key in ("kind", "image", "type"):
+                if extra.get(key):
+                    base[key] = extra[key]
+            pos = el.get("position") if isinstance(el.get("position"), dict) else {}
+            labels = dict(base.get("labels")) if isinstance(base.get("labels"), dict) else {}
+            if isinstance(extra.get("labels"), dict):
+                labels.update(extra["labels"])
+            if "x" in pos:
+                labels["graph-posX"] = str(pos.get("x"))
+            if "y" in pos:
+                labels["graph-posY"] = str(pos.get("y"))
+            if labels:
+                base["labels"] = labels
+            new_nodes[name] = base
+
+        elif group == "edges":
+            extra = data.get("extraData")
+            if isinstance(extra, dict) and isinstance(extra.get("endpoints"), list) and len(extra["endpoints"]) >= 2:
+                new_links.append(extra)
+                continue
+            eps = data.get("endpoints")
+            if isinstance(eps, list) and len(eps) >= 2:
+                new_links.append({"endpoints": [eps[0], eps[1]]})
+
+    if not new_nodes:
+        return None
+
+    topo["nodes"] = new_nodes
+    topo["links"] = new_links
+    doc["topology"] = topo
+    return doc
+
+
+@container_labs_bp.route("/topoviewer/save", methods=["POST"])
+def container_labs_topoviewer_save():
+    """
+    Persiste edições do TopoViewer: recebe elementos cytoscape, faz merge no
+    YAML existente (preservando campos) e grava de volta no host.
+    """
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    elements_raw = request.form.get("elements") or ""
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+
+    try:
+        elements = json.loads(elements_raw)
+    except (ValueError, TypeError):
+        return jsonify(success=False, message=translate("container_labs.save_invalid_payload", lang)), 400
+
+    read_cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; cat \"$target\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, read_cmd)
+    if "__FILE_NOT_FOUND__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+
+    try:
+        existing_doc = yaml.safe_load(out or "") or {}
+    except Exception:
+        existing_doc = {}
+    if not isinstance(existing_doc, dict):
+        existing_doc = {}
+
+    merged = _cyto_to_doc(existing_doc, elements)
+    if merged is None:
+        # Payload não reconhecível / sem nós: não grava nada (não destrói o arquivo).
+        return jsonify(success=False, message=translate("container_labs.save_invalid_payload", lang)), 400
+
+    try:
+        new_yaml = yaml.safe_dump(merged, sort_keys=False, default_flow_style=False, allow_unicode=True)
+    except Exception as exc:
+        return jsonify(success=False, message=f"{translate('container_labs.save_fail', lang, rc=1)} ({exc})"), 500
+
+    import base64 as _b64
+    b64 = _b64.b64encode(new_yaml.encode("utf-8")).decode("ascii")
+    write_cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+        "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
+        f"echo '{b64}' | base64 -d > \"$target\""
+    )
+    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, write_cmd)
+    if "__MISSING_LAB_DIR__" in (out2 or "") or rc2 == 44:
+        return jsonify(success=False, message=translate("container_labs.lab_missing", lang, name=lab_name)), 400
+    if rc2 != 0:
+        return jsonify(success=False, message=translate("container_labs.save_fail", lang, rc=rc2), stderr=(err2 or "").strip()), 500
+
+    return jsonify(success=True, message=translate("container_labs.save_success", lang)), 200
+
+
 @container_labs_bp.route("/deploy", methods=["POST"])
 def deploy_lab():
     """Executa `containerlab deploy -t <topo>` no host remoto."""

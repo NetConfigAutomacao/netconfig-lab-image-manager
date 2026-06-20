@@ -789,6 +789,44 @@ class TestIshare2Api(unittest.TestCase):
         self.assertIn("repo.netconfig.com.br (101.5ms): imagem não encontrada neste repositório", summary)
         self.assertIn("/0: (300.0ms): sucesso", summary)
 
+    def test_repositories_endpoint_returns_latency_ranked_list(self):
+        ishare2_api = _import_ishare2_api()
+
+        candidates = [
+            {"id": "repo.netconfig.com.br", "host": "repo.netconfig.com.br", "kind": "catalog"},
+            {"id": "/0:", "host": "labhub.eu.org", "kind": "labhub"},
+        ]
+        ordered = [candidates[0], candidates[1]]
+        latency_map = {"repo.netconfig.com.br": 195.8, "/0:": 1400.2}
+
+        with patch.object(ishare2_api, "_build_repository_candidates", return_value=candidates), \
+                patch.object(ishare2_api, "_order_repositories_by_latency", return_value=(ordered, latency_map)):
+            result = ishare2_api.repositories()
+
+        # A rota retorna (jsonify(...), 200); o stub do flask devolve kwargs em dict.
+        payload = result[0] if isinstance(result, tuple) else result
+        kwargs = payload["kwargs"]
+
+        self.assertTrue(kwargs["success"])
+        self.assertEqual(kwargs["latency_ms"], latency_map)
+        repos = kwargs["repositories"]
+        self.assertEqual([r["id"] for r in repos], ["repo.netconfig.com.br", "/0:"])
+        self.assertEqual(repos[0]["latency_ms"], 195.8)
+        self.assertEqual(repos[0]["host"], "repo.netconfig.com.br")
+        self.assertEqual(repos[1]["kind"], "labhub")
+
+    def test_repositories_endpoint_handles_errors_gracefully(self):
+        ishare2_api = _import_ishare2_api()
+
+        with patch.object(ishare2_api, "_build_repository_candidates", side_effect=RuntimeError("boom")):
+            result = ishare2_api.repositories()
+
+        payload = result[0] if isinstance(result, tuple) else result
+        kwargs = payload["kwargs"]
+        self.assertFalse(kwargs["success"])
+        self.assertEqual(kwargs["repositories"], [])
+        self.assertEqual(kwargs["latency_ms"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

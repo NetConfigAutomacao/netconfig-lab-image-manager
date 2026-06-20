@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.0.1
+
+- Testes unitários para o endpoint `GET /repositories` do serviço ishare2 (ranking por latência e tratamento de erro).
+
 ## 2.0.0
 
 - Release principal da nova interface (issue #34, PR #35) — consolida as entregas 1–11 (1.1.7 → 1.1.17) em um marco de versão maior.

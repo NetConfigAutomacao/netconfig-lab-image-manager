@@ -118,6 +118,7 @@ TRANSLATIONS = {
         "container_labs.inspect_parse_fail": "Não foi possível interpretar a saída do containerlab inspect.",
         "container_labs.logs_fail": "Falha ao obter logs do node (código {rc}).",
         "container_labs.exec_fail": "Falha ao executar comando no node (código {rc}).",
+        "container_labs.save_invalid_payload": "Conteúdo do TopoViewer inválido — nada foi salvo.",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -221,6 +222,7 @@ TRANSLATIONS = {
         "container_labs.inspect_parse_fail": "Could not parse containerlab inspect output.",
         "container_labs.logs_fail": "Failed to fetch node logs (exit code {rc}).",
         "container_labs.exec_fail": "Failed to run command on node (exit code {rc}).",
+        "container_labs.save_invalid_payload": "Invalid TopoViewer payload — nothing was saved.",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -324,6 +326,7 @@ TRANSLATIONS = {
         "container_labs.inspect_parse_fail": "No se pudo interpretar la salida de containerlab inspect.",
         "container_labs.logs_fail": "Fallo al obtener logs del nodo (código {rc}).",
         "container_labs.exec_fail": "Fallo al ejecutar el comando en el nodo (código {rc}).",
+        "container_labs.save_invalid_payload": "Contenido de TopoViewer inválido — no se guardó nada.",
     },
 }
 

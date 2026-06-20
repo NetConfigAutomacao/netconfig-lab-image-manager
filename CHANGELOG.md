@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.1.4
+
+- Correção: `web/static/js/vendor/js-yaml.min.js` estava truncado (~7KB) e lançava erro no carregamento de toda página. Substituído pelo js-yaml 4.1.0 oficial (39KB); parsing de YAML no client volta a funcionar e o erro no console desaparece.
+
 ## 2.1.3
 
 - Integração ContainerLab (issue #7) — entrega 4 (salvar topologia do TopoViewer):

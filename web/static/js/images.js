@@ -10,6 +10,7 @@
 document.addEventListener('DOMContentLoaded', function () {
   const checkBtn = document.getElementById('checkImagesBtn');
   const imagesResult = document.getElementById('imagesResult');
+  const imagesEmpty = document.getElementById('imagesEmpty');
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
@@ -100,8 +101,9 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }
 
-    imagesResult.style.display = 'none';
-    imagesResult.innerHTML = '';
+    if (imagesEmpty) imagesEmpty.style.display = 'none';
+    imagesResult.style.display = 'block';
+    imagesResult.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('images.loading') + '</span></div>';
 
     const creds = getCommonCreds();
     const eve_ip = creds.eve_ip;
@@ -109,6 +111,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const eve_pass = creds.eve_pass;
 
     if (!eve_ip || !eve_user || !eve_pass) {
+      imagesResult.style.display = 'none';
+      imagesResult.innerHTML = '';
+      if (imagesEmpty) imagesEmpty.style.display = 'flex';
       if (!options.silent) {
         showMessage('error', t('images.missingCreds'));
       }
@@ -133,6 +138,8 @@ document.addEventListener('DOMContentLoaded', function () {
           try {
             resp = JSON.parse(xhr.responseText || '{}');
           } catch (err) {
+            renderImages(null);
+            if (imagesEmpty) imagesEmpty.style.display = 'flex';
             if (!options.silent) {
               showMessage('error', t('images.parseError') + '<br><pre>' +
                 (xhr.responseText || String(err)) + '</pre>');
@@ -141,6 +148,8 @@ document.addEventListener('DOMContentLoaded', function () {
           }
 
           if (!resp) {
+            renderImages(null);
+            if (imagesEmpty) imagesEmpty.style.display = 'flex';
             if (!options.silent) {
               showMessage('error', t('images.emptyResponse'));
             }
@@ -168,6 +177,8 @@ document.addEventListener('DOMContentLoaded', function () {
       };
 
       xhr.onerror = function () {
+        renderImages(null);
+        if (imagesEmpty) imagesEmpty.style.display = 'flex';
         if (!options.silent) {
           showMessage('error', t('msg.networkError'));
         }

@@ -784,28 +784,147 @@ document.addEventListener('DOMContentLoaded', function () {
     body.style.padding = '12px';
     body.style.overflow = 'auto';
 
-    const debugCard = document.createElement('div');
-    debugCard.style.background = 'rgba(15,23,42,0.85)';
-    debugCard.style.border = '1px solid rgba(56,189,248,0.15)';
-    debugCard.style.borderRadius = '10px';
-    debugCard.style.padding = '10px';
-    debugCard.style.marginBottom = '10px';
+    // Toolbar com contadores (estilo TopoViewer do handoff).
+    const toolbar = document.createElement('div');
+    toolbar.style.display = 'flex';
+    toolbar.style.alignItems = 'center';
+    toolbar.style.justifyContent = 'space-between';
+    toolbar.style.gap = '10px';
+    toolbar.style.marginBottom = '10px';
 
-    const debugTitle = document.createElement('div');
-    debugTitle.style.fontWeight = '600';
-    debugTitle.style.color = '#e5e7eb';
-    debugTitle.style.marginBottom = '6px';
-    debugTitle.textContent = 'Debug';
+    const toolbarTitle = document.createElement('div');
+    toolbarTitle.style.fontWeight = '700';
+    toolbarTitle.style.color = '#e5e7eb';
+    toolbarTitle.style.fontSize = '13px';
+    toolbarTitle.textContent = t('ui.topo.canvasTitle');
 
-    const debugPre = document.createElement('pre');
-    debugPre.style.margin = '0';
-    debugPre.style.fontSize = '11px';
-    debugPre.style.color = '#94a3b8';
-    debugPre.style.whiteSpace = 'pre-wrap';
-    debugPre.textContent = JSON.stringify((topology && topology.meta) || {}, null, 2);
+    const counter = document.createElement('div');
+    counter.style.fontSize = '12px';
+    counter.style.color = '#9fb2cf';
+    counter.style.fontFamily = "'IBM Plex Mono', ui-monospace, monospace";
+    counter.textContent = t('ui.topo.counter', {
+      nodes: topology.nodes.length || 0,
+      links: topology.links.length || 0
+    });
 
-    debugCard.appendChild(debugTitle);
-    debugCard.appendChild(debugPre);
+    toolbar.appendChild(toolbarTitle);
+    toolbar.appendChild(counter);
+
+    // Canvas de grafo: grade pontilhada + arestas SVG + nós posicionados.
+    const canvasWrap = document.createElement('div');
+    canvasWrap.style.position = 'relative';
+    canvasWrap.style.height = '460px';
+    canvasWrap.style.marginBottom = '12px';
+    canvasWrap.style.borderRadius = '12px';
+    canvasWrap.style.border = '1px solid rgba(56,189,248,0.15)';
+    canvasWrap.style.overflow = 'hidden';
+    canvasWrap.style.background =
+      'radial-gradient(circle at 1px 1px, rgba(42,60,94,0.7) 1px, transparent 0)';
+    canvasWrap.style.backgroundSize = '22px 22px';
+    canvasWrap.style.backgroundColor = 'rgba(7,11,21,0.6)';
+
+    (function renderGraph() {
+      const W = 1000, H = 460;
+      const nodes = topology.nodes || [];
+      const links = topology.links || [];
+      const n = nodes.length;
+
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      svg.style.position = 'absolute';
+      svg.style.inset = '0';
+      svg.style.width = '100%';
+      svg.style.height = '100%';
+
+      // Posições: 1 nó = centro; 2 = lado a lado; senão círculo.
+      const pos = {};
+      const cx = W / 2, cy = H / 2;
+      const R = Math.max(120, Math.min(W, H) / 2 - 120);
+      nodes.forEach(function (node, i) {
+        var x, y;
+        if (n === 1) { x = cx; y = cy; }
+        else if (n === 2) { x = cx + (i === 0 ? -R : R); y = cy; }
+        else {
+          const ang = (2 * Math.PI * i) / n - Math.PI / 2;
+          x = cx + R * Math.cos(ang);
+          y = cy + R * Math.sin(ang);
+        }
+        pos[node.name] = { x: x, y: y };
+      });
+
+      function endpointNode(ep) {
+        return String(ep || '').split(':')[0].trim();
+      }
+
+      links.forEach(function (l) {
+        const eps = l.endpoints || [];
+        if (eps.length < 2) return;
+        const a = pos[endpointNode(eps[0])];
+        const b = pos[endpointNode(eps[1])];
+        if (!a || !b) return;
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+        line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+        line.setAttribute('stroke', 'rgba(56,189,248,0.55)');
+        line.setAttribute('stroke-width', '2');
+        svg.appendChild(line);
+      });
+      canvasWrap.appendChild(svg);
+
+      nodes.forEach(function (node) {
+        const p = pos[node.name] || { x: cx, y: cy };
+        const card = document.createElement('div');
+        card.style.position = 'absolute';
+        card.style.left = (p.x / W * 100) + '%';
+        card.style.top = (p.y / H * 100) + '%';
+        card.style.transform = 'translate(-50%, -50%)';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.alignItems = 'center';
+        card.style.gap = '4px';
+        card.style.minWidth = '92px';
+        card.style.padding = '10px 12px';
+        card.style.borderRadius = '12px';
+        card.style.background = 'linear-gradient(180deg, rgba(17,29,51,0.97), rgba(13,22,38,0.97))';
+        card.style.border = '1px solid rgba(56,189,248,0.4)';
+        card.style.boxShadow = '0 10px 26px -12px rgba(0,0,0,0.8)';
+
+        const ico = document.createElementNS(NS, 'svg');
+        ico.setAttribute('width', '20'); ico.setAttribute('height', '20');
+        ico.setAttribute('viewBox', '0 0 24 24'); ico.setAttribute('fill', 'none');
+        ico.setAttribute('stroke', '#38bdf8'); ico.setAttribute('stroke-width', '2');
+        const r1 = document.createElementNS(NS, 'rect');
+        r1.setAttribute('x', '3'); r1.setAttribute('y', '7'); r1.setAttribute('width', '18'); r1.setAttribute('height', '10'); r1.setAttribute('rx', '2');
+        const l1 = document.createElementNS(NS, 'path');
+        l1.setAttribute('d', 'M7 12h.01M11 12h.01M15 12h.01');
+        ico.appendChild(r1); ico.appendChild(l1);
+
+        const nm = document.createElement('div');
+        nm.style.fontFamily = "'IBM Plex Mono', ui-monospace, monospace";
+        nm.style.fontSize = '12px'; nm.style.fontWeight = '600'; nm.style.color = '#e7eef9';
+        nm.textContent = node.name || '(node)';
+
+        const kd = document.createElement('div');
+        kd.style.fontSize = '10px'; kd.style.color = '#9fb2cf';
+        kd.textContent = node.kind || '';
+
+        card.appendChild(ico);
+        card.appendChild(nm);
+        if (node.kind) card.appendChild(kd);
+        canvasWrap.appendChild(card);
+      });
+
+      if (!n) {
+        const empty = document.createElement('div');
+        empty.style.position = 'absolute'; empty.style.inset = '0';
+        empty.style.display = 'flex'; empty.style.alignItems = 'center'; empty.style.justifyContent = 'center';
+        empty.style.color = '#697f9f'; empty.style.fontSize = '13px';
+        empty.textContent = t('ui.topo.empty');
+        canvasWrap.appendChild(empty);
+      }
+    })();
 
     const grid = document.createElement('div');
     grid.style.display = 'grid';
@@ -897,7 +1016,8 @@ document.addEventListener('DOMContentLoaded', function () {
     grid.appendChild(nodesCard);
     grid.appendChild(linksCard);
 
-    body.appendChild(debugCard);
+    body.appendChild(toolbar);
+    body.appendChild(canvasWrap);
     body.appendChild(grid);
 
     modal.appendChild(header);
@@ -1183,6 +1303,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function handleLoad() {
     resetLabCache();
     setLoading(true);
+    if (listEl) listEl.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.labs.loading') + '</span></div>';
     requestLabs({ skipMessage: false })
       .then(function (resp) {
         if (resp && resp.missing_dir) {
@@ -1195,7 +1316,8 @@ document.addEventListener('DOMContentLoaded', function () {
         prefetchLabFiles(resp.labs || []);
       })
       .catch(function () {
-        // mensagem já exibida
+        // mensagem já exibida; limpa o spinner
+        renderList([]);
       })
       .finally(function () {
         setLoading(false);

@@ -82,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
         messages.innerHTML = '';
       }
     }
-    templatesListDiv.innerHTML = '';
+    templatesListDiv.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('templates.loading') + '</span></div>';
 
     const creds = getCommonCreds();
     const eve_ip = creds.eve_ip;
@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eve_pass = creds.eve_pass;
 
     if (!eve_ip || !eve_user || !eve_pass) {
+      templatesListDiv.innerHTML = '';
       if (!options.silent) {
         showMessage('error', t('templates.missingCreds'));
       }
@@ -117,10 +118,12 @@ document.addEventListener('DOMContentLoaded', function () {
               showMessage('error', t('templates.parseError') + '<br><pre>' +
                 (xhr.responseText || String(err)) + '</pre>');
             }
+            templatesListDiv.innerHTML = '';
             return resolve({ success: false, reason: 'parse' });
           }
 
           if (!resp) {
+            templatesListDiv.innerHTML = '';
             if (!options.silent) {
               showMessage('error', t('templates.emptyResponse'));
             }
@@ -143,6 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
       };
 
       xhr.onerror = function () {
+        templatesListDiv.innerHTML = '';
         if (!options.silent) {
           showMessage('error', t('msg.networkError'));
         }

@@ -23,6 +23,51 @@ from i18n import translate, get_request_lang
 ishare2_bp = Blueprint("ishare2_bp", __name__, url_prefix="/ishare2")
 
 
+@ishare2_bp.route("/repositories", methods=["GET"])
+def ishare2_repositories():
+    """
+    Proxy para o ranking de latência dos mirrors do serviço ishare2.
+
+    Via Nginx: /api/ishare2/repositories
+    """
+    lang = get_request_lang()
+    try:
+        resp = requests.get("http://ishare2:8080/repositories", timeout=30)
+    except requests.RequestException as exc:
+        return (
+            jsonify(
+                success=False,
+                message=translate("ishare2.contact_error", lang, error=exc),
+                repositories=[],
+                latency_ms={},
+            ),
+            502,
+        )
+
+    try:
+        data = resp.json()
+    except ValueError:
+        return (
+            jsonify(
+                success=False,
+                message=translate("ishare2.invalid_json", lang),
+                repositories=[],
+                latency_ms={},
+            ),
+            502,
+        )
+
+    return (
+        jsonify(
+            success=bool(data.get("success")),
+            repositories=data.get("repositories", []),
+            latency_ms=data.get("latency_ms", {}),
+            message=data.get("message", ""),
+        ),
+        200,
+    )
+
+
 @ishare2_bp.route("/search_all", methods=["POST"])
 def ishare2_search_all():
     """

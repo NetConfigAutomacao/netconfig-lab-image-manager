@@ -163,14 +163,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  function showListLoading() {
+    if (listEl) listEl.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.containerImages.loading') + '</span></div>';
+  }
+
   function handleLoad() {
     setLoading(true);
+    showListLoading();
     requestImages({ skipMessage: false })
       .then(function (resp) {
         renderList(resp.images || []);
       })
       .catch(function () {
-        // mensagem já exibida
+        // mensagem já exibida; limpa o spinner mostrando estado vazio
+        renderList([]);
       })
       .finally(function () {
         setLoading(false);
@@ -186,6 +192,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return requestImages(opts);
     }
     setLoading(true);
+    showListLoading();
     return requestImages(opts)
       .then(function (resp) {
         renderList(resp.images || []);

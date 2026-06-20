@@ -253,9 +253,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function handleStatusClick() {
     setLoading(true);
+    if (imagesList) imagesList.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.vrnetlab.statusLoading') + '</span></div>';
     loadVrnetlabStatus({ skipMessage: false })
       .catch(function () {
         // Mensagem já exibida em requestStatus
+        renderImages([]);
       })
       .finally(function () {
         setLoading(false);

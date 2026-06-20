@@ -15,6 +15,8 @@ document.addEventListener('DOMContentLoaded', function () {
   const progressBar = document.getElementById('ishare2ProgressBar');
   const filterWrapper = document.getElementById('ishare2FilterWrapper');
   const filterInput = document.getElementById('ishare2_filter');
+  const emptyState = document.getElementById('ishare2Empty');
+  const latencyPanel = document.getElementById('ishare2Latency');
 
   const app = window.NetConfigApp || {};
   const showMessage = app.showMessage || function () {};
@@ -413,6 +415,61 @@ document.addEventListener('DOMContentLoaded', function () {
     installProgressInterval = setInterval(poll, 2000);
   }
 
+  function renderLatencyPanel(repositories) {
+    if (!latencyPanel) return;
+    var repos = Array.isArray(repositories) ? repositories : [];
+    if (!repos.length) {
+      latencyPanel.style.display = 'none';
+      latencyPanel.innerHTML = '';
+      return;
+    }
+
+    var maxLat = 0;
+    repos.forEach(function (r) {
+      if (typeof r.latency_ms === 'number' && isFinite(r.latency_ms) && r.latency_ms > maxLat) {
+        maxLat = r.latency_ms;
+      }
+    });
+    if (maxLat <= 0) maxLat = 1;
+
+    var rowsHtml = repos.map(function (r) {
+      var lat = (typeof r.latency_ms === 'number' && isFinite(r.latency_ms)) ? r.latency_ms : null;
+      var color = lat === null ? 'var(--text-3)' : (lat < 40 ? 'var(--green)' : (lat < 100 ? 'var(--accent-from)' : 'var(--warn)'));
+      var pct = lat === null ? 0 : Math.max(4, Math.min(100, (lat / maxLat) * 100));
+      var latText = lat === null ? t('ishare2.install.latencyUnavailable') : (lat.toFixed(0) + ' ms');
+      var host = (r.host || r.id || '').toString();
+      return ''
+        + '<div class="latency-row">'
+        + '  <span class="latency-dot" style="background:' + color + '"></span>'
+        + '  <span class="latency-host mono">' + host.replace(/[&<>"]/g, '') + '</span>'
+        + '  <span class="latency-track"><span class="latency-fill" style="width:' + pct + '%;background:' + color + '"></span></span>'
+        + '  <span class="latency-value mono">' + latText + '</span>'
+        + '</div>';
+    }).join('');
+
+    latencyPanel.innerHTML = '<div class="latency-title">' + t('ui.ishare2.latencyTitle') + '</div>' + rowsHtml;
+    latencyPanel.style.display = 'block';
+  }
+
+  function loadLatencyRanking() {
+    if (!latencyPanel) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/ishare2/repositories', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      try {
+        var data = JSON.parse(xhr.responseText || '{}');
+        renderLatencyPanel(data.repositories || []);
+      } catch (e) {
+        renderLatencyPanel([]);
+      }
+    };
+    xhr.onerror = function () { renderLatencyPanel([]); };
+    xhr.send(null);
+  }
+
   function buildSectionContent(section) {
     var type = section.type || '';
     var label = section.label || type || 'Images';
@@ -721,7 +778,9 @@ document.addEventListener('DOMContentLoaded', function () {
       messages.innerHTML = '';
     }
 
-    outputDiv.textContent = '';
+    if (emptyState) emptyState.style.display = 'none';
+    outputDiv.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ishare2.searching') + '</span></div>';
+    loadLatencyRanking();
 
     setLoading(true);
 
@@ -735,6 +794,7 @@ document.addEventListener('DOMContentLoaded', function () {
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 4) {
         setLoading(false);
+        outputDiv.innerHTML = '';
         var status = xhr.status || 0;
 
         if (status === 504) {
@@ -799,6 +859,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     xhr.onerror = function () {
       setLoading(false);
+      outputDiv.innerHTML = '';
       showMessage('error', t('ishare2.search.noServer'));
     };
 

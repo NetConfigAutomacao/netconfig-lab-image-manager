@@ -1085,38 +1085,106 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function showOutputModal(title, initialText) {
+  function showOutputModal(title, opts) {
+    opts = opts || {};
+    const subtitle = opts.subtitle || '';
+
     const overlay = document.createElement('div');
-    overlay.className = 'lab-editor-modal';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,11,21,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:18px';
+    overlay.className = 'lab-editor-modal io-overlay';
 
     const modal = document.createElement('div');
-    modal.style.cssText = 'width:92%;max-width:840px;max-height:88vh;background:linear-gradient(180deg,#111d33,#0d1626);border:1px solid #2a3c5e;border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 60px -28px rgba(0,0,0,.8)';
+    modal.className = 'io-modal';
 
+    // Header
     const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1e2c49';
+    header.className = 'io-head';
+    const htext = document.createElement('div');
+    htext.style.minWidth = '0';
     const h = document.createElement('div');
-    h.style.cssText = 'font-weight:700;font-size:14px;color:#e7eef9';
+    h.className = 'io-title';
     h.textContent = title;
+    htext.appendChild(h);
+    if (subtitle) {
+      const sub = document.createElement('div');
+      sub.className = 'io-sub mono';
+      sub.textContent = subtitle;
+      htext.appendChild(sub);
+    }
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'btn-ghost';
     closeBtn.style.cssText = 'padding:4px 12px';
     closeBtn.textContent = '✕';
     closeBtn.addEventListener('click', function () { overlay.remove(); });
-    header.appendChild(h);
+    header.appendChild(htext);
     header.appendChild(closeBtn);
 
+    // Status row
+    const status = document.createElement('div');
+    status.className = 'io-status is-running';
+    const spin = document.createElement('span');
+    spin.className = 'io-status-ico';
+    const statusText = document.createElement('span');
+    statusText.className = 'io-status-text';
+    statusText.textContent = opts.statusText || t('ui.labs.actionRunning');
+    status.appendChild(spin);
+    status.appendChild(statusText);
+
+    // Log
     const pre = document.createElement('pre');
-    pre.style.cssText = 'flex:1;overflow:auto;margin:0;padding:16px;font-family:var(--mono),monospace;font-size:12px;line-height:1.55;color:#9fb2cf;white-space:pre-wrap;word-break:break-word';
-    pre.textContent = initialText || '';
+    pre.className = 'io-log';
+    pre.textContent = opts.initialText || '';
+
+    // Footer
+    const foot = document.createElement('div');
+    foot.className = 'io-foot';
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'btn-ghost';
+    copyBtn.style.cssText = 'padding:6px 14px;font-size:12px';
+    copyBtn.textContent = t('ui.labs.copyLog');
+    copyBtn.addEventListener('click', function () {
+      const text = pre.textContent || '';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { showMessage('success', t('ui.labs.copied')); }, function () {});
+      }
+    });
+    const extraWrap = document.createElement('div');
+    extraWrap.style.cssText = 'display:flex;gap:8px';
+    foot.appendChild(copyBtn);
+    foot.appendChild(extraWrap);
 
     modal.appendChild(header);
+    modal.appendChild(status);
     modal.appendChild(pre);
+    modal.appendChild(foot);
     overlay.appendChild(modal);
     overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
-    return { setText: function (txt) { pre.textContent = txt; }, close: function () { overlay.remove(); } };
+
+    function setState(state, msg) {
+      status.classList.remove('is-running', 'is-ok', 'is-error');
+      status.classList.add(state === 'ok' ? 'is-ok' : state === 'error' ? 'is-error' : 'is-running');
+      if (msg) statusText.textContent = msg;
+      else statusText.textContent = state === 'ok' ? t('ui.labs.actionDone') : state === 'error' ? t('ui.labs.actionFail') : t('ui.labs.actionRunning');
+    }
+    function addAction(label, onClick, primary) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = primary ? 'btn-primary' : 'btn-ghost';
+      b.style.cssText = 'padding:6px 14px;font-size:12px';
+      b.textContent = label;
+      b.addEventListener('click', onClick);
+      extraWrap.appendChild(b);
+      return b;
+    }
+
+    return {
+      setText: function (txt) { pre.textContent = txt; pre.scrollTop = pre.scrollHeight; },
+      setState: setState,
+      addAction: addAction,
+      close: function () { overlay.remove(); }
+    };
   }
 
   function runLabAction(action, labName, relPath, btn) {
@@ -1129,7 +1197,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.confirm(t(confirmKey, { lab: labName }))) return;
 
     const titleKey = action === 'destroy' ? 'ui.labs.destroyTitle' : 'ui.labs.deployTitle';
-    const out = showOutputModal(t(titleKey, { lab: labName }), t('ui.labs.actionRunning'));
+    const runningKey = action === 'destroy' ? 'ui.labs.destroyRunning' : 'ui.labs.deployRunning';
+    const out = showOutputModal(t(titleKey, { lab: labName }), {
+      subtitle: labName + ' / ' + relPath,
+      statusText: t(runningKey),
+      initialText: '$ containerlab ' + action + ' -t ' + relPath + '\n\n' + t('ui.labs.actionRunning')
+    });
 
     if (btn instanceof HTMLButtonElement) { btn.disabled = true; btn.classList.add('btn-disabled'); }
     setBodyLoading(true);
@@ -1152,20 +1225,27 @@ document.addEventListener('DOMContentLoaded', function () {
       if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
       let resp = null;
       try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) {
+        out.setState('error');
         out.setText(t('msg.parseError') + '\n\n' + (xhr.responseText || ''));
         return;
       }
       const log = [resp.stdout || '', resp.stderr || ''].filter(Boolean).join('\n');
       out.setText(log || resp.message || '');
       if (resp.success) {
+        out.setState('ok', resp.message || t('ui.labs.actionDone'));
+        if (action === 'deploy') {
+          out.addAction(t('ui.labs.viewStatusBtn'), function () { out.close(); openLabStatus(labName, relPath, null); }, true);
+        }
         showMessage('success', resp.message || t('ui.labs.actionDone'));
       } else {
+        out.setState('error', resp.message || t('ui.labs.actionFail'));
         showMessage('error', resp.message || t('ui.labs.actionFail'));
       }
     };
     xhr.onerror = function () {
       setBodyLoading(false);
       if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      out.setState('error');
       out.setText(t('msg.networkError'));
       showMessage('error', t('msg.networkError'));
     };
@@ -1218,10 +1298,11 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function viewNodeLogs(container) {
-    const out = showOutputModal(t('ui.labs.logsTitle', { node: container }), t('ui.labs.actionRunning'));
+    const out = showOutputModal(t('ui.labs.logsTitle', { node: container }), { subtitle: container });
     nodeRequest('node/logs', container).then(function (resp) {
+      out.setState(resp.success === false ? 'error' : 'ok');
       out.setText(resp.logs || resp.message || '(vazio)');
-    }).catch(function () { out.setText(t('msg.networkError')); });
+    }).catch(function () { out.setState('error'); out.setText(t('msg.networkError')); });
   }
 
   function execNodeCommand(container) {
@@ -1229,10 +1310,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (command === null) return;
     const cmd = (command || '').trim();
     if (!cmd) return;
-    const out = showOutputModal(t('ui.labs.execTitle', { node: container }), '$ ' + cmd + '\n\n' + t('ui.labs.actionRunning'));
+    const out = showOutputModal(t('ui.labs.execTitle', { node: container }), { subtitle: container, initialText: '$ ' + cmd + '\n\n' + t('ui.labs.actionRunning') });
     nodeRequest('node/exec', container, { command: cmd }).then(function (resp) {
+      out.setState(resp.success === false ? 'error' : 'ok');
       out.setText('$ ' + cmd + '\n\n' + (resp.output || resp.message || ''));
-    }).catch(function () { out.setText(t('msg.networkError')); });
+    }).catch(function () { out.setState('error'); out.setText('$ ' + cmd + '\n\n' + t('msg.networkError')); });
   }
 
   function openLabStatus(labName, relPath, btn) {

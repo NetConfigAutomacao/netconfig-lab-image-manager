@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.4
+
+- Integração ContainerLab (issue #7): tela de deploy/destroy repaginada — header com subtítulo (lab/arquivo), linha de status (spinner → ✓/✗ colorido), log estilo terminal, botão "Copiar log" e atalho "Ver status" após deploy bem-sucedido. Mesma tela usada por logs/exec/status com estado visual.
+
 ## 2.2.3
 
 - Correção: chamadas SSH podiam "carregar para sempre" quando o host remoto estava lento/inacessível. Adicionado `ConnectTimeout=15` + keepalive (`ServerAliveInterval/CountMax`) a todas as chamadas SSH e tetos de tempo por operação (leituras 45s, exec 60s, deploy/destroy 600s). Conexões mortas agora falham rápido em vez de pendurar a interface.

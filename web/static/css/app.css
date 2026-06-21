@@ -234,6 +234,9 @@ button:disabled, .btn-disabled { opacity: .55; cursor: not-allowed; filter: gray
 .sync-step.done { color: var(--text-2); }
 .sync-step.done .sync-dot { border-color: var(--green); background: var(--green); }
 .sync-step.done .sync-dot::after { content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #04210f; font-weight: 700; }
+.sync-step.failed { color: #f3b4c0; }
+.sync-step.failed .sync-dot { border-color: var(--danger); background: var(--danger); }
+.sync-step.failed .sync-dot::after { content: "!"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #2a1018; font-weight: 800; }
 
 /* ============================= GATE ============================= */
 .gate { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 26px; }

@@ -24,7 +24,7 @@
 (function () {
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const W = 1000;
-  const H = 460;
+  const H = 520;
 
   function t(key, vars) {
     const app = window.NetConfigApp || {};
@@ -95,19 +95,23 @@
     return { nodes: nodes, links: links };
   }
 
-  function autoLayout(nodes) {
+  function autoLayout(nodes, force) {
     const n = nodes.length;
-    const cx = W / 2, cy = H / 2;
-    const R = Math.max(120, Math.min(W, H) / 2 - 110);
+    if (!n) return;
+    // Mantém posições salvas (graph-posX/Y) a menos que seja re-layout forçado.
+    const hasSaved = nodes.some(function (nd) { return nd.x || nd.y; });
+    if (hasSaved && !force) return;
+
+    // Grade que preenche o canvas: mais colunas porque a área é larga.
+    const cols = Math.max(1, Math.round(Math.sqrt(n * (W / H))));
+    const rows = Math.ceil(n / cols);
+    const cellW = W / cols;
+    const cellH = H / rows;
     nodes.forEach(function (node, i) {
-      if (node.x && node.y) return;
-      if (n === 1) { node.x = cx; node.y = cy; }
-      else if (n === 2) { node.x = cx + (i === 0 ? -R : R); node.y = cy; }
-      else {
-        const a = (2 * Math.PI * i) / n - Math.PI / 2;
-        node.x = cx + R * Math.cos(a);
-        node.y = cy + R * Math.sin(a);
-      }
+      const c = i % cols;
+      const r = Math.floor(i / cols);
+      node.x = cellW * (c + 0.5);
+      node.y = cellH * (r + 0.5);
     });
   }
 
@@ -190,6 +194,17 @@
       linkBtn.classList.toggle('active', self.linkMode);
       linkBtn.style.background = self.linkMode ? 'var(--surface-hover)' : '';
     });
+    const tidyBtn = document.createElement('button');
+    tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    tidyBtn.textContent = t('ui.topo.tidyBtn');
+    tidyBtn.addEventListener('click', function () {
+      autoLayout(self.state.nodes, true);
+      self.state.nodes.forEach(function (node) {
+        const el = self.nodeEls[node.name];
+        if (el) { el.style.left = self.pctX(node.x); el.style.top = self.pctY(node.y); }
+      });
+      self.redrawEdges();
+    });
     const counter = document.createElement('span');
     counter.className = 'topo-counter';
     counter.textContent = t('ui.topo.counter', { nodes: self.state.nodes.length, links: self.state.links.length });
@@ -200,6 +215,7 @@
 
     bar.appendChild(addBtn);
     bar.appendChild(linkBtn);
+    bar.appendChild(tidyBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
     bar.appendChild(saveBtn);
@@ -211,7 +227,7 @@
     canvas.className = 'topo-canvas';
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('preserveAspectRatio', 'none');
     svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
     canvas.appendChild(svg);
     self.canvas = canvas;

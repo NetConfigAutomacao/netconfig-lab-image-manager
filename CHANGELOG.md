@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.1
+
+- Editor de topologia (issue #7): auto-layout trocado de círculo (amontoava) para **grade** que preenche o canvas — sem sobreposição mesmo com muitos nós. Arestas agora alinham exatamente aos nós (`preserveAspectRatio=none`). Novo botão "Reorganizar" e canvas mais alto.
+
 ## 2.2.0
 
 - Integração ContainerLab (issue #7) — entrega 6 (editor de topologia nativo inline):

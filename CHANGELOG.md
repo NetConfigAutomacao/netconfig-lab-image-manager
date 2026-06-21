@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.7.0
+
+- Visual Lab Manager (issue #43) — P5: robustez.
+  - Undo/redo no editor de topologia (histórico de até 50 passos; botões ↶/↷).
+  - Validação client-side antes de salvar (nó sem nome, nome duplicado, enlace para nó inexistente, self-link) com confirmação.
+  - Exportar a topologia como SVG.
+  - Rollback já coberto pelo backup .bak + botão Reverter (P1).
+
 ## 2.6.0
 
 - Visual Lab Manager (issue #43) — P4: runtime no canvas.

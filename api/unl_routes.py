@@ -15,18 +15,13 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 
-import requests
 from flask import Blueprint, jsonify, request
 
 from i18n import get_request_lang, translate
 from utils import run_ssh_command
-
-try:
-    requests.packages.urllib3.disable_warnings()  # type: ignore
-except Exception:
-    pass
 
 unl_bp = Blueprint("unl_bp", __name__, url_prefix="/unl")
 
@@ -52,64 +47,68 @@ def _creds():
     )
 
 
-def _unl_login(ip, user, pwd, timeout=8):
-    """Loga na API REST do UNetLab/EVE-NG. Tenta http e https.
-    Retorna (session, base_url) ou (None, None)."""
-    payload = {"username": user, "password": pwd, "html5": "-1"}
-    for scheme in ("http", "https"):
-        base = f"{scheme}://{ip}"
-        s = requests.Session()
-        try:
-            r = s.post(base + "/api/auth/login", json=payload, timeout=timeout, verify=False)
-            data = {}
-            try:
-                data = r.json() or {}
-            except ValueError:
-                data = {}
-            if r.ok and (data.get("status") == "success" or "unetlab_session" in s.cookies.get_dict()):
-                return s, base
-        except requests.RequestException:
-            continue
-    return None, None
-
-
 @unl_bp.route("/running", methods=["POST"])
 def unl_running():
-    """Testa a API REST do UNetLab: loga e busca o status dos nós de um lab.
-    Retorna logged_in + nodes [{id,name,status,running}] + raw p/ diagnóstico."""
+    """Status rodando/parado dos nós via SSH: nós EVE/PNETLab (qemu/iol/dynamips)
+    rodam com o cwd dentro de /opt/unetlab/tmp/<tenant>/<lab_id>/<node_id>/.
+    Lemos o lab_id do .unl e contamos os node_id com processo ativo."""
     lang = get_request_lang()
     eve_ip, eve_user, eve_pass = _creds()
+    base = (request.form.get("base_dir") or UNL_BASE).strip() or UNL_BASE
     rel = (request.form.get("path") or "").strip()
     if not (eve_ip and eve_user and eve_pass):
         return jsonify(success=False, message=translate("unl.missing_creds", lang)), 400
+    if not _is_safe_unl_path(rel):
+        return jsonify(success=False, message=translate("unl.invalid_path", lang)), 400
 
-    sess, base = _unl_login(eve_ip, eve_user, eve_pass)
-    if not sess:
-        return jsonify(success=False, logged_in=False, message=translate("unl.api_login_fail", lang)), 200
-
-    # caminho do lab para a API: /api/labs/<rel>/nodes
-    lab_api = "/api/labs/" + "/".join([p for p in rel.split("/") if p])
+    # 1) lê o .unl → lab_id + mapa node_id→name
+    rc, out, err = run_ssh_command(
+        eve_ip, eve_user, eve_pass,
+        f"target='{base}/{rel}'; if [ ! -f \"$target\" ]; then echo '__NOT_FOUND__'; exit 44; fi; cat \"$target\"",
+        timeout=30,
+    )
+    if "__NOT_FOUND__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("unl.not_found", lang, path=rel)), 404
+    lab_id = ""
+    node_names = {}
     try:
-        r = sess.get(base + lab_api + "/nodes", timeout=8, verify=False)
-        raw = r.text[:4000]
-        data = {}
-        try:
-            data = r.json() or {}
-        except ValueError:
-            data = {}
-    except requests.RequestException as exc:
-        return jsonify(success=False, logged_in=True, message=translate("unl.api_nodes_fail", lang, error=str(exc)), base=base), 200
+        root = ET.fromstring(out or "")
+        lab_id = (root.get("id") or "").strip()
+        topo = root.find("topology") or root
+        nodes_el = topo.find("nodes")
+        if nodes_el is not None:
+            for node in nodes_el.findall("node"):
+                node_names[str(node.get("id") or "")] = node.get("name") or ("node" + str(node.get("id") or ""))
+    except ET.ParseError:
+        pass
+
+    if not re.match(r"^[A-Za-z0-9-]+$", lab_id or ""):
+        return jsonify(success=False, message=translate("unl.no_lab_id", lang)), 200
+
+    # 2) node_ids rodando = segmentos após /<lab_id>/ no cwd de processos
+    probe = (
+        "for d in /proc/[0-9]*/cwd; do readlink \"$d\" 2>/dev/null; done "
+        f"| grep -oE '/{lab_id}/[0-9]+' | grep -oE '[0-9]+$' | sort -u"
+    )
+    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, probe, timeout=30)
+    running_ids = set(ln.strip() for ln in (out2 or "").splitlines() if ln.strip())
 
     nodes = []
-    node_map = data.get("data") if isinstance(data.get("data"), dict) else {}
-    for nid, n in node_map.items():
-        n = n if isinstance(n, dict) else {}
-        status = n.get("status")
-        # EVE/UNL: status 2 = running (ligado); 0 = parado.
-        running = str(status) in ("2", "3") or str(status).lower() == "running"
-        nodes.append({"id": nid, "name": n.get("name") or ("node" + str(nid)), "status": status, "running": running})
+    for nid, name in node_names.items():
+        nodes.append({"id": nid, "name": name, "running": nid in running_ids})
+    # nós rodando que não estão no .unl (raro) também contam
+    extra = running_ids - set(node_names.keys())
+    for nid in extra:
+        nodes.append({"id": nid, "name": "node" + nid, "running": True})
 
-    return jsonify(success=True, logged_in=True, base=base, nodes=nodes, running_count=sum(1 for x in nodes if x["running"]), total=len(nodes), raw=raw), 200
+    return jsonify(
+        success=True,
+        nodes=nodes,
+        running_count=sum(1 for x in nodes if x["running"]),
+        total=len(node_names) or len(nodes),
+        lab_id=lab_id,
+        raw=(out2 or "").strip()[:2000],
+    ), 200
 
 
 @unl_bp.route("/labs", methods=["POST"])

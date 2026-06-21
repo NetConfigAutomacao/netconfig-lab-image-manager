@@ -140,6 +140,7 @@ TRANSLATIONS = {
         "unl.not_found": "Lab '{path}' não encontrado.",
         "unl.api_login_fail": "Falha no login da API do UNetLab (verifique IP/usuário/senha e se a API REST está acessível).",
         "unl.api_nodes_fail": "Falha ao consultar nós via API ({error}).",
+        "unl.no_lab_id": "Não foi possível ler o id do lab no .unl (status indisponível).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -265,6 +266,7 @@ TRANSLATIONS = {
         "unl.not_found": "Lab '{path}' not found.",
         "unl.api_login_fail": "UNetLab API login failed (check IP/user/password and that the REST API is reachable).",
         "unl.api_nodes_fail": "Failed to query nodes via API ({error}).",
+        "unl.no_lab_id": "Could not read the lab id from the .unl (status unavailable).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -390,6 +392,7 @@ TRANSLATIONS = {
         "unl.not_found": "Lab '{path}' no encontrado.",
         "unl.api_login_fail": "Fallo en el login de la API de UNetLab (verifica IP/usuario/contraseña y que la API REST esté accesible).",
         "unl.api_nodes_fail": "Fallo al consultar nodos vía API ({error}).",
+        "unl.no_lab_id": "No se pudo leer el id del lab en el .unl (estado no disponible).",
     },
 }
 

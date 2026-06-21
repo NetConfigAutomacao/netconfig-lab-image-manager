@@ -2,6 +2,11 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.17.0
+
+- Tela de credenciais: pressionar **Enter** em IP/usuário/senha agora dispara o login (e impede o submit acidental do formulário de upload).
+- Progresso de login passa a **refletir a realidade**: os passos não ficam mais verdes por timer. Em sucesso conectam e abrem o dashboard; em falha os passos ficam **vermelhos** (erro visível) e o formulário volta para nova tentativa.
+
 ## 2.16.3
 
 - Topologia UNL (issue #50): redes ponto-a-ponto do EVE (os nós "...iface_N", que são as interfaces dos equipamentos) agora colapsam em **enlace direto** entre os dois equipamentos, em vez de aparecerem como nós. Bridges/clouds reais (3+ conexões, ex.: "Net") continuam como nó.

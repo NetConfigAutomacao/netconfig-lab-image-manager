@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.12.0
+
+- ContainerLab (issue #52) — item 5: criar e clonar laboratórios.
+  - Botão **Novo lab**: cria diretório + `.clab.yml` inicial (`POST /container-labs/create-lab`) e abre pronto pra editar na topologia.
+  - Botão **Clonar** por lab: copia o lab para um novo nome (`POST /container-labs/clone-lab`).
+
 ## 2.11.0
 
 - ContainerLab (issue #52) — itens 3 e 11:

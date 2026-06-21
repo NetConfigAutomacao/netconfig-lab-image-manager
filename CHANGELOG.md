@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.20.0
+
+- ContainerLab full control (épico #67) — **P2: links ricos e rede de gerência** (#69).
+  - Painel de aresta (veth) ganha `type`, `mtu`, `vars` e `labels`; salva em forma estendida quando há atributos e mantém a forma curta quando não há.
+  - Botão **Links de host** gerencia links single-endpoint: `host`, `macvlan` (com `mode`), `vxlan`/`vxlan-stitch` (`remote`/`vni`/`udp-port`), `mgmt-net`, `dummy` — com `host-interface`, `mtu`, `vars`, `labels`. Preservados em ida-e-volta (não são mais perdidos no save).
+  - Botão **Rede de gerência** edita o bloco `mgmt:` do lab (network, ipv4-subnet, ipv6-subnet, bridge, mtu). IP de gerência por nó já disponível (mgmt-ipv4/ipv6).
+  - Save preserva comentários do YAML; i18n PT/EN/ES.
+
 ## 2.19.0
 
 - ContainerLab full control (épico #67) — **P1: editor de nó completo** (#68).

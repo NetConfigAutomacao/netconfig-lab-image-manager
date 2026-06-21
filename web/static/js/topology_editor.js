@@ -132,6 +132,90 @@
     });
   }
 
+  // P2 (#69): rede de gerência (doc-level `mgmt:`).
+  const MGMT_FIELDS = [
+    { id: 'network', path: ['network'], type: 'scalar', t: 'ui.topo.mgmtNetwork' },
+    { id: 'ipv4-subnet', path: ['ipv4-subnet'], type: 'scalar', t: 'ui.topo.mgmtV4' },
+    { id: 'ipv6-subnet', path: ['ipv6-subnet'], type: 'scalar', t: 'ui.topo.mgmtV6' },
+    { id: 'bridge', path: ['bridge'], type: 'scalar', t: 'ui.topo.mgmtBridge' },
+    { id: 'mtu', path: ['mtu'], type: 'scalar', t: 'ui.topo.mgmtMtu' }
+  ];
+  // Tipos de link single-endpoint (nó <-> host/cloud).
+  const SPECIAL_LINK_TYPES = ['mgmt-net', 'macvlan', 'host', 'vxlan', 'vxlan-stitch', 'dummy'];
+
+  function readMgmt(doc) {
+    const m = {};
+    const src = (doc && typeof doc.mgmt === 'object' && doc.mgmt) ? doc.mgmt : {};
+    MGMT_FIELDS.forEach(function (f) { if (src[f.id] !== undefined && src[f.id] !== null) m[f.id] = String(src[f.id]); });
+    return m;
+  }
+  function kvObj(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const m = {}; Object.keys(v).forEach(function (k) { m[k] = String(v[k]); }); return m;
+  }
+  // Divide topology.links em arestas nó-a-nó (grafo) e links especiais.
+  function parseClabLinks(topo) {
+    const edges = [];   // {source,target,sourceEp,targetEp,linkType,mtu,vars,labels,extra}
+    const special = []; // {type,node,iface,hostInterface,mode,remote,vni,udpPort,mtu,vars,labels}
+    const rawLinks = (topo && Array.isArray(topo.links)) ? topo.links : [];
+    function epParts(ep) {
+      if (typeof ep === 'string') { const s = ep.split(':'); return { node: s[0], iface: s[1] || '' }; }
+      if (ep && typeof ep === 'object') return { node: ep.node || '', iface: ep.interface || ep.iface || '' };
+      return { node: '', iface: '' };
+    }
+    rawLinks.forEach(function (l) {
+      if (!l || typeof l !== 'object') return;
+      const type = l.type || '';
+      const single = l.endpoint && !Array.isArray(l.endpoints);
+      const eps = Array.isArray(l.endpoints) ? l.endpoints : [];
+      if (single || (type && SPECIAL_LINK_TYPES.indexOf(type) !== -1 && eps.length < 2)) {
+        const e = epParts(l.endpoint || eps[0] || {});
+        special.push({
+          type: type || 'host', node: e.node, iface: e.iface,
+          hostInterface: l['host-interface'] || '', mode: l.mode || '',
+          remote: l.remote || '', vni: (l.vni != null ? String(l.vni) : ''),
+          udpPort: (l['udp-port'] != null ? String(l['udp-port']) : ''),
+          mtu: (l.mtu != null ? String(l.mtu) : ''), vars: kvObj(l.vars), labels: kvObj(l.labels)
+        });
+      } else if (eps.length >= 2) {
+        const a = epParts(eps[0]); const b = epParts(eps[1]);
+        edges.push({
+          source: a.node, target: b.node, sourceEp: a.iface, targetEp: b.iface,
+          linkType: type || '', mtu: (l.mtu != null ? String(l.mtu) : ''),
+          vars: kvObj(l.vars), labels: kvObj(l.labels), extra: null
+        });
+      }
+    });
+    return { edges: edges, special: special };
+  }
+  // Serializa uma aresta nó-a-nó: forma curta se sem atributos; estendida c/ atributos.
+  function vethToYaml(l) {
+    const sEp = l.sourceEp || 'eth1'; const tEp = l.targetEp || 'eth1';
+    const hasVars = l.vars && Object.keys(l.vars).length;
+    const hasLabels = l.labels && Object.keys(l.labels).length;
+    const extended = (l.linkType && l.linkType !== 'veth') || l.mtu || hasVars || hasLabels;
+    if (!extended) return { endpoints: [l.source + ':' + sEp, l.target + ':' + tEp] };
+    const o = { type: l.linkType || 'veth', endpoints: [{ node: l.source, interface: sEp }, { node: l.target, interface: tEp }] };
+    if (l.mtu) o.mtu = isNaN(Number(l.mtu)) ? l.mtu : Number(l.mtu);
+    if (hasVars) o.vars = l.vars;
+    if (hasLabels) o.labels = l.labels;
+    return o;
+  }
+  function specialToYaml(s) {
+    const o = { type: s.type || 'host', endpoint: { node: s.node, interface: s.iface || 'eth1' } };
+    if (s.hostInterface) o['host-interface'] = s.hostInterface;
+    if (s.type === 'macvlan' && s.mode) o.mode = s.mode;
+    if ((s.type === 'vxlan' || s.type === 'vxlan-stitch')) {
+      if (s.remote) o.remote = s.remote;
+      if (s.vni) o.vni = isNaN(Number(s.vni)) ? s.vni : Number(s.vni);
+      if (s.udpPort) o['udp-port'] = isNaN(Number(s.udpPort)) ? s.udpPort : Number(s.udpPort);
+    }
+    if (s.mtu) o.mtu = isNaN(Number(s.mtu)) ? s.mtu : Number(s.mtu);
+    if (s.vars && Object.keys(s.vars).length) o.vars = s.vars;
+    if (s.labels && Object.keys(s.labels).length) o.labels = s.labels;
+    return o;
+  }
+
   function postForm(url, fields) {
     return new Promise(function (resolve, reject) {
       const c = creds();
@@ -364,7 +448,111 @@
     this.linkSource = null;
     this.nodeEls = {};
     this.statusMap = {};        // nodeName -> { state, ipv4, container }
+    this.specialLinks = [];     // links single-endpoint (host/macvlan/vxlan/...)
+    this.mgmt = {};             // rede de gerência (doc-level)
   }
+
+  // Modal genérico (overlay + caixa), seguindo o padrão io-overlay/io-modal.
+  function buildModal(titleText) {
+    const overlay = document.createElement('div');
+    overlay.className = 'io-overlay';
+    const modal = document.createElement('div');
+    modal.className = 'io-modal'; modal.style.maxWidth = '640px';
+    const head = document.createElement('div'); head.className = 'io-head';
+    const h = document.createElement('div'); h.className = 'io-title'; h.textContent = titleText; head.appendChild(h);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+    head.appendChild(x);
+    const body = document.createElement('div'); body.className = 'io-body'; body.style.cssText = 'padding:14px;overflow:auto';
+    modal.appendChild(head); modal.appendChild(body); overlay.appendChild(modal);
+    function close() { overlay.remove(); }
+    x.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.body.appendChild(overlay);
+    return { box: modal, body: body, close: close };
+  }
+
+  // Rede de gerência (`mgmt:`).
+  TopologyEditor.prototype.openMgmtModal = function () {
+    const self = this;
+    if (!self.mgmt || typeof self.mgmt !== 'object') self.mgmt = {};
+    const m = buildModal(t('ui.topo.mgmtBtn'));
+    MGMT_FIELDS.forEach(function (f) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '8px';
+      const lab = document.createElement('label'); lab.textContent = t(f.t); w.appendChild(lab);
+      const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = self.mgmt[f.id] || '';
+      inp.addEventListener('change', function () {
+        const v = inp.value.trim();
+        if (v) self.mgmt[f.id] = v; else delete self.mgmt[f.id];
+        self.refreshYaml();
+      });
+      w.appendChild(inp); m.body.appendChild(w);
+    });
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '4px';
+    hint.textContent = t('ui.topo.mgmtHint'); m.body.appendChild(hint);
+  };
+
+  // Links especiais (single-endpoint): host/macvlan/vxlan/mgmt-net/dummy.
+  TopologyEditor.prototype.openHostLinksModal = function () {
+    const self = this;
+    if (!Array.isArray(self.specialLinks)) self.specialLinks = [];
+    const m = buildModal(t('ui.topo.hostLinksBtn'));
+    const list = document.createElement('div'); m.body.appendChild(list);
+
+    function fieldRow(parent, labelKey, value, onChange, opts) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '6px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      let inp;
+      if (opts && opts.options) {
+        inp = document.createElement('select'); inp.className = 'mono';
+        opts.options.forEach(function (o) { const op = document.createElement('option'); op.value = o; op.textContent = o; inp.appendChild(op); });
+        inp.value = value || opts.options[0];
+        inp.addEventListener('change', function () { onChange(inp.value); });
+      } else {
+        inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = value || '';
+        inp.addEventListener('change', function () { onChange(inp.value.trim()); });
+      }
+      w.appendChild(inp); parent.appendChild(w); return inp;
+    }
+    function nodeOptions() { return self.state.nodes.filter(function (n) { return !n.isHost; }).map(function (n) { return n.name; }); }
+
+    function renderList() {
+      list.innerHTML = '';
+      if (!self.specialLinks.length) {
+        const e = document.createElement('div'); e.className = 'hint'; e.textContent = t('ui.topo.hostLinksEmpty'); list.appendChild(e);
+      }
+      self.specialLinks.forEach(function (s, idx) {
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--border-2);border-radius:8px;padding:10px;margin-bottom:10px';
+        const grid = document.createElement('div'); grid.className = 'topo-panel-grid';
+        fieldRow(grid, 'ui.topo.fLinkType', s.type, function (v) { s.type = v; self.refreshYaml(); renderList(); }, { options: SPECIAL_LINK_TYPES });
+        const nopts = nodeOptions();
+        fieldRow(grid, 'ui.topo.hlNode', s.node, function (v) { s.node = v; self.refreshYaml(); }, nopts.length ? { options: nopts } : null);
+        fieldRow(grid, 'ui.topo.hlIface', s.iface, function (v) { s.iface = v; self.refreshYaml(); });
+        if (s.type !== 'dummy') fieldRow(grid, 'ui.topo.hlHostIface', s.hostInterface, function (v) { s.hostInterface = v; self.refreshYaml(); });
+        if (s.type === 'macvlan') fieldRow(grid, 'ui.topo.hlMode', s.mode, function (v) { s.mode = v; self.refreshYaml(); }, { options: ['bridge', 'vepa', 'private', 'passthru'] });
+        if (s.type === 'vxlan' || s.type === 'vxlan-stitch') {
+          fieldRow(grid, 'ui.topo.hlRemote', s.remote, function (v) { s.remote = v; self.refreshYaml(); });
+          fieldRow(grid, 'ui.topo.hlVni', s.vni, function (v) { s.vni = v; self.refreshYaml(); });
+          fieldRow(grid, 'ui.topo.hlUdp', s.udpPort, function (v) { s.udpPort = v; self.refreshYaml(); });
+        }
+        fieldRow(grid, 'ui.topo.fMtu', s.mtu, function (v) { s.mtu = v; self.refreshYaml(); });
+        card.appendChild(grid);
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'pill-action'; del.style.marginTop = '4px';
+        del.textContent = t('ui.topo.delLink');
+        del.addEventListener('click', function () { self.specialLinks.splice(idx, 1); self.refreshYaml(); renderList(); });
+        card.appendChild(del); list.appendChild(card);
+      });
+    }
+    renderList();
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'btn-ghost'; add.style.cssText = 'padding:5px 12px;font-size:12px';
+    add.textContent = t('ui.topo.hlAdd');
+    add.addEventListener('click', function () {
+      const first = nodeOptions()[0] || '';
+      self.specialLinks.push({ type: 'host', node: first, iface: 'eth1', hostInterface: '', mode: '', remote: '', vni: '', udpPort: '', mtu: '', vars: {}, labels: {} });
+      self.refreshYaml(); renderList();
+    });
+    m.body.appendChild(add);
+  };
 
   TopologyEditor.prototype.load = function () {
     const self = this;
@@ -409,6 +597,7 @@
       if (typeof self.baseDoc !== 'object' || !self.baseDoc) self.baseDoc = {};
       self.state = cytoToState(resp.elements || []);
       self.mergePropsFromDoc();
+      self.mergeLinkData();
       autoLayout(self.state.nodes);
       self.render();
     }).catch(function (e) {
@@ -433,6 +622,24 @@
       nd.props = readExtraProps(o);
       if (!nd.startupConfig && o['startup-config']) nd.startupConfig = String(o['startup-config']);
       if (!nd.mgmtIpv4 && o['mgmt-ipv4']) nd.mgmtIpv4 = String(o['mgmt-ipv4']);
+    });
+  };
+
+  // Enriquece arestas com atributos (type/mtu/vars/labels) e extrai os links
+  // especiais (single-endpoint) + a rede de gerência a partir do YAML cru. P2 (#69).
+  TopologyEditor.prototype.mergeLinkData = function () {
+    const topo = (this.baseDoc && typeof this.baseDoc.topology === 'object') ? this.baseDoc.topology : null;
+    const parsed = parseClabLinks(topo || {});
+    this.specialLinks = parsed.special;
+    this.mgmt = readMgmt(this.baseDoc || {});
+    // casa atributos de aresta por assinatura de endpoints (sem ordem).
+    const sig = function (s, se, t, te) { return [s + ':' + (se || ''), t + ':' + (te || '')].sort().join('|'); };
+    const byKey = {};
+    parsed.edges.forEach(function (e) { byKey[sig(e.source, e.sourceEp, e.target, e.targetEp)] = e; });
+    this.state.links.forEach(function (l) {
+      const m = byKey[sig(l.source, l.sourceEp, l.target, l.targetEp)];
+      if (m) { l.linkType = m.linkType || ''; l.mtu = m.mtu || ''; l.vars = m.vars || {}; l.labels = m.labels || {}; }
+      else { l.linkType = l.linkType || ''; l.mtu = l.mtu || ''; l.vars = l.vars || {}; l.labels = l.labels || {}; }
     });
   };
 
@@ -464,12 +671,15 @@
       base.labels = labels;
       nodes[nd.name] = base;
     });
-    const links = this.state.links.map(function (l) {
-      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
-    });
+    const links = this.state.links.map(vethToYaml)
+      .concat((this.specialLinks || []).map(specialToYaml));
     topo.nodes = nodes;
     topo.links = links;
     doc.topology = topo;
+    const mgmt = this.mgmt || {};
+    const mObj = {};
+    MGMT_FIELDS.forEach(function (f) { if (mgmt[f.id]) mObj[f.id] = mgmt[f.id]; });
+    if (Object.keys(mObj).length) doc.mgmt = Object.assign({}, doc.mgmt || {}, mObj);
     return doc;
   };
 
@@ -497,14 +707,13 @@
         props: readExtraProps(o)
       });
     });
-    const links = [];
-    const rawLinks = Array.isArray(topo.links) ? topo.links : [];
-    rawLinks.forEach(function (l) {
-      const eps = (l && Array.isArray(l.endpoints)) ? l.endpoints : [];
-      if (eps.length < 2) return;
-      const a = String(eps[0]).split(':'); const b = String(eps[1]).split(':');
-      links.push({ source: a[0], target: b[0], sourceEp: a[1] || '', targetEp: b[1] || '', extra: l });
+    const parsed = parseClabLinks(topo);
+    const links = parsed.edges.map(function (e) {
+      return { source: e.source, target: e.target, sourceEp: e.sourceEp, targetEp: e.targetEp,
+        linkType: e.linkType || '', mtu: e.mtu || '', vars: e.vars || {}, labels: e.labels || {}, extra: null };
     });
+    this.specialLinks = parsed.special;
+    this.mgmt = readMgmt(this.baseDoc || {});
     this.state = { nodes: nodes, links: links };
     autoLayout(this.state.nodes);
   };
@@ -545,11 +754,18 @@
       doc.setIn(base.concat(['labels', 'graph-posX']), String(Math.round(n.x)));
       doc.setIn(base.concat(['labels', 'graph-posY']), String(Math.round(n.y)));
     });
-    // links: regenerados (comentários de link não são preservados)
-    const links = this.state.links.map(function (l) {
-      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
+    // links: regenerados (comentários de link não são preservados).
+    // Arestas nó-a-nó + links especiais (single-endpoint) preservados.
+    const links = this.state.links.map(vethToYaml)
+      .concat((this.specialLinks || []).map(specialToYaml));
+    doc.setIn(['topology', 'links'], doc.createNode(links));
+    // rede de gerência (doc-level `mgmt:`)
+    const mgmt = this.mgmt || {};
+    MGMT_FIELDS.forEach(function (f) {
+      const v = mgmt[f.id];
+      if (v === undefined || v === '') { if (doc.hasIn(['mgmt'].concat(f.path))) doc.deleteIn(['mgmt'].concat(f.path)); }
+      else doc.setIn(['mgmt'].concat(f.path), v);
     });
-    doc.setIn(['topology', 'links'], links);
     try { return doc.toString(); } catch (e) { return null; }
   };
 
@@ -616,6 +832,15 @@
     expandBtn.title = t('ui.topo.expand'); expandBtn.textContent = '⛶';
     self.expandBtn = expandBtn;
     expandBtn.addEventListener('click', function () { self.setFullscreen(!self.isFullscreen); });
+
+    const mgmtBtn = document.createElement('button');
+    mgmtBtn.type = 'button'; mgmtBtn.className = 'btn-ghost'; mgmtBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    mgmtBtn.textContent = t('ui.topo.mgmtBtn');
+    mgmtBtn.addEventListener('click', function () { self.openMgmtModal(); });
+    const hostLinksBtn = document.createElement('button');
+    hostLinksBtn.type = 'button'; hostLinksBtn.className = 'btn-ghost'; hostLinksBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    hostLinksBtn.textContent = t('ui.topo.hostLinksBtn');
+    hostLinksBtn.addEventListener('click', function () { self.openHostLinksModal(); });
 
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
@@ -688,6 +913,8 @@
       bar.appendChild(linkBtn);
       bar.appendChild(undoBtn);
       bar.appendChild(redoBtn);
+      bar.appendChild(mgmtBtn);
+      bar.appendChild(hostLinksBtn);
       bar.appendChild(tidyBtn);
       bar.appendChild(statusBtn);
       bar.appendChild(validateBtn);
@@ -1101,6 +1328,40 @@
     grid.appendChild(epField('ui.topo.fEndpointA', l.source, l.sourceEp, function (v) { l.sourceEp = v; l.extra = null; }));
     grid.appendChild(epField('ui.topo.fEndpointB', l.target, l.targetEp, function (v) { l.targetEp = v; l.extra = null; }));
     panel.appendChild(grid);
+
+    // P2 (#69): atributos da aresta (veth) — tipo/mtu/vars/labels.
+    if (!l.vars || typeof l.vars !== 'object') l.vars = {};
+    if (!l.labels || typeof l.labels !== 'object') l.labels = {};
+    const lgrid = document.createElement('div'); lgrid.className = 'topo-panel-grid'; lgrid.style.marginTop = '6px';
+    const tw = document.createElement('div'); tw.className = 'field'; tw.style.marginBottom = '8px';
+    const tl = document.createElement('label'); tl.textContent = t('ui.topo.fLinkType'); tw.appendChild(tl);
+    const tsel = document.createElement('select'); tsel.className = 'mono';
+    ['veth'].forEach(function (k) { const o = document.createElement('option'); o.value = k; o.textContent = k; tsel.appendChild(o); });
+    tsel.value = l.linkType || 'veth';
+    tsel.addEventListener('change', function () { l.linkType = tsel.value; self.refreshYaml(); });
+    tw.appendChild(tsel); lgrid.appendChild(tw);
+    const mw = document.createElement('div'); mw.className = 'field'; mw.style.marginBottom = '8px';
+    const ml = document.createElement('label'); ml.textContent = t('ui.topo.fMtu'); mw.appendChild(ml);
+    const minp = document.createElement('input'); minp.type = 'text'; minp.className = 'mono'; minp.value = l.mtu || '';
+    minp.addEventListener('change', function () { l.mtu = minp.value.trim(); self.refreshYaml(); });
+    mw.appendChild(minp); lgrid.appendChild(mw);
+    function kvBox(labelKey, obj) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '8px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 2; ta.placeholder = 'KEY=value';
+      ta.value = Object.keys(obj).map(function (k) { return k + '=' + obj[k]; }).join('\n');
+      ta.addEventListener('change', function () {
+        Object.keys(obj).forEach(function (k) { delete obj[k]; });
+        ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean).forEach(function (ln) {
+          const i = ln.indexOf('='); if (i > 0) obj[ln.slice(0, i).trim()] = ln.slice(i + 1).trim();
+        });
+        self.refreshYaml();
+      });
+      w.appendChild(ta); return w;
+    }
+    lgrid.appendChild(kvBox('ui.topo.fLinkVars', l.vars));
+    lgrid.appendChild(kvBox('ui.topo.fLinkLabels', l.labels));
+    panel.appendChild(lgrid);
 
     // Impairments (netem) por endpoint.
     const netem = document.createElement('div');

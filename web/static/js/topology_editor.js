@@ -196,6 +196,7 @@
     this.linkMode = false;
     this.linkSource = null;
     this.nodeEls = {};
+    this.statusMap = {};        // nodeName -> { state, ipv4, container }
   }
 
   TopologyEditor.prototype.load = function () {
@@ -353,6 +354,11 @@
     const counter = document.createElement('span');
     counter.className = 'topo-counter';
     counter.textContent = t('ui.topo.counter', { nodes: self.state.nodes.length, links: self.state.links.length });
+    const statusBtn = document.createElement('button');
+    statusBtn.type = 'button'; statusBtn.className = 'btn-ghost'; statusBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    statusBtn.textContent = t('ui.topo.statusBtn');
+    statusBtn.addEventListener('click', function () { self.loadStatus(statusBtn); });
+
     const yamlBtn = document.createElement('button');
     yamlBtn.type = 'button'; yamlBtn.className = 'btn-ghost'; yamlBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     yamlBtn.textContent = t('ui.topo.yamlBtn');
@@ -377,6 +383,7 @@
     bar.appendChild(palette);
     bar.appendChild(linkBtn);
     bar.appendChild(tidyBtn);
+    bar.appendChild(statusBtn);
     bar.appendChild(yamlBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
@@ -481,9 +488,62 @@
     });
     card.appendChild(port);
 
+    const dot = document.createElement('span');
+    dot.className = 'topo-node-status';
+    card.appendChild(dot);
+
     self.attachNodeHandlers(card, node);
     self.canvas.appendChild(card);
     self.nodeEls[node.name] = card;
+    self.applyNodeStatus(node.name);
+  };
+
+  TopologyEditor.prototype.applyNodeStatus = function (name) {
+    const card = this.nodeEls[name];
+    if (!card) return;
+    const dot = card.querySelector('.topo-node-status');
+    if (!dot) return;
+    const st = this.statusMap[name];
+    card.classList.remove('is-running', 'is-stopped');
+    if (!st) { dot.style.display = 'none'; card.title = ''; return; }
+    dot.style.display = 'block';
+    const running = /run/i.test(st.state || '');
+    card.classList.add(running ? 'is-running' : 'is-stopped');
+    card.title = (st.state || '') + (st.ipv4 ? ' · ' + st.ipv4 : '');
+  };
+
+  TopologyEditor.prototype.nodeContainer = function (name) {
+    const st = this.statusMap[name];
+    return st ? st.container : '';
+  };
+
+  TopologyEditor.prototype.loadStatus = function (btn) {
+    const self = this;
+    if (!window.NetConfigLabs || !window.NetConfigLabs.inspect) { toast('error', t('ui.topo.statusFail')); return; }
+    if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    window.NetConfigLabs.inspect(self.lab, self.path).then(function (resp) {
+      const rows = (resp && resp.containers) || [];
+      const map = {};
+      self.state.nodes.forEach(function (nd) {
+        // casa pelo sufixo do nome do container (clab-<lab>-<node>) ou nome exato.
+        let match = null;
+        rows.forEach(function (r) {
+          const cn = (r.name || '').toString();
+          if (cn === nd.name || cn.endsWith('-' + nd.name) || cn.indexOf('-' + nd.name + '-') !== -1) match = r;
+        });
+        if (match) map[nd.name] = { state: match.state, ipv4: match.ipv4, container: match.name };
+      });
+      self.statusMap = map;
+      Object.keys(self.nodeEls).forEach(function (nm) { self.applyNodeStatus(nm); });
+      self.renderPanel();
+      const n = Object.keys(map).length;
+      if (n) toast('success', t('ui.topo.statusOk', { n: n }));
+      else toast('info', t('ui.topo.statusEmpty'));
+    }).catch(function () {
+      toast('error', t('ui.topo.statusFail'));
+    }).finally(function () {
+      if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+    });
   };
 
   // ---- Cabo: arrastar de um nó para outro ----
@@ -794,6 +854,26 @@
     }));
     grid.appendChild(field('ui.topo.fStartup', node.startupConfig, function (v) { node.startupConfig = v; }));
     panel.appendChild(grid);
+
+    // Ações de runtime (se houver status do nó via inspect).
+    const st = self.statusMap[node.name];
+    if (st && st.container) {
+      const acts = document.createElement('div');
+      acts.style.cssText = 'display:flex;gap:8px;align-items:center;margin:8px 0';
+      const info = document.createElement('span');
+      info.className = 'mono'; info.style.cssText = 'font-size:11px;color:var(--text-3)';
+      info.textContent = (st.state || '') + (st.ipv4 ? ' · ' + st.ipv4 : '');
+      const logsB = document.createElement('button');
+      logsB.type = 'button'; logsB.className = 'btn-ghost'; logsB.style.cssText = 'padding:4px 10px;font-size:11px';
+      logsB.textContent = t('ui.labs.logsBtn');
+      logsB.addEventListener('click', function () { if (window.NetConfigLabs) window.NetConfigLabs.viewNodeLogs(st.container); });
+      const execB = document.createElement('button');
+      execB.type = 'button'; execB.className = 'btn-ghost'; execB.style.cssText = 'padding:4px 10px;font-size:11px';
+      execB.textContent = t('ui.labs.execBtn');
+      execB.addEventListener('click', function () { if (window.NetConfigLabs) window.NetConfigLabs.execNodeCommand(st.container); });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB);
+      panel.appendChild(acts);
+    }
 
     const del = document.createElement('button');
     del.type = 'button'; del.className = 'pill-action'; del.style.cssText = 'margin-top:4px';

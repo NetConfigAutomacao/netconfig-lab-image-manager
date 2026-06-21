@@ -562,6 +562,11 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .topo-panel { margin-top: 10px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-3); border: 1px solid var(--border-2); }
 .topo-panel-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
 .topo-panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.topo-yaml { display: none; flex-direction: column; margin-top: 10px; border: 1px solid var(--border-2); border-radius: var(--radius-sm); overflow: hidden; }
+.topo-yaml-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--surface-3); border-bottom: 1px solid var(--border-2); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.topo-yaml-ta { width: 100%; min-height: 240px; resize: vertical; border: 0; background: var(--bg-2); color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 12px; outline: none; }
+.diff-add { color: #a7e9c0; display: block; }
+.diff-del { color: #f3b4c0; display: block; }
 
 /* ============================= IO / DEPLOY MODAL ============================= */
 .io-overlay { position: fixed; inset: 0; background: rgba(7, 11, 21, 0.72); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 18px; }

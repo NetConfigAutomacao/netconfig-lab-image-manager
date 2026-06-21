@@ -472,6 +472,7 @@ def save_lab_file():
         f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; "
         "target=\"$base/$lab/$file\"; "
         "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
+        "if [ -f \"$target\" ]; then cp -f \"$target\" \"$target.bak\" 2>/dev/null || true; fi; "
         f"echo '{b64_content}' | base64 -d > \"$target\""
     )
 

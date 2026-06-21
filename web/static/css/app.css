@@ -617,3 +617,10 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .topo-node.is-running .topo-node-status { background: var(--green); box-shadow: 0 0 0 3px rgba(62,196,109,.25); }
 .topo-node.is-stopped .topo-node-status { background: var(--text-3); }
 .topo-node.is-running { border-color: var(--green-bd); }
+
+/* Topology fullscreen + lab running badge */
+.topo-inline.topo-fullscreen, .lab-auto-topo.topo-fullscreen { position: fixed; inset: 16px; z-index: 60; margin: 0; overflow: auto; box-shadow: var(--shadow); background: var(--surface); }
+body.topo-fullscreen-lock { overflow: hidden; }
+.lab-run-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-3); white-space: nowrap; }
+.lab-run-badge.is-up { color: #a7e9c0; background: var(--green-bg); border-color: var(--green-bd); }
+.lab-run-badge.is-down { color: var(--text-3); background: var(--surface-3); }

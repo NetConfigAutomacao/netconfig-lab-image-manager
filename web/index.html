@@ -639,6 +639,10 @@
   <script src="/static/js/container_images.js"></script>
   <script src="/static/js/vendor/js-yaml.min.js"></script>
   <script src="/static/js/code_editor.js"></script>
+  <script type="module">
+    import * as YAMLLib from '/static/js/vendor/yaml.esm.js';
+    window.YAMLLib = YAMLLib;
+  </script>
   <script src="/static/js/topology_editor.js"></script>
   <script src="/static/js/container_labs.js"></script>
   <script src="/static/js/ishare2.js"></script>

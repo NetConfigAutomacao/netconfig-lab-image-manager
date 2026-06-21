@@ -206,17 +206,6 @@ document.addEventListener('DOMContentLoaded', function () {
           });
           actions.appendChild(topoBtn);
 
-          const topoFullBtn = document.createElement('button');
-          topoFullBtn.type = 'button';
-          topoFullBtn.className = 'btn-secondary';
-          topoFullBtn.style.padding = '3px 8px';
-          topoFullBtn.style.fontSize = '11px';
-          topoFullBtn.textContent = t('ui.topo.fullBtn');
-          topoFullBtn.addEventListener('click', function () {
-            openTopologyFromFile(lab, entry.path);
-          });
-          actions.appendChild(topoFullBtn);
-
           const deployBtn = document.createElement('button');
           deployBtn.type = 'button';
           deployBtn.className = 'btn-secondary';
@@ -1562,9 +1551,17 @@ document.addEventListener('DOMContentLoaded', function () {
         header.style.justifyContent = 'space-between';
         header.style.width = '100%';
 
+        const nameWrap = document.createElement('span');
+        nameWrap.style.cssText = 'display:flex;align-items:center;gap:8px;min-width:0';
         const name = document.createElement('span');
         name.className = 'vrnetlab-image-name';
         name.textContent = lab || t('ui.labs.unnamed');
+        const runBadge = document.createElement('span');
+        runBadge.className = 'lab-run-badge';
+        runBadge.dataset.lab = lab;
+        runBadge.textContent = t('ui.labs.badgeUnknown');
+        nameWrap.appendChild(name);
+        nameWrap.appendChild(runBadge);
 
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
@@ -1577,27 +1574,50 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleBtn.style.padding = '2px 8px';
         toggleBtn.title = t('ui.labs.expand');
 
-        header.appendChild(name);
+        header.appendChild(nameWrap);
         header.appendChild(toggleBtn);
+
+        const topoWrap = document.createElement('div');
+        topoWrap.className = 'lab-auto-topo';
 
         const filesWrap = document.createElement('div');
         filesWrap.style.marginTop = '6px';
         filesWrap.style.display = 'none';
         filesWrap.dataset.lab = lab;
 
+        // Abre a topologia automaticamente ao expandir o laboratório.
+        function autoOpenTopology() {
+          if (topoWrap.dataset.loaded === '1') return;
+          requestLabFiles(lab).then(function (files) {
+            const clab = (files || []).filter(function (f) {
+              return f.type === 'file' && /clab\.ya?ml$/i.test(f.path || '');
+            })[0];
+            if (!clab) return;
+            topoWrap.dataset.loaded = '1';
+            const labsDir = (dirInput && dirInput.value) ? dirInput.value.trim() : '';
+            if (window.NetConfigTopology) {
+              window.NetConfigTopology.mount(topoWrap, { lab: lab, path: clab.path, labsDir: labsDir });
+            }
+          }).catch(function () {});
+        }
+
         toggleBtn.addEventListener('click', function () {
           const isVisible = filesWrap.style.display !== 'none';
           if (isVisible) {
             filesWrap.style.display = 'none';
+            topoWrap.style.display = 'none';
             toggleBtn.textContent = '+';
           } else {
             filesWrap.style.display = 'block';
+            topoWrap.style.display = 'block';
             toggleBtn.textContent = '−';
+            autoOpenTopology();
             loadLabFiles(lab, filesWrap, toggleBtn, false);
           }
         });
 
         row.appendChild(header);
+        row.appendChild(topoWrap);
         row.appendChild(filesWrap);
         listEl.appendChild(row);
 
@@ -1605,6 +1625,48 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     countEl.textContent = t('ui.labs.count', { count: arr.length });
+    markRunningLabs();
+  }
+
+  // Marca cada lab como rodando/parado via containerlab inspect --all.
+  function markRunningLabs() {
+    const badges = listEl.querySelectorAll('.lab-run-badge');
+    if (!badges.length) return;
+    const creds = getCommonCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) return;
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip);
+    fd.append('eve_user', creds.eve_user);
+    fd.append('eve_pass', creds.eve_pass);
+    if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/container-labs/inspect', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      let resp = null;
+      try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
+      const running = {};
+      ((resp && resp.containers) || []).forEach(function (c) {
+        if (!/run/i.test(c.state || '')) return;
+        if (c.lab) running[String(c.lab).toLowerCase()] = true;
+        const p = c.labPath || '';
+        if (p) {
+          const parts = p.replace(/\\/g, '/').split('/').filter(Boolean);
+          if (parts.length >= 2) running[parts[parts.length - 2].toLowerCase()] = true;
+        }
+      });
+      badges.forEach(function (b) {
+        const lab = (b.dataset.lab || '').toLowerCase();
+        const isUp = !!running[lab];
+        b.classList.remove('is-up', 'is-down');
+        b.classList.add(isUp ? 'is-up' : 'is-down');
+        b.textContent = isUp ? t('ui.labs.badgeRunning') : t('ui.labs.badgeStopped');
+      });
+    };
+    xhr.onerror = function () {};
+    xhr.send(fd);
   }
 
   function requestLabs(options) {

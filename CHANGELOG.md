@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.14.0
+
+- ContainerLab (issue #52) — itens 8 e 9:
+  - **Validação** da topologia: botão "Validar" no editor combina checagem local + estrutural no backend (`POST /container-labs/validate`): nome, kind/imagem por nó, links referenciando nós existentes, endpoints duplicados.
+  - **Stats por nó**: botão Stats no painel do nó rodando mostra CPU/memória (`POST /container-labs/node/stats`, docker/podman).
+
 ## 2.13.0
 
 - ContainerLab (issue #52) — item 6: impairments por enlace (netem).

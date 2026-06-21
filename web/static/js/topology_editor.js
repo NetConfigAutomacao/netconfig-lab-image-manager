@@ -73,6 +73,12 @@
         if (data.topoViewerRole === 'group') return;
         const ed = data.extraData || {};
         const pos = el.position || {};
+        const labels = ed.labels || {};
+        const grp = (ed.group || labels['graph-group'] || labels['topoViewer-group'] || '').toString().trim();
+        let lvlRaw = labels['graph-level'];
+        if (lvlRaw === undefined) lvlRaw = labels['topoViewer-groupLevel'];
+        if (lvlRaw === undefined) lvlRaw = labels['graph-groupLevel'];
+        let lvl = parseInt(lvlRaw, 10);
         nodes.push({
           name: data.name || data.id,
           kind: ed.kind || '',
@@ -80,7 +86,9 @@
           type: ed.type || '',
           x: typeof pos.x === 'number' && pos.x ? pos.x : 0,
           y: typeof pos.y === 'number' && pos.y ? pos.y : 0,
-          labels: ed.labels || {}
+          group: grp,
+          level: isNaN(lvl) ? null : lvl,
+          labels: labels
         });
       } else if (el.group === 'edges') {
         links.push({
@@ -95,24 +103,55 @@
     return { nodes: nodes, links: links };
   }
 
-  function autoLayout(nodes, force) {
+  function gridLayout(nodes) {
     const n = nodes.length;
-    if (!n) return;
-    // Mantém posições salvas (graph-posX/Y) a menos que seja re-layout forçado.
-    const hasSaved = nodes.some(function (nd) { return nd.x || nd.y; });
-    if (hasSaved && !force) return;
-
-    // Grade que preenche o canvas: mais colunas porque a área é larga.
     const cols = Math.max(1, Math.round(Math.sqrt(n * (W / H))));
     const rows = Math.ceil(n / cols);
     const cellW = W / cols;
     const cellH = H / rows;
     nodes.forEach(function (node, i) {
-      const c = i % cols;
-      const r = Math.floor(i / cols);
-      node.x = cellW * (c + 0.5);
-      node.y = cellH * (r + 0.5);
+      node.x = cellW * (i % cols + 0.5);
+      node.y = cellH * (Math.floor(i / cols) + 0.5);
     });
+  }
+
+  // Layout em camadas a partir de group/level do YAML. Cada tier vira uma linha
+  // (ordenada por level numérico, ou pela ordem de aparição do grupo); dentro do
+  // tier os nós se espalham na horizontal. Retorna false se não houver grupos.
+  function layeredLayout(nodes) {
+    function keyOf(nd) { return nd.level != null ? ('L' + nd.level) : (nd.group || ''); }
+    if (!nodes.some(function (nd) { return nd.level != null || nd.group; })) return false;
+
+    const tiers = {};
+    const order = [];
+    nodes.forEach(function (nd) {
+      const k = keyOf(nd) || '__misc';
+      if (!tiers[k]) { tiers[k] = []; order.push(k); }
+      tiers[k].push(nd);
+    });
+    if (order.every(function (k) { return /^L\d+$/.test(k); })) {
+      order.sort(function (a, b) { return parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10); });
+    }
+    const rows = order.length;
+    const cellH = H / rows;
+    order.forEach(function (k, ri) {
+      const arr = tiers[k];
+      const cellW = W / arr.length;
+      arr.forEach(function (nd, ci) {
+        nd.x = cellW * (ci + 0.5);
+        nd.y = cellH * (ri + 0.5);
+      });
+    });
+    return true;
+  }
+
+  function autoLayout(nodes, force) {
+    if (!nodes.length) return;
+    // Mantém posições salvas (graph-posX/Y) a menos que seja re-layout forçado.
+    const hasSaved = nodes.some(function (nd) { return nd.x || nd.y; });
+    if (hasSaved && !force) return;
+    // Preferência: organizar por grupos do YAML; senão, grade.
+    if (!layeredLayout(nodes)) gridLayout(nodes);
   }
 
   function stateToElements(state) {

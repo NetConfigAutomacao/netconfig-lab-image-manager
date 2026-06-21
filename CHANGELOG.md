@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.18.1
+
+- EVE-NG/PNETLab (issue #50): detecção de status rodando/parado migrada da API REST para **SSH** (mais confiável, mesmo canal das outras operações).
+  - `POST /unl/running` agora lê o `lab_id` do `.unl` via SSH e conta os nós ativos pelo cwd dos processos (`/proc/*/cwd` apontando para `/<lab_id>/<node_id>/`, vale para qemu/iol/dynamips). Retorna nós + contagem + raw para diagnóstico.
+  - Removida a dependência `requests` no fluxo de status.
+
 ## 2.18.0
 
 - EVE-NG/PNETLab (issue #50): status rodando/parado via **API REST do UNetLab** (a testar contra host real).

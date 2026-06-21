@@ -26,6 +26,7 @@ def _install_flask_stub():
     def dummy_jsonify(*args, **kwargs):
         return {"args": args, "kwargs": kwargs}
 
+    flask_stub.Response = object
     flask_stub.Blueprint = DummyBlueprint
     flask_stub.jsonify = dummy_jsonify
     flask_stub.request = DummyRequest()

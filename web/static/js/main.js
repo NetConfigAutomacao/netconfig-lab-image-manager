@@ -53,6 +53,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function updateTabsForPlatform(platform) {
     const isContainerlab = !!(platform && platform.name === 'containerlab');
+    const isEve = !!(platform && (platform.name === 'eve-ng' || platform.name === 'pnetlab'));
+    const tabEveLabsBtn = document.querySelector('.tab-button[data-tab="eve-labs-tab"]');
+    const eveLabsTab = document.getElementById('eve-labs-tab');
+    setVisible(tabEveLabsBtn, isEve);
+    setVisible(eveLabsTab, isEve);
 
     // ContainerLab não tem (nativamente) os diretórios/fluxos de templates/ícones do EVE/PNETLab,
     // então escondemos essas abas para evitar confusão.

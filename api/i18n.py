@@ -134,6 +134,10 @@ TRANSLATIONS = {
         "container_labs.netem_fail": "Falha ao aplicar impairments (código {rc}).",
         "container_labs.stats_fail": "Falha ao obter stats do nó.",
         "container_labs.capture_fail": "Falha na captura (tcpdump indisponível no nó?).",
+        "unl.missing_creds": "Informe IP, usuário e senha do host EVE-NG/PNETLab.",
+        "unl.no_base": "Diretório /opt/unetlab/labs não encontrado no host.",
+        "unl.invalid_path": "Caminho de lab inválido.",
+        "unl.not_found": "Lab '{path}' não encontrado.",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -253,6 +257,10 @@ TRANSLATIONS = {
         "container_labs.netem_fail": "Failed to apply impairments (exit code {rc}).",
         "container_labs.stats_fail": "Failed to get node stats.",
         "container_labs.capture_fail": "Capture failed (tcpdump missing in the node?).",
+        "unl.missing_creds": "Provide IP, user and password for the EVE-NG/PNETLab host.",
+        "unl.no_base": "Directory /opt/unetlab/labs not found on the host.",
+        "unl.invalid_path": "Invalid lab path.",
+        "unl.not_found": "Lab '{path}' not found.",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -372,6 +380,10 @@ TRANSLATIONS = {
         "container_labs.netem_fail": "Fallo al aplicar impairments (código {rc}).",
         "container_labs.stats_fail": "Fallo al obtener stats del nodo.",
         "container_labs.capture_fail": "Fallo en la captura (¿tcpdump no disponible en el nodo?).",
+        "unl.missing_creds": "Indica IP, usuario y contraseña del host EVE-NG/PNETLab.",
+        "unl.no_base": "Directorio /opt/unetlab/labs no encontrado en el host.",
+        "unl.invalid_path": "Ruta de lab inválida.",
+        "unl.not_found": "Lab '{path}' no encontrado.",
     },
 }
 

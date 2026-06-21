@@ -201,17 +201,102 @@
     self.target.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.topo.loading') + '</span></div>';
     const fields = { lab_name: self.lab, path: self.path };
     if (self.labsDir) fields.labs_dir = self.labsDir;
-    postForm('/api/container-labs/topoviewer/cyto', fields).then(function (resp) {
+    Promise.all([
+      postForm('/api/container-labs/topoviewer/cyto', fields),
+      postForm('/api/container-labs/file', fields).catch(function () { return null; })
+    ]).then(function (res) {
+      const resp = res[0];
+      const fileResp = res[1];
       if (!resp || resp.success === false) {
         self.target.innerHTML = '<div class="empty-state">' + (resp && resp.message ? resp.message : t('ui.topo.loadFail')) + '</div>';
         return;
       }
+      // YAML cru para preservar campos fora do grafo no save.
+      self.baseYaml = (fileResp && fileResp.content) || '';
+      try { self.baseDoc = (window.jsyaml ? window.jsyaml.load(self.baseYaml) : null) || {}; } catch (e) { self.baseDoc = {}; }
+      if (typeof self.baseDoc !== 'object' || !self.baseDoc) self.baseDoc = {};
       self.state = cytoToState(resp.elements || []);
       autoLayout(self.state.nodes);
       self.render();
     }).catch(function () {
       self.target.innerHTML = '<div class="empty-state">' + t('ui.topo.loadFail') + '</div>';
     });
+  };
+
+  // Constrói o doc ContainerLab a partir do baseDoc (preservado) + grafo atual.
+  TopologyEditor.prototype.buildDoc = function () {
+    const doc = JSON.parse(JSON.stringify(this.baseDoc || {}));
+    const topo = (doc.topology && typeof doc.topology === 'object') ? doc.topology : {};
+    let existing = topo.nodes;
+    if (Array.isArray(existing)) {
+      const m = {};
+      existing.forEach(function (it, i) { if (it && typeof it === 'object') m[it.name || ('node-' + (i + 1))] = it; });
+      existing = m;
+    }
+    if (!existing || typeof existing !== 'object') existing = {};
+    const nodes = {};
+    this.state.nodes.forEach(function (nd) {
+      const base = JSON.parse(JSON.stringify(existing[nd.name] || {}));
+      if (nd.kind) base.kind = nd.kind;
+      if (nd.image) base.image = nd.image;
+      if (nd.type) base.type = nd.type;
+      const labels = (base.labels && typeof base.labels === 'object') ? base.labels : {};
+      if (nd.labels) Object.keys(nd.labels).forEach(function (k) { labels[k] = nd.labels[k]; });
+      labels['graph-posX'] = String(Math.round(nd.x));
+      labels['graph-posY'] = String(Math.round(nd.y));
+      base.labels = labels;
+      nodes[nd.name] = base;
+    });
+    const links = this.state.links.map(function (l) {
+      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
+    });
+    topo.nodes = nodes;
+    topo.links = links;
+    doc.topology = topo;
+    return doc;
+  };
+
+  // Reconstrói o grafo a partir de um doc ContainerLab (YAML aplicado).
+  TopologyEditor.prototype.applyDoc = function (doc) {
+    this.baseDoc = (doc && typeof doc === 'object') ? doc : {};
+    const topo = (this.baseDoc.topology && typeof this.baseDoc.topology === 'object') ? this.baseDoc.topology : {};
+    let rawNodes = topo.nodes;
+    if (Array.isArray(rawNodes)) {
+      const m = {}; rawNodes.forEach(function (it, i) { if (it && typeof it === 'object') m[it.name || ('node-' + (i + 1))] = it; }); rawNodes = m;
+    }
+    if (!rawNodes || typeof rawNodes !== 'object') rawNodes = {};
+    const nodes = [];
+    Object.keys(rawNodes).forEach(function (name) {
+      const o = rawNodes[name] || {};
+      const labels = (o.labels && typeof o.labels === 'object') ? o.labels : {};
+      let x = parseFloat(labels['graph-posX']); let y = parseFloat(labels['graph-posY']);
+      let lvl = parseInt(labels['graph-level'], 10);
+      nodes.push({
+        name: name, kind: o.kind || '', image: o.image || '', type: o.type || '',
+        x: isNaN(x) ? 0 : x, y: isNaN(y) ? 0 : y,
+        group: (o.group || labels['graph-group'] || '').toString().trim(),
+        level: isNaN(lvl) ? null : lvl, labels: labels
+      });
+    });
+    const links = [];
+    const rawLinks = Array.isArray(topo.links) ? topo.links : [];
+    rawLinks.forEach(function (l) {
+      const eps = (l && Array.isArray(l.endpoints)) ? l.endpoints : [];
+      if (eps.length < 2) return;
+      const a = String(eps[0]).split(':'); const b = String(eps[1]).split(':');
+      links.push({ source: a[0], target: b[0], sourceEp: a[1] || '', targetEp: b[1] || '', extra: l });
+    });
+    this.state = { nodes: nodes, links: links };
+    autoLayout(this.state.nodes);
+  };
+
+  TopologyEditor.prototype.currentYaml = function () {
+    try { return window.jsyaml ? window.jsyaml.dump(this.buildDoc(), { lineWidth: -1, noRefs: true }) : ''; }
+    catch (e) { return '# ' + (e.message || 'dump error'); }
+  };
+
+  TopologyEditor.prototype.refreshYaml = function () {
+    if (this.yamlTa && !this.yamlDirty) this.yamlTa.value = this.currentYaml();
   };
 
   TopologyEditor.prototype.render = function () {
@@ -247,6 +332,17 @@
     const counter = document.createElement('span');
     counter.className = 'topo-counter';
     counter.textContent = t('ui.topo.counter', { nodes: self.state.nodes.length, links: self.state.links.length });
+    const yamlBtn = document.createElement('button');
+    yamlBtn.type = 'button'; yamlBtn.className = 'btn-ghost'; yamlBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    yamlBtn.textContent = t('ui.topo.yamlBtn');
+    yamlBtn.addEventListener('click', function () {
+      self.yamlOpen = !self.yamlOpen;
+      yamlBtn.classList.toggle('active', self.yamlOpen);
+      yamlBtn.style.background = self.yamlOpen ? 'var(--surface-hover)' : '';
+      if (self.yamlPanel) self.yamlPanel.style.display = self.yamlOpen ? 'flex' : 'none';
+      self.yamlDirty = false;
+      self.refreshYaml();
+    });
     const restoreBtn = document.createElement('button');
     restoreBtn.type = 'button'; restoreBtn.className = 'btn-ghost'; restoreBtn.style.cssText = 'padding:6px 12px;font-size:12px';
     restoreBtn.textContent = t('ui.topo.restoreBtn');
@@ -259,6 +355,7 @@
     bar.appendChild(addBtn);
     bar.appendChild(linkBtn);
     bar.appendChild(tidyBtn);
+    bar.appendChild(yamlBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
     bar.appendChild(restoreBtn);
@@ -282,6 +379,32 @@
     self.target.appendChild(canvas);
     self.redrawEdges();
 
+    // YAML split panel (toggle)
+    const yamlPanel = document.createElement('div');
+    yamlPanel.className = 'topo-yaml';
+    yamlPanel.style.display = self.yamlOpen ? 'flex' : 'none';
+    const yamlHead = document.createElement('div');
+    yamlHead.className = 'topo-yaml-head';
+    const yamlTitle = document.createElement('span');
+    yamlTitle.textContent = t('ui.topo.yamlTitle');
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button'; applyBtn.className = 'btn-ghost'; applyBtn.style.cssText = 'padding:4px 12px;font-size:12px';
+    applyBtn.textContent = t('ui.topo.yamlApply');
+    applyBtn.addEventListener('click', function () { self.applyYaml(); });
+    yamlHead.appendChild(yamlTitle);
+    yamlHead.appendChild(applyBtn);
+    const yamlTa = document.createElement('textarea');
+    yamlTa.className = 'topo-yaml-ta mono';
+    yamlTa.spellcheck = false;
+    yamlTa.addEventListener('input', function () { self.yamlDirty = true; });
+    yamlPanel.appendChild(yamlHead);
+    yamlPanel.appendChild(yamlTa);
+    self.target.appendChild(yamlPanel);
+    self.yamlPanel = yamlPanel;
+    self.yamlTa = yamlTa;
+    self.yamlDirty = false;
+    self.refreshYaml();
+
     // Prop panel
     const panel = document.createElement('div');
     panel.className = 'topo-panel';
@@ -289,6 +412,22 @@
     self.panel = panel;
     self.target.appendChild(panel);
     self.renderPanel();
+  };
+
+  TopologyEditor.prototype.applyYaml = function () {
+    const self = this;
+    if (!window.jsyaml) { toast('error', 'js-yaml indisponível'); return; }
+    let doc;
+    try { doc = window.jsyaml.load(self.yamlTa.value); }
+    catch (e) { toast('error', t('ui.topo.yamlInvalid', { err: e.message })); return; }
+    if (!doc || typeof doc !== 'object') { toast('error', t('ui.topo.yamlInvalid', { err: 'empty' })); return; }
+    self.applyDoc(doc);
+    self.yamlDirty = false;
+    self.selected = null; self.selectedLink = null;
+    self.render();
+    self.yamlOpen = true;
+    if (self.yamlPanel) self.yamlPanel.style.display = 'flex';
+    toast('success', t('ui.topo.yamlApplied'));
   };
 
   TopologyEditor.prototype.pctX = function (x) { return (x / W * 100) + '%'; };
@@ -428,6 +567,7 @@
       card.classList.remove('dragging');
       try { card.releasePointerCapture(e.pointerId); } catch (err) {}
       if (!moved) self.onNodeClick(node);
+      else self.refreshYaml();
     });
   };
 
@@ -494,6 +634,7 @@
 
   TopologyEditor.prototype.updateCounter = function () {
     if (this.counterEl) this.counterEl.textContent = t('ui.topo.counter', { nodes: this.state.nodes.length, links: this.state.links.length });
+    this.refreshYaml();
   };
 
   TopologyEditor.prototype.addNode = function () {
@@ -547,7 +688,7 @@
       lbl.textContent = t(labelKey, { node: node });
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'mono'; inp.value = value || '';
-      inp.addEventListener('change', function () { onChange(inp.value.trim()); });
+      inp.addEventListener('change', function () { onChange(inp.value.trim()); self.refreshYaml(); });
       wrap.appendChild(lbl); wrap.appendChild(inp);
       return wrap;
     }
@@ -591,7 +732,7 @@
       lbl.textContent = t(labelKey);
       const inp = document.createElement('input');
       inp.type = 'text'; inp.className = 'mono'; inp.value = value || '';
-      inp.addEventListener('change', function () { onChange(inp.value.trim()); });
+      inp.addEventListener('change', function () { onChange(inp.value.trim()); self.refreshYaml(); });
       wrap.appendChild(lbl); wrap.appendChild(inp);
       return wrap;
     }
@@ -634,12 +775,85 @@
   TopologyEditor.prototype.save = function (btn) {
     const self = this;
     if (!self.state.nodes.length) { toast('error', t('ui.topo.saveEmpty')); return; }
+    // Se o YAML foi editado à mão, aplica antes de salvar.
+    if (self.yamlOpen && self.yamlDirty) {
+      if (!window.confirm(t('ui.topo.yamlDirtyApply'))) return;
+      self.applyYaml();
+    }
+    const newYaml = self.currentYaml();
+    self.showDiffAndSave(newYaml, btn);
+  };
+
+  // Diff simples por linha (marcador +/-) entre o YAML original e o novo.
+  function simpleDiff(oldText, newText) {
+    const oldLines = (oldText || '').split('\n');
+    const newLines = (newText || '').split('\n');
+    const oldSet = {}; oldLines.forEach(function (l) { oldSet[l] = (oldSet[l] || 0) + 1; });
+    const newSet = {}; newLines.forEach(function (l) { newSet[l] = (newSet[l] || 0) + 1; });
+    const out = [];
+    newLines.forEach(function (l) { if (!oldSet[l]) out.push({ t: '+', l: l }); });
+    oldLines.forEach(function (l) { if (!newSet[l]) out.push({ t: '-', l: l }); });
+    return out;
+  }
+
+  TopologyEditor.prototype.showDiffAndSave = function (newYaml, btn) {
+    const self = this;
+    const diff = simpleDiff(self.baseYaml || '', newYaml);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'io-overlay';
+    const modal = document.createElement('div');
+    modal.className = 'io-modal';
+    const head = document.createElement('div');
+    head.className = 'io-head';
+    const h = document.createElement('div'); h.className = 'io-title'; h.textContent = t('ui.topo.diffTitle');
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+    x.addEventListener('click', function () { overlay.remove(); });
+    head.appendChild(h); head.appendChild(x);
+
+    const pre = document.createElement('pre');
+    pre.className = 'io-log';
+    if (!diff.length) {
+      pre.textContent = t('ui.topo.diffNone');
+    } else {
+      pre.innerHTML = diff.map(function (d) {
+        const cls = d.t === '+' ? 'diff-add' : 'diff-del';
+        const esc = d.l.replace(/[&<>]/g, function (c) { return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'; });
+        return '<span class="' + cls + '">' + d.t + ' ' + esc + '</span>';
+      }).join('\n');
+    }
+
+    const foot = document.createElement('div'); foot.className = 'io-foot';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn-ghost'; cancel.style.cssText = 'padding:6px 14px;font-size:12px'; cancel.textContent = t('ui.topo.diffCancel');
+    cancel.addEventListener('click', function () { overlay.remove(); });
+    const confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'btn-primary'; confirm.style.cssText = 'padding:6px 14px;font-size:12px'; confirm.textContent = t('ui.topo.diffConfirm');
+    confirm.addEventListener('click', function () {
+      overlay.remove();
+      self.writeYaml(newYaml, btn);
+    });
+    foot.appendChild(cancel); foot.appendChild(confirm);
+
+    modal.appendChild(head); modal.appendChild(pre); modal.appendChild(foot);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  };
+
+  TopologyEditor.prototype.writeYaml = function (newYaml, btn) {
+    const self = this;
     if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
-    const fields = { lab_name: self.lab, path: self.path, elements: JSON.stringify(stateToElements(self.state)) };
+    let b64;
+    try { b64 = btoa(unescape(encodeURIComponent(newYaml))); } catch (e) { b64 = btoa(newYaml); }
+    const fields = { lab_name: self.lab, path: self.path, content_b64: b64 };
     if (self.labsDir) fields.labs_dir = self.labsDir;
-    postForm('/api/container-labs/topoviewer/save', fields).then(function (resp) {
-      if (resp && resp.success) toast('success', resp.message || t('ui.topo.saved'));
-      else toast('error', (resp && resp.message) || t('ui.topo.saveFail'));
+    postForm('/api/container-labs/file/save', fields).then(function (resp) {
+      if (resp && resp.success) {
+        self.baseYaml = newYaml;
+        try { self.baseDoc = window.jsyaml ? (window.jsyaml.load(newYaml) || {}) : self.baseDoc; } catch (e) {}
+        toast('success', resp.message || t('ui.topo.saved'));
+      } else {
+        toast('error', (resp && resp.message) || t('ui.topo.saveFail'));
+      }
     }).catch(function () {
       toast('error', t('ui.topo.saveFail'));
     }).finally(function () {

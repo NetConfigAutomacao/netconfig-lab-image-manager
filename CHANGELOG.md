@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.4.0
+
+- Visual Lab Manager (issue #43) — P2: sync YAML↔grafo no editor de topologia.
+  - Botão "YAML" abre split view com o YAML do lab ao vivo (regenerado a cada mudança do grafo).
+  - "Aplicar do YAML" reconstrói o grafo a partir do YAML editado à mão (parse client com js-yaml).
+  - Save agora mostra **diff** (linhas +/-) antes de gravar e escreve via `/file/save` (com backup .bak), preservando campos fora do grafo (carregados do YAML cru).
+
 ## 2.3.0
 
 - Visual Lab Manager (issue #43) — P1: puxar cabo no editor de topologia.

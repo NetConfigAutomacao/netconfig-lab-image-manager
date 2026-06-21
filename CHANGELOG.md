@@ -2,6 +2,17 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.22.0
+
+- ContainerLab full control (épico #67) — **P4: inventário, geração e export** (#71).
+  - Novo botão **Gerar/Exportar** na topologia:
+    - **Inspecionar todos os labs** (`containerlab inspect --all`).
+    - **Exportar diagrama Mermaid** (`containerlab graph --mermaid`) com download `.mmd`.
+    - **Gerar topologia** CLOS/linear (`containerlab generate`, nós por camada), com preview e opção de salvar `.clab.yml` no diretório do lab.
+    - **Exportar inventário** Ansible e Nornir (lê os arquivos gerados no deploy).
+    - **Templates por fabricante**: adiciona nó já com kind+image (Nokia SR Linux/SROS, Arista cEOS/vEOS, Juniper cRPD/vMX, Cisco IOL/CSR, FRR, Linux).
+  - Endpoints `graph`, `generate`, `inventory` com entradas validadas; i18n PT/EN/ES.
+
 ## 2.21.0
 
 - ContainerLab full control (épico #67) — **P3: containerlab tools** (#70).

@@ -122,6 +122,8 @@ TRANSLATIONS = {
         "container_labs.no_backup": "Não há backup para restaurar.",
         "container_labs.restore_fail": "Falha ao restaurar backup (código {rc}).",
         "container_labs.restore_success": "Backup restaurado com sucesso.",
+        "container_labs.saveconfigs_ok": "Configurações dos nós salvas.",
+        "container_labs.saveconfigs_fail": "Falha ao salvar configurações (código {rc}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -229,6 +231,8 @@ TRANSLATIONS = {
         "container_labs.no_backup": "No backup to restore.",
         "container_labs.restore_fail": "Failed to restore backup (exit code {rc}).",
         "container_labs.restore_success": "Backup restored successfully.",
+        "container_labs.saveconfigs_ok": "Node configs saved.",
+        "container_labs.saveconfigs_fail": "Failed to save configs (exit code {rc}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -336,6 +340,8 @@ TRANSLATIONS = {
         "container_labs.no_backup": "No hay backup para restaurar.",
         "container_labs.restore_fail": "Fallo al restaurar el backup (código {rc}).",
         "container_labs.restore_success": "Backup restaurado con éxito.",
+        "container_labs.saveconfigs_ok": "Configuraciones de los nodos guardadas.",
+        "container_labs.saveconfigs_fail": "Fallo al guardar configuraciones (código {rc}).",
     },
 }
 

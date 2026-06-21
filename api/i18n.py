@@ -138,6 +138,8 @@ TRANSLATIONS = {
         "unl.no_base": "Diretório /opt/unetlab/labs não encontrado no host.",
         "unl.invalid_path": "Caminho de lab inválido.",
         "unl.not_found": "Lab '{path}' não encontrado.",
+        "unl.api_login_fail": "Falha no login da API do UNetLab (verifique IP/usuário/senha e se a API REST está acessível).",
+        "unl.api_nodes_fail": "Falha ao consultar nós via API ({error}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -261,6 +263,8 @@ TRANSLATIONS = {
         "unl.no_base": "Directory /opt/unetlab/labs not found on the host.",
         "unl.invalid_path": "Invalid lab path.",
         "unl.not_found": "Lab '{path}' not found.",
+        "unl.api_login_fail": "UNetLab API login failed (check IP/user/password and that the REST API is reachable).",
+        "unl.api_nodes_fail": "Failed to query nodes via API ({error}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -384,6 +388,8 @@ TRANSLATIONS = {
         "unl.no_base": "Directorio /opt/unetlab/labs no encontrado en el host.",
         "unl.invalid_path": "Ruta de lab inválida.",
         "unl.not_found": "Lab '{path}' no encontrado.",
+        "unl.api_login_fail": "Fallo en el login de la API de UNetLab (verifica IP/usuario/contraseña y que la API REST esté accesible).",
+        "unl.api_nodes_fail": "Fallo al consultar nodos vía API ({error}).",
     },
 }
 

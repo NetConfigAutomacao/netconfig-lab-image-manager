@@ -117,6 +117,17 @@ def run_ssh_stream(eve_ip: str, eve_user: str, eve_pass: str, command: str, on_l
     return proc.returncode if proc.returncode is not None else 0
 
 
+def run_ssh_binary(eve_ip: str, eve_user: str, eve_pass: str, command: str, timeout: int | None = 60):
+    """Executa SSH e retorna (returncode, stdout_bytes, stderr_text). Para
+    saída binária (ex.: pcap do tcpdump)."""
+    cmd = _ssh_base_cmd(eve_ip, eve_pass) + [f"{eve_user}@{eve_ip}", command]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        return 124, (exc.stdout or b""), "timeout"
+    return proc.returncode, (proc.stdout or b""), (proc.stderr or b"").decode("utf-8", "ignore")
+
+
 def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
     """
     Detecta se o host é EVE-NG, PNETLab ou ContainerLab lendo /etc/issue

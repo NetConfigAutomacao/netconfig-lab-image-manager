@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.15.0
+
+- ContainerLab (issue #52) — itens 7 e 2:
+  - **Captura de pacote** por nó: botão Capture (`POST /container-labs/node/capture`) roda tcpdump na interface do nó e baixa um `.pcap`.
+  - **Terminal** (pragmático): botão Terminal copia o comando `ssh ... docker exec -it <node> sh` pra colar num terminal (PTY web real fica como follow-up — ttyd/websocket).
+
 ## 2.14.0
 
 - ContainerLab (issue #52) — itens 8 e 9:

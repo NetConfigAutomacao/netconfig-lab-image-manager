@@ -22,7 +22,7 @@ from pathlib import Path
 import requests
 
 
-DEFAULT_VERSION = "2.10.0"
+DEFAULT_VERSION = "2.11.0"
 DEFAULT_GITHUB_REPO = "NetConfigAutomacao/netconfig-lab-image-manager"
 UPDATE_CACHE_TTL_SECONDS = 300
 _update_cache = {"checked_at": 0.0, "data": None}

@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.11.0
+
+- ContainerLab (issue #52) — itens 3 e 11:
+  - **Salvar configs** dos nós rodando: botão no editor → `containerlab save` (`POST /container-labs/save-configs`).
+  - **Histórico de backups**: cada save guarda também uma cópia com timestamp (`.bak.<ts>`); botão "Backups" lista as versões e permite restaurar uma específica (`/backups`, `/restore-backup`).
+  - Correção: geração de YAML preservando comentários agora cria `topology/nodes/labels` como mapas YAML válidos (corrige save em labs sem topologia/novos).
+
 ## 2.10.0
 
 - ContainerLab (issue #52) — itens 4 e 10:

@@ -221,7 +221,8 @@
       self.state = cytoToState(resp.elements || []);
       autoLayout(self.state.nodes);
       self.render();
-    }).catch(function () {
+    }).catch(function (e) {
+      try { console.error('[topology] load failed:', e && (e.stack || e.message || e)); } catch (_) {}
       self.target.innerHTML = '<div class="empty-state">' + t('ui.topo.loadFail') + '</div>';
     });
   };
@@ -305,8 +306,9 @@
     let doc;
     try { doc = YAML.parseDocument(this.baseYaml); } catch (e) { return null; }
     if (doc.errors && doc.errors.length) return null;
-    if (!doc.hasIn(['topology'])) doc.setIn(['topology'], {});
-    if (!doc.hasIn(['topology', 'nodes'])) doc.setIn(['topology', 'nodes'], {});
+    // Garante que topology e topology.nodes sejam mapas YAML válidos.
+    if (!YAML.isMap(doc.getIn(['topology']))) doc.setIn(['topology'], doc.createNode({}));
+    if (!YAML.isMap(doc.getIn(['topology', 'nodes']))) doc.setIn(['topology', 'nodes'], doc.createNode({}));
 
     const stateNames = {};
     this.state.nodes.forEach(function (n) { stateNames[n.name] = true; });
@@ -320,13 +322,14 @@
     // upsert nós preservando campos existentes
     this.state.nodes.forEach(function (n) {
       const base = ['topology', 'nodes', n.name];
-      if (!doc.hasIn(base)) doc.setIn(base, {});
+      if (!YAML.isMap(doc.getIn(base))) doc.setIn(base, doc.createNode({}));
       if (n.kind) doc.setIn(base.concat('kind'), n.kind);
       if (n.image) doc.setIn(base.concat('image'), n.image);
       if (n.type) doc.setIn(base.concat('type'), n.type);
       if (n.mgmtIpv4) doc.setIn(base.concat('mgmt-ipv4'), n.mgmtIpv4);
       if (n.group) doc.setIn(base.concat('group'), n.group);
       if (n.startupConfig) doc.setIn(base.concat('startup-config'), n.startupConfig);
+      if (!YAML.isMap(doc.getIn(base.concat('labels')))) doc.setIn(base.concat('labels'), doc.createNode({}));
       doc.setIn(base.concat(['labels', 'graph-posX']), String(Math.round(n.x)));
       doc.setIn(base.concat(['labels', 'graph-posY']), String(Math.round(n.y)));
     });
@@ -432,6 +435,14 @@
       self.yamlDirty = false;
       self.refreshYaml();
     });
+    const saveCfgBtn = document.createElement('button');
+    saveCfgBtn.type = 'button'; saveCfgBtn.className = 'btn-ghost'; saveCfgBtn.style.cssText = 'padding:6px 12px;font-size:12px';
+    saveCfgBtn.textContent = t('ui.topo.saveConfigs');
+    saveCfgBtn.addEventListener('click', function () { self.saveConfigs(saveCfgBtn); });
+    const backupsBtn = document.createElement('button');
+    backupsBtn.type = 'button'; backupsBtn.className = 'btn-ghost'; backupsBtn.style.cssText = 'padding:6px 12px;font-size:12px';
+    backupsBtn.textContent = t('ui.topo.backupsBtn');
+    backupsBtn.addEventListener('click', function () { self.showBackups(); });
     const restoreBtn = document.createElement('button');
     restoreBtn.type = 'button'; restoreBtn.className = 'btn-ghost'; restoreBtn.style.cssText = 'padding:6px 12px;font-size:12px';
     restoreBtn.textContent = t('ui.topo.restoreBtn');
@@ -453,6 +464,8 @@
     bar.appendChild(expandBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
+    bar.appendChild(saveCfgBtn);
+    bar.appendChild(backupsBtn);
     bar.appendChild(restoreBtn);
     bar.appendChild(saveBtn);
     self.target.appendChild(bar);
@@ -1145,6 +1158,59 @@
     a.href = url; a.download = (this.lab || 'topology') + '.svg';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
+
+  TopologyEditor.prototype.saveConfigs = function (btn) {
+    const self = this;
+    if (!window.confirm(t('ui.topo.saveConfigsConfirm'))) return;
+    if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    const fields = { lab_name: self.lab, path: self.path };
+    if (self.labsDir) fields.labs_dir = self.labsDir;
+    postForm('/api/container-labs/save-configs', fields).then(function (resp) {
+      if (resp && resp.success) toast('success', resp.message || t('ui.topo.saveConfigsOk'));
+      else toast('error', (resp && resp.message) || t('ui.topo.saveConfigsFail'));
+    }).catch(function () { toast('error', t('ui.topo.saveConfigsFail')); })
+      .finally(function () { if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); } });
+  };
+
+  TopologyEditor.prototype.showBackups = function () {
+    const self = this;
+    const fields = { lab_name: self.lab, path: self.path };
+    if (self.labsDir) fields.labs_dir = self.labsDir;
+    postForm('/api/container-labs/backups', fields).then(function (resp) {
+      const list = (resp && resp.backups) || [];
+      const overlay = document.createElement('div'); overlay.className = 'io-overlay';
+      const modal = document.createElement('div'); modal.className = 'io-modal'; modal.style.maxWidth = '560px';
+      const head = document.createElement('div'); head.className = 'io-head';
+      const h = document.createElement('div'); h.className = 'io-title'; h.textContent = t('ui.topo.backupsTitle');
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+      x.addEventListener('click', function () { overlay.remove(); });
+      head.appendChild(h); head.appendChild(x);
+      const body = document.createElement('div'); body.style.cssText = 'padding:14px 16px;overflow:auto;max-height:60vh';
+      if (!list.length) {
+        body.innerHTML = '<div class="empty-state">' + t('ui.topo.backupsEmpty') + '</div>';
+      } else {
+        list.forEach(function (name) {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border-2);border-radius:8px;margin-bottom:6px';
+          const nm = document.createElement('span'); nm.className = 'mono'; nm.style.fontSize = '12px'; nm.textContent = name;
+          const rb = document.createElement('button'); rb.type = 'button'; rb.className = 'btn-ghost'; rb.style.cssText = 'padding:4px 12px;font-size:12px'; rb.textContent = t('ui.topo.restoreBtn');
+          rb.addEventListener('click', function () {
+            if (!window.confirm(t('ui.topo.restoreConfirm'))) return;
+            const f2 = { lab_name: self.lab, path: self.path, backup: name };
+            if (self.labsDir) f2.labs_dir = self.labsDir;
+            postForm('/api/container-labs/restore-backup', f2).then(function (r2) {
+              if (r2 && r2.success) { toast('success', r2.message || t('ui.topo.restored')); overlay.remove(); self.load(); }
+              else toast('error', (r2 && r2.message) || t('ui.topo.restoreFail'));
+            }).catch(function () { toast('error', t('ui.topo.restoreFail')); });
+          });
+          row.appendChild(nm); row.appendChild(rb); body.appendChild(row);
+        });
+      }
+      modal.appendChild(head); modal.appendChild(body); overlay.appendChild(modal);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
+    }).catch(function () { toast('error', t('ui.topo.backupsFail')); });
   };
 
   TopologyEditor.prototype.restore = function (btn) {

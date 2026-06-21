@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.3
+
+- Correção: chamadas SSH podiam "carregar para sempre" quando o host remoto estava lento/inacessível. Adicionado `ConnectTimeout=15` + keepalive (`ServerAliveInterval/CountMax`) a todas as chamadas SSH e tetos de tempo por operação (leituras 45s, exec 60s, deploy/destroy 600s). Conexões mortas agora falham rápido em vez de pendurar a interface.
+
 ## 2.2.2
 
 - Editor de topologia (issue #7): auto-layout passa a usar **group/level do YAML** para organizar em camadas (ex.: spine no topo, leaf, client, telemetria embaixo). Lê `group` do node e labels `graph-level`/`graph-group`/`topoViewer-group`/`topoViewer-groupLevel`. Sem grupos, cai no layout em grade.

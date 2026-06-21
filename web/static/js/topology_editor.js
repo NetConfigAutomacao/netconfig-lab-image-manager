@@ -168,7 +168,60 @@
     });
   }
 
-  function autoLayout(nodes, force) {
+  // Layout force-directed (Fruchterman–Reingold simplificado) com repulsão
+  // de curto alcance pra evitar sobreposição de cards.
+  function forceLayout(nodes, links) {
+    const n = nodes.length;
+    if (!n) return;
+    const pad = 60;
+    const k = Math.sqrt(((W - 2 * pad) * (H - 2 * pad)) / n);
+    const minDist = 132;
+    const byName = {};
+    nodes.forEach(function (nd, i) {
+      // espalha inicial em grade pra evitar mínimos locais ruins
+      const cols = Math.ceil(Math.sqrt(n));
+      nd.x = pad + (i % cols + 0.5) * ((W - 2 * pad) / cols);
+      nd.y = pad + (Math.floor(i / cols) + 0.5) * ((H - 2 * pad) / Math.ceil(n / cols));
+      byName[nd.name] = nd;
+    });
+    const edges = (links || []).map(function (l) { return [byName[l.source], byName[l.target]]; })
+      .filter(function (e) { return e[0] && e[1]; });
+    let temp = W / 8;
+    for (let it = 0; it < 300; it++) {
+      const disp = nodes.map(function () { return { x: 0, y: 0 }; });
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
+          let d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          let rep = (k * k) / d;
+          if (d < minDist) rep += (minDist - d) * 6;
+          const ux = dx / d, uy = dy / d;
+          disp[i].x += ux * rep; disp[i].y += uy * rep;
+          disp[j].x -= ux * rep; disp[j].y -= uy * rep;
+        }
+      }
+      edges.forEach(function (e) {
+        const a = nodes.indexOf(e[0]), b = nodes.indexOf(e[1]);
+        let dx = nodes[a].x - nodes[b].x, dy = nodes[a].y - nodes[b].y;
+        let d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const att = (d * d) / k;
+        const ux = dx / d, uy = dy / d;
+        disp[a].x -= ux * att; disp[a].y -= uy * att;
+        disp[b].x += ux * att; disp[b].y += uy * att;
+      });
+      for (let i = 0; i < n; i++) {
+        let dl = Math.sqrt(disp[i].x * disp[i].x + disp[i].y * disp[i].y) || 0.01;
+        nodes[i].x += (disp[i].x / dl) * Math.min(dl, temp);
+        nodes[i].y += (disp[i].y / dl) * Math.min(dl, temp);
+        // mantém dentro do canvas (sem reescalar depois, pra não reencostar os nós)
+        nodes[i].x = Math.max(pad, Math.min(W - pad, nodes[i].x));
+        nodes[i].y = Math.max(pad, Math.min(H - pad, nodes[i].y));
+      }
+      temp *= 0.97;
+    }
+  }
+
+  function autoLayout(nodes, force, links) {
     if (!nodes.length) return;
     // Mantém posições salvas (graph-posX/Y) a menos que seja re-layout forçado.
     const hasSaved = nodes.some(function (nd) { return nd.x || nd.y; });
@@ -239,7 +292,7 @@
         self.baseYaml = '';
         self.baseDoc = {};
         self.state = cytoToState(resp.elements || []);
-        autoLayout(self.state.nodes);
+        forceLayout(self.state.nodes, self.state.links);
         self.render();
       }).catch(function (e) {
         try { console.error('[topology] unl load failed:', e && (e.stack || e.message || e)); } catch (_) {}
@@ -455,7 +508,9 @@
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     tidyBtn.textContent = t('ui.topo.tidyBtn');
     tidyBtn.addEventListener('click', function () {
-      autoLayout(self.state.nodes, true);
+      // UNL não tem grupos úteis → force-directed; clab usa grupos/grade.
+      if (self.mode === 'unl') forceLayout(self.state.nodes, self.state.links);
+      else autoLayout(self.state.nodes, true);
       self.state.nodes.forEach(function (node) {
         const el = self.nodeEls[node.name];
         if (el) { el.style.left = self.pctX(node.x); el.style.top = self.pctY(node.y); }

@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.3.0
+
+- Visual Lab Manager (issue #43) — P1: puxar cabo no editor de topologia.
+  - Handle de porta em cada nó: arraste de um nó até outro para criar um enlace.
+  - Interfaces auto-geradas por nó (prefixo detectado pelo kind, ex.: e1-1) e editáveis.
+  - Painel de enlace ao clicar: editar as duas interfaces e remover. Bloqueia self-link, avisa duplicado.
+  - Save agora faz backup (.bak) antes de sobrescrever; novo botão "Reverter" + endpoint `POST /container-labs/topoviewer/restore` para rollback.
+
 ## 2.2.4
 
 - Integração ContainerLab (issue #7): tela de deploy/destroy repaginada — header com subtítulo (lab/arquivo), linha de status (spinner → ✓/✗ colorido), log estilo terminal, botão "Copiar log" e atalho "Ver status" após deploy bem-sucedido. Mesma tela usada por logs/exec/status com estado visual.

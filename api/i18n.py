@@ -119,6 +119,9 @@ TRANSLATIONS = {
         "container_labs.logs_fail": "Falha ao obter logs do node (código {rc}).",
         "container_labs.exec_fail": "Falha ao executar comando no node (código {rc}).",
         "container_labs.save_invalid_payload": "Conteúdo do TopoViewer inválido — nada foi salvo.",
+        "container_labs.no_backup": "Não há backup para restaurar.",
+        "container_labs.restore_fail": "Falha ao restaurar backup (código {rc}).",
+        "container_labs.restore_success": "Backup restaurado com sucesso.",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -223,6 +226,9 @@ TRANSLATIONS = {
         "container_labs.logs_fail": "Failed to fetch node logs (exit code {rc}).",
         "container_labs.exec_fail": "Failed to run command on node (exit code {rc}).",
         "container_labs.save_invalid_payload": "Invalid TopoViewer payload — nothing was saved.",
+        "container_labs.no_backup": "No backup to restore.",
+        "container_labs.restore_fail": "Failed to restore backup (exit code {rc}).",
+        "container_labs.restore_success": "Backup restored successfully.",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -327,6 +333,9 @@ TRANSLATIONS = {
         "container_labs.logs_fail": "Fallo al obtener logs del nodo (código {rc}).",
         "container_labs.exec_fail": "Fallo al ejecutar el comando en el nodo (código {rc}).",
         "container_labs.save_invalid_payload": "Contenido de TopoViewer inválido — no se guardó nada.",
+        "container_labs.no_backup": "No hay backup para restaurar.",
+        "container_labs.restore_fail": "Fallo al restaurar el backup (código {rc}).",
+        "container_labs.restore_success": "Backup restaurado con éxito.",
     },
 }
 

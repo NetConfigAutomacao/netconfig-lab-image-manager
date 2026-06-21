@@ -547,6 +547,13 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
   cursor: grab; user-select: none; touch-action: none; z-index: 2;
 }
 .topo-node.dragging { cursor: grabbing; z-index: 3; }
+.topo-port {
+  position: absolute; right: -7px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent-from); border: 2px solid var(--surface);
+  cursor: crosshair; opacity: 0; transition: opacity .12s; touch-action: none; z-index: 4;
+}
+.topo-node:hover .topo-port { opacity: 1; }
 .topo-node.selected { border-color: var(--accent-from); box-shadow: 0 0 0 2px rgba(56, 189, 248, .3); }
 .topo-node.link-src { border-color: var(--green); box-shadow: 0 0 0 2px rgba(62, 196, 109, .35); }
 .topo-node-ico { color: var(--accent-from); display: inline-flex; }

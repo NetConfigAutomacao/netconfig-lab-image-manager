@@ -262,7 +262,7 @@ def list_container_labs():
         "done"
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_out = (out or "").strip()
     labs = []
 
@@ -323,7 +323,7 @@ def create_container_labs_dir():
 
     target_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
     cmd = f"mkdir -p '{target_dir}'"
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
 
     if rc != 0:
         return (
@@ -362,7 +362,7 @@ def list_lab_files():
         "find . -maxdepth 5 -mindepth 1 \\( -type d -printf 'DIR|%P\\n' \\) -o \\( -type f -printf 'FILE|%P\\n' \\)"
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_out = (out or "").strip()
     files = []
     for line in cleaned_out.splitlines():
@@ -430,7 +430,7 @@ def get_lab_file():
         "cat \"$target\""
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_out = (out or "")
     if "__FILE_NOT_FOUND__" in cleaned_out or rc == 44:
         return (
@@ -475,7 +475,7 @@ def save_lab_file():
         f"echo '{b64_content}' | base64 -d > \"$target\""
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_err = (err or "").strip()
 
     if "__MISSING_LAB_DIR__" in (out or "") or rc == 44:
@@ -525,7 +525,7 @@ def container_labs_topoviewer_cyto():
         "cat \"$target\""
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_out = out or ""
     if "__FILE_NOT_FOUND__" in cleaned_out or rc == 44:
         return (
@@ -574,7 +574,7 @@ def container_labs_topoviewer_env():
         "cat \"$target\""
     )
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     cleaned_out = out or ""
     if "__FILE_NOT_FOUND__" in cleaned_out or rc == 44:
         return (
@@ -724,7 +724,7 @@ def container_labs_topoviewer_save():
         f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
         "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; cat \"$target\""
     )
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, read_cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, read_cmd, timeout=45)
     if "__FILE_NOT_FOUND__" in (out or "") or rc == 44:
         return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
 
@@ -752,7 +752,7 @@ def container_labs_topoviewer_save():
         "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
         f"echo '{b64}' | base64 -d > \"$target\""
     )
-    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, write_cmd)
+    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, write_cmd, timeout=45)
     if "__MISSING_LAB_DIR__" in (out2 or "") or rc2 == 44:
         return jsonify(success=False, message=translate("container_labs.lab_missing", lang, name=lab_name)), 400
     if rc2 != 0:
@@ -782,7 +782,7 @@ def deploy_lab():
 
     action = "deploy --reconfigure" if reconfigure else "deploy"
     cmd = _topology_target_cmd(labs_dir, lab_name, rel_path, action)
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=600)
     combined = (out or "")
 
     if "__FILE_NOT_FOUND__" in combined or rc == 44:
@@ -816,7 +816,7 @@ def destroy_lab():
 
     action = "destroy --cleanup" if cleanup else "destroy"
     cmd = _topology_target_cmd(labs_dir, lab_name, rel_path, action)
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=600)
     combined = (out or "")
 
     if "__FILE_NOT_FOUND__" in combined or rc == 44:
@@ -892,7 +892,7 @@ def inspect_labs():
         "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
         + selector
     )
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
     combined = (out or "").strip()
 
     if "__FILE_NOT_FOUND__" in combined or rc == 44:
@@ -931,7 +931,7 @@ def node_logs():
     if not _is_safe_container_name(container):
         return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_logs_cmd(container, tail))
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_logs_cmd(container, tail), timeout=45)
     combined = (out or "")
     if "__NO_RUNTIME__" in combined or rc == 45:
         return jsonify(success=False, message=translate("container_labs.logs_fail", lang, rc=rc), logs=combined), 500
@@ -956,7 +956,7 @@ def node_exec():
     if not command:
         return jsonify(success=False, message=translate("container_labs.missing_command", lang)), 400
 
-    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_exec_cmd(container, command))
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_exec_cmd(container, command), timeout=60)
     combined = (out or "")
     if "__NO_RUNTIME__" in combined or rc == 45:
         return jsonify(success=False, message=translate("container_labs.exec_fail", lang, rc=rc), output=combined), 500

@@ -884,10 +884,13 @@ def _normalize_inspect(parsed) -> list:
     for item in candidates:
         if not isinstance(item, dict):
             continue
+        labels = item.get("Labels") if isinstance(item.get("Labels"), dict) else (item.get("labels") if isinstance(item.get("labels"), dict) else {})
+        lab_path = item.get("labPath") or item.get("lab_path") or labels.get("clab-topo-file") or ""
         rows.append(
             {
                 "name": item.get("name") or item.get("Names") or "",
-                "lab": item.get("lab_name") or item.get("labName") or item.get("Labels", {}).get("clab-topo-file", "") if isinstance(item.get("Labels"), dict) else item.get("lab_name") or "",
+                "lab": item.get("lab_name") or item.get("labName") or labels.get("containerlab") or "",
+                "labPath": lab_path,
                 "kind": item.get("kind") or item.get("Kind") or "",
                 "image": item.get("image") or item.get("Image") or "",
                 "state": item.get("state") or item.get("State") or item.get("status") or "",

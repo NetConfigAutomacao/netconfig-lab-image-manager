@@ -503,7 +503,7 @@ def save_lab_file():
         f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; "
         "target=\"$base/$lab/$file\"; "
         "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
-        "if [ -f \"$target\" ]; then cp -f \"$target\" \"$target.bak\" 2>/dev/null || true; fi; "
+        "if [ -f \"$target\" ]; then cp -f \"$target\" \"$target.bak\" 2>/dev/null || true; cp -f \"$target\" \"$target.bak.$(date +%s)\" 2>/dev/null || true; fi; "
         f"echo '{b64_content}' | base64 -d > \"$target\""
     )
 
@@ -783,7 +783,7 @@ def container_labs_topoviewer_save():
     write_cmd = (
         f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
         "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
-        "if [ -f \"$target\" ]; then cp -f \"$target\" \"$target.bak\" 2>/dev/null || true; fi; "
+        "if [ -f \"$target\" ]; then cp -f \"$target\" \"$target.bak\" 2>/dev/null || true; cp -f \"$target\" \"$target.bak.$(date +%s)\" 2>/dev/null || true; fi; "
         f"echo '{b64}' | base64 -d > \"$target\""
     )
     rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, write_cmd, timeout=45)
@@ -824,6 +824,91 @@ def container_labs_topoviewer_restore():
     if rc != 0:
         return jsonify(success=False, message=translate("container_labs.restore_fail", lang, rc=rc), stderr=(err or "").strip()), 500
 
+    return jsonify(success=True, message=translate("container_labs.restore_success", lang), content=out or ""), 200
+
+
+@container_labs_bp.route("/save-configs", methods=["POST"])
+def save_configs():
+    """Executa `containerlab save -t <topo>` (persiste configs dos nós)."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    cmd = (
+        f"target='{labs_dir}/{lab_name}/{rel_path}'; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+        "containerlab save -t \"$target\" 2>&1"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=180)
+    combined = out or ""
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.saveconfigs_fail", lang, rc=rc), output=combined), 500
+    return jsonify(success=True, message=translate("container_labs.saveconfigs_ok", lang), output=combined), 200
+
+
+@container_labs_bp.route("/backups", methods=["POST"])
+def list_backups():
+    """Lista os backups (.bak.*) de um arquivo de topologia."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    base = rel_path.rsplit("/", 1)[-1]
+    cmd = (
+        f"dir='{labs_dir}/{lab_name}'; cd \"$dir\" 2>/dev/null || exit 0; "
+        f"ls -1t '{base}'.bak '{base}'.bak.* 2>/dev/null"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=30)
+    files = [ln.strip() for ln in (out or "").splitlines() if ln.strip()]
+    return jsonify(success=True, backups=files), 200
+
+
+@container_labs_bp.route("/restore-backup", methods=["POST"])
+def restore_backup():
+    """Restaura um backup específico (.bak.<ts>) sobre o arquivo de topologia."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    backup = (request.form.get("backup") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    # backup deve ser <base>.bak ou <base>.bak.<digits>, sem path
+    base = rel_path.rsplit("/", 1)[-1]
+    if not re.match(r"^" + re.escape(base) + r"\.bak(\.[0-9]+)?$", backup or ""):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    sub = rel_path.rsplit("/", 1)[0] if "/" in rel_path else ""
+    dirpath = f"{labs_dir}/{lab_name}" + (f"/{sub}" if sub else "")
+    cmd = (
+        f"dir='{dirpath}'; b=\"$dir/{backup}\"; tgt='{labs_dir}/{lab_name}/{rel_path}'; "
+        "if [ ! -f \"$b\" ]; then echo '__NO_BACKUP__'; exit 44; fi; cp -f \"$b\" \"$tgt\" && cat \"$tgt\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=30)
+    if "__NO_BACKUP__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.no_backup", lang)), 404
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.restore_fail", lang, rc=rc)), 500
     return jsonify(success=True, message=translate("container_labs.restore_success", lang), content=out or ""), 200
 
 

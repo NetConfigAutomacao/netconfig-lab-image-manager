@@ -2,6 +2,16 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.24.0
+
+- ContainerLab full control (épico #67) — **P6: operação de produção** (#73). Conclui o épico.
+  - **Terminal web** real por nó via `containerlab tools gotty` — botão no painel do nó abre os URLs do gotty (ttyd-like).
+  - **Operações em massa**: botão "Operações em massa" na aba de labs — seleciona vários labs e roda deploy/deploy-reconfigure/destroy/destroy-cleanup/save com log ao vivo (job assíncrono `/bulk`).
+  - **startup-config por nó**: editar/salvar o arquivo de startup-config do nó direto no painel (aplicar ao nó rodando = redeploy).
+  - **Health watch**: botão "Monitorar" na topologia atualiza o status dos nós a cada 10s.
+  - **Multi-host**: já suportado — todas as chamadas levam IP/usuário/senha do host por requisição; troque o host na tela de credenciais.
+  - i18n PT/EN/ES.
+
 ## 2.23.0
 
 - ContainerLab full control (épico #67) — **P5: imagens e runtime** (#72).

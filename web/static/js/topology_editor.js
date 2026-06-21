@@ -562,6 +562,64 @@
     m.body.appendChild(ta);
   };
 
+  // Mostra a saída do gotty com os links http(s) clicáveis (terminal web). P6.
+  TopologyEditor.prototype.showTermLinks = function (output) {
+    const m = buildModal(t('ui.topo.webTermBtn'));
+    const urls = (output || '').match(/https?:\/\/[^\s"']+/g) || [];
+    if (urls.length) {
+      const ul = document.createElement('div'); ul.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:8px';
+      urls.forEach(function (u) {
+        const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = u;
+        a.className = 'mono'; a.style.cssText = 'font-size:12px;word-break:break-all';
+        ul.appendChild(a);
+      });
+      m.body.appendChild(ul);
+    } else {
+      const h = document.createElement('div'); h.className = 'hint'; h.textContent = t('ui.topo.webTermNoUrl'); m.body.appendChild(h);
+    }
+    const pre = document.createElement('pre'); pre.className = 'io-log'; pre.style.cssText = 'max-height:200px;overflow:auto;font-size:11px';
+    pre.textContent = output || ''; m.body.appendChild(pre);
+  };
+
+  // Edita o startup-config de um nó (arquivo no diretório do lab). P6.
+  TopologyEditor.prototype.editStartupConfig = function (relPath) {
+    const self = this;
+    const m = buildModal(t('ui.topo.editStartup') + ' — ' + relPath);
+    const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 18; ta.style.cssText = 'width:100%';
+    ta.value = t('ui.topo.toolsRunning'); m.body.appendChild(ta);
+    const bar = document.createElement('div'); bar.style.cssText = 'margin-top:8px;display:flex;gap:8px';
+    const save = document.createElement('button'); save.type = 'button'; save.className = 'btn-primary'; save.style.cssText = 'padding:5px 14px;font-size:12px';
+    save.textContent = t('ui.topo.editStartupSave'); save.disabled = true;
+    bar.appendChild(save); m.body.appendChild(bar);
+    postForm('/api/container-labs/file', { lab_name: self.lab, path: relPath, labs_dir: self.labsDir || '' }).then(function (r) {
+      if (r && r.success !== false && (r.content != null)) { ta.value = r.content; save.disabled = false; }
+      else { ta.value = (r && r.message) || t('ui.topo.genFail'); }
+    }).catch(function () { ta.value = t('ui.topo.genFail'); });
+    save.addEventListener('click', function () {
+      save.disabled = true;
+      postForm('/api/container-labs/file/save', { lab_name: self.lab, path: relPath, content: ta.value, labs_dir: self.labsDir || '' }).then(function (r) {
+        save.disabled = false;
+        if (r && r.success) { toast('success', t('ui.topo.editStartupOk')); m.close(); }
+        else toast('error', (r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { save.disabled = false; toast('error', t('ui.topo.genFail')); });
+    });
+  };
+
+  // Liga/desliga o monitoramento periódico de status (health watch). P6.
+  TopologyEditor.prototype.toggleHealthWatch = function (btn) {
+    const self = this;
+    if (self.healthTimer) {
+      clearInterval(self.healthTimer); self.healthTimer = null;
+      btn.classList.remove('active'); btn.style.background = '';
+      toast('info', t('ui.topo.healthOff'));
+      return;
+    }
+    self.loadStatus();
+    self.healthTimer = setInterval(function () { self.loadStatus(); }, 10000);
+    btn.classList.add('active'); btn.style.background = 'var(--surface-hover)';
+    toast('success', t('ui.topo.healthOn'));
+  };
+
   // P3 (#70): wrappers de `containerlab tools` (cert, veth, vxlan, sharing).
   TopologyEditor.prototype.openToolsModal = function () {
     const self = this;
@@ -1131,6 +1189,10 @@
     statusBtn.type = 'button'; statusBtn.className = 'btn-ghost'; statusBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     statusBtn.textContent = t('ui.topo.statusBtn');
     statusBtn.addEventListener('click', function () { self.loadStatus(statusBtn); });
+    const healthBtn = document.createElement('button');
+    healthBtn.type = 'button'; healthBtn.className = 'btn-ghost'; healthBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    healthBtn.textContent = t('ui.topo.healthBtn');
+    healthBtn.addEventListener('click', function () { self.toggleHealthWatch(healthBtn); });
 
     const validateBtn = document.createElement('button');
     validateBtn.type = 'button'; validateBtn.className = 'btn-ghost'; validateBtn.style.cssText = 'padding:5px 12px;font-size:12px';
@@ -1188,6 +1250,7 @@
       bar.appendChild(genBtn);
       bar.appendChild(tidyBtn);
       bar.appendChild(statusBtn);
+      bar.appendChild(healthBtn);
       bar.appendChild(validateBtn);
       bar.appendChild(yamlBtn);
       bar.appendChild(exportBtn);
@@ -1804,6 +1867,15 @@
     adv.appendChild(advGrid);
     panel.appendChild(adv);
 
+    // P6 (#73): editar o startup-config do nó (arquivo no diretório do lab).
+    if (node.startupConfig && self.mode !== 'unl' && self.lab) {
+      const scBtn = document.createElement('button');
+      scBtn.type = 'button'; scBtn.className = 'btn-ghost'; scBtn.style.cssText = 'margin-top:6px;padding:4px 12px;font-size:11px';
+      scBtn.textContent = t('ui.topo.editStartup');
+      scBtn.addEventListener('click', function () { self.editStartupConfig(node.startupConfig); });
+      panel.appendChild(scBtn);
+    }
+
     // Ações de runtime (se houver status do nó via inspect).
     const st = self.statusMap[node.name];
     if (st && st.container) {
@@ -1875,7 +1947,19 @@
           navigator.clipboard.writeText(cmd).then(function () { toast('success', t('ui.topo.termCopied')); }, function () { window.prompt(t('ui.topo.termCopy'), cmd); });
         } else { window.prompt(t('ui.topo.termCopy'), cmd); }
       });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB);
+      // P6 (#73): terminal web real via gotty (containerlab tools gotty).
+      const webB = document.createElement('button');
+      webB.type = 'button'; webB.className = 'btn-ghost'; webB.style.cssText = 'padding:4px 10px;font-size:11px';
+      webB.textContent = t('ui.topo.webTermBtn');
+      webB.addEventListener('click', function () {
+        webB.disabled = true; toast('info', t('ui.topo.webTermStarting'));
+        postForm('/api/container-labs/tools/share', { tool: 'gotty', action: 'start', lab_name: self.lab || '' }).then(function (r) {
+          webB.disabled = false;
+          const out = (r && r.output) || '';
+          self.showTermLinks(out);
+        }).catch(function () { webB.disabled = false; toast('error', t('ui.topo.genFail')); });
+      });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB); acts.appendChild(webB);
       panel.appendChild(acts);
     }
 

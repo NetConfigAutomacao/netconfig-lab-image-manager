@@ -1177,6 +1177,57 @@ def clab_job():
         return jsonify(success=True, status=j["status"], log="\n".join(j["lines"]), rc=j["rc"], done=j["status"] != "running"), 200
 
 
+# ---------------------------------------------------------------------------
+# P6 (#73): operações em massa (deploy/destroy/save) sobre vários labs.
+# ---------------------------------------------------------------------------
+
+def _run_bulk_job(job_id, eve_ip, eve_user, eve_pass, labs_dir, labs, action):
+    quoted = " ".join(shlex.quote(l) for l in labs)
+    script = (
+        "if ! command -v containerlab >/dev/null 2>&1; then echo 'containerlab não encontrado'; exit 46; fi; "
+        f"base={shlex.quote(labs_dir)}; rc_all=0; "
+        f"for lab in {quoted}; do "
+        "  echo \"=== $lab ===\"; "
+        "  f=$(find \"$base/$lab\" -maxdepth 2 -type f -name '*clab*.yml' 2>/dev/null | head -1); "
+        "  if [ -z \"$f\" ]; then echo \"  (sem .clab.yml, pulando)\"; continue; fi; "
+        f"  containerlab {action} -t \"$f\" 2>&1 || rc_all=$?; "
+        "done; exit $rc_all"
+    )
+    _job_append(job_id, f"$ bulk {action}: " + ", ".join(labs))
+    try:
+        rc = run_ssh_stream(eve_ip, eve_user, eve_pass, script, lambda ln: _job_append(job_id, ln), timeout=3600)
+    except Exception as exc:  # pragma: no cover
+        _job_append(job_id, f"erro: {exc}")
+        rc = 1
+    _job_finish(job_id, rc)
+
+
+@container_labs_bp.route("/bulk", methods=["POST"])
+def bulk_action():
+    """Executa deploy/destroy/save em vários labs (job assíncrono, log ao vivo)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    action = (request.form.get("action") or "").strip()
+    raw_labs = (request.form.get("labs") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    labs = [x.strip() for x in raw_labs.split(",") if x.strip()]
+    if not labs or any(not _is_safe_relpath(l) for l in labs):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    act_map = {"deploy": "deploy", "deploy-reconfigure": "deploy --reconfigure",
+               "destroy": "destroy", "destroy-cleanup": "destroy --cleanup", "save": "save"}
+    if action not in act_map:
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    job_id = _job_new()
+    threading.Thread(
+        target=_run_bulk_job,
+        args=(job_id, eve_ip, eve_user, eve_pass, labs_dir, labs, act_map[action]),
+        daemon=True,
+    ).start()
+    return jsonify(success=True, job_id=job_id), 200
+
+
 def _normalize_inspect(parsed) -> list:
     """
     Normaliza a saída JSON do `containerlab inspect --format json` para uma lista

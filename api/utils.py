@@ -69,6 +69,54 @@ def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str, tim
     return proc.returncode, stdout, stderr
 
 
+def _ssh_base_cmd(eve_ip: str, eve_pass: str):
+    return [
+        "sshpass", "-p", eve_pass, "ssh",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "PreferredAuthentications=password",
+        "-o", "PubkeyAuthentication=no",
+        "-o", "ConnectTimeout=15",
+        "-o", "ServerAliveInterval=15",
+        "-o", "ServerAliveCountMax=4",
+    ]
+
+
+def run_ssh_stream(eve_ip: str, eve_user: str, eve_pass: str, command: str, on_line, timeout: int | None = None):
+    """
+    Executa um comando SSH transmitindo a saída (stdout+stderr) linha a linha
+    via callback on_line(str). Retorna o returncode. Usado por jobs assíncronos
+    (deploy/destroy) para log ao vivo.
+    """
+    cmd = _ssh_base_cmd(eve_ip, eve_pass) + [f"{eve_user}@{eve_ip}", command]
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+    )
+    try:
+        for line in iter(proc.stdout.readline, ""):
+            if line == "":
+                break
+            try:
+                on_line(line.rstrip("\n"))
+            except Exception:
+                pass
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            on_line(f"[timeout após {timeout}s]")
+        except Exception:
+            pass
+        return 124
+    finally:
+        try:
+            if proc.stdout:
+                proc.stdout.close()
+        except Exception:
+            pass
+    return proc.returncode if proc.returncode is not None else 0
+
+
 def detect_platform(eve_ip: str, eve_user: str, eve_pass: str):
     """
     Detecta se o host é EVE-NG, PNETLab ou ContainerLab lendo /etc/issue

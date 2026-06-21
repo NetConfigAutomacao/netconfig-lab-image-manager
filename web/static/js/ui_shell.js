@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function resetSyncSteps() {
     document.querySelectorAll('#gateSyncing .sync-step').forEach(function (li) {
-      li.classList.remove('active', 'done');
+      li.classList.remove('active', 'done', 'failed');
     });
   }
 
@@ -215,28 +215,48 @@ document.addEventListener('DOMContentLoaded', function () {
     if (gateIdle) gateIdle.style.display = 'none';
     gateSyncing.style.display = 'block';
 
+    // Enquanto a requisição real roda, mostramos UM spinner movendo pelos passos
+    // (sentido de progresso), mas NENHUM passo é marcado como concluído até o
+    // resultado real chegar — assim o progresso não mente.
     var steps = ['ssh', 'auth', 'detect', 'sync'];
     var stepEls = steps.map(function (s) { return document.querySelector('#gateSyncing .sync-step[data-step="' + s + '"]'); });
-    // Avança visualmente os passos enquanto a carga real acontece em paralelo.
+    if (stepEls[0]) stepEls[0].classList.add('active');
     stepEls.forEach(function (el, i) {
-      if (!el) return;
+      if (!el || i === 0) return;
       syncTimers.push(setTimeout(function () {
-        for (var j = 0; j < i; j++) { if (stepEls[j]) { stepEls[j].classList.remove('active'); stepEls[j].classList.add('done'); } }
+        if (stepEls[i - 1]) stepEls[i - 1].classList.remove('active');
         el.classList.add('active');
-      }, i * 620));
+      }, i * 500));
     });
   }
 
+  // Aplica o resultado REAL: sucesso → tudo concluído; falha → passos em erro
+  // (vermelho) e volta ao formulário para nova tentativa.
   function stopGateSync(success) {
     if (!gateSyncing) return;
     clearSyncTimers();
+    var stepLis = document.querySelectorAll('#gateSyncing .sync-step');
     if (success) {
-      document.querySelectorAll('#gateSyncing .sync-step').forEach(function (li) { li.classList.remove('active'); li.classList.add('done'); });
+      stepLis.forEach(function (li) { li.classList.remove('active', 'failed'); li.classList.add('done'); });
+      gateSyncing.style.display = 'none';
+      if (gateIdle) gateIdle.style.display = '';
+      resetSyncSteps();
+      syncActive = false;
+    } else {
+      stepLis.forEach(function (li) { li.classList.remove('active', 'done'); li.classList.add('failed'); });
+      // mantém o erro visível um instante, depois libera o formulário pra retry.
+      syncTimers.push(setTimeout(function () {
+        gateSyncing.style.display = 'none';
+        if (gateIdle) gateIdle.style.display = '';
+        resetSyncSteps();
+        syncActive = false;
+      }, 2200));
     }
-    gateSyncing.style.display = 'none';
-    if (gateIdle) gateIdle.style.display = '';
-    resetSyncSteps();
-    syncActive = false;
+  }
+
+  function triggerLogin() {
+    if (!loadBtn || loadBtn.disabled) return;
+    loadBtn.click();
   }
 
   if (loadBtn) {
@@ -253,6 +273,15 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     }).observe(loadBtn, { attributes: true, attributeFilter: ['disabled', 'class'] });
   }
+
+  // Enter nos campos de credenciais dispara o login (e impede o submit do form).
+  ['eve_ip', 'eve_user', 'eve_pass'].forEach(function (nm) {
+    var inp = form && form.elements ? form.elements[nm] : null;
+    if (!inp) return;
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); triggerLogin(); }
+    });
+  });
 
   /* -------------------- Drawer da sidebar (mobile) -------------------- */
   var sidebarToggle = document.getElementById('sidebarToggle');

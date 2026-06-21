@@ -608,3 +608,6 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
   .content { padding: 18px; }
   .topbar { padding: 14px 18px; }
 }
+
+/* Topology palette select */
+.topo-palette { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border-2); border-radius: 999px; padding: 5px 10px; font-size: 12px; cursor: pointer; }

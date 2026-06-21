@@ -247,6 +247,10 @@
     const counter = document.createElement('span');
     counter.className = 'topo-counter';
     counter.textContent = t('ui.topo.counter', { nodes: self.state.nodes.length, links: self.state.links.length });
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button'; restoreBtn.className = 'btn-ghost'; restoreBtn.style.cssText = 'padding:6px 12px;font-size:12px';
+    restoreBtn.textContent = t('ui.topo.restoreBtn');
+    restoreBtn.addEventListener('click', function () { self.restore(restoreBtn); });
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button'; saveBtn.className = 'btn-primary'; saveBtn.style.cssText = 'padding:6px 14px;font-size:12px';
     saveBtn.textContent = t('ui.topo.saveBtn');
@@ -257,6 +261,7 @@
     bar.appendChild(tidyBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
+    bar.appendChild(restoreBtn);
     bar.appendChild(saveBtn);
     self.target.appendChild(bar);
     self.counterEl = counter;
@@ -305,9 +310,94 @@
     card.querySelector('.topo-node-name').textContent = node.name;
     card.querySelector('.topo-node-kind').textContent = node.kind || '';
 
+    // Handle de porta: arrastar daqui cria um cabo até outro nó.
+    const port = document.createElement('span');
+    port.className = 'topo-port';
+    port.title = t('ui.topo.dragCable');
+    port.addEventListener('pointerdown', function (e) {
+      e.stopPropagation();
+      self.startCable(node, e);
+    });
+    card.appendChild(port);
+
     self.attachNodeHandlers(card, node);
     self.canvas.appendChild(card);
     self.nodeEls[node.name] = card;
+  };
+
+  // ---- Cabo: arrastar de um nó para outro ----
+  TopologyEditor.prototype.clientToCoords = function (clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(W, (clientX - rect.left) / rect.width * W)),
+      y: Math.max(0, Math.min(H, (clientY - rect.top) / rect.height * H))
+    };
+  };
+
+  TopologyEditor.prototype.startCable = function (node, e) {
+    const self = this;
+    self.cableFrom = node;
+    const temp = document.createElementNS(SVG_NS, 'line');
+    temp.setAttribute('x1', node.x); temp.setAttribute('y1', node.y);
+    temp.setAttribute('x2', node.x); temp.setAttribute('y2', node.y);
+    temp.setAttribute('stroke', 'var(--green)');
+    temp.setAttribute('stroke-width', '2');
+    temp.setAttribute('stroke-dasharray', '6 4');
+    self.svg.appendChild(temp);
+    self.cableTemp = temp;
+
+    function move(ev) {
+      const p = self.clientToCoords(ev.clientX, ev.clientY);
+      temp.setAttribute('x2', p.x); temp.setAttribute('y2', p.y);
+    }
+    function up(ev) {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if (self.cableTemp) { self.cableTemp.remove(); self.cableTemp = null; }
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const targetCard = el && el.closest ? el.closest('.topo-node') : null;
+      const targetName = targetCard ? targetCard.dataset.name : '';
+      self.cableFrom = null;
+      if (targetName) self.createLink(node.name, targetName);
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  };
+
+  // Próxima interface livre num nó, reaproveitando o prefixo já usado.
+  TopologyEditor.prototype.nextIface = function (nodeName) {
+    const eps = [];
+    this.state.links.forEach(function (l) {
+      if (l.source === nodeName && l.sourceEp) eps.push(l.sourceEp);
+      if (l.target === nodeName && l.targetEp) eps.push(l.targetEp);
+    });
+    let prefix = 'eth';
+    const node = this.nodeByName(nodeName);
+    if (node && node.kind && /sr|nokia|arista|ceos|crpd|vr|xrv|nxos/i.test(node.kind)) prefix = 'e1-';
+    if (eps.length) {
+      const m = /^([A-Za-z0-9-]*?)(\d+)$/.exec(eps[eps.length - 1]);
+      if (m) prefix = m[1];
+    }
+    let n = eps.length + 1;
+    const used = {};
+    eps.forEach(function (e) { used[e] = true; });
+    while (used[prefix + n]) n++;
+    return prefix + n;
+  };
+
+  TopologyEditor.prototype.createLink = function (source, target) {
+    if (!source || !target) return;
+    if (source === target) { toast('error', t('ui.topo.noSelfLink')); return; }
+    const sEp = this.nextIface(source);
+    const tEp = this.nextIface(target);
+    const dup = this.state.links.some(function (l) {
+      return (l.source === source && l.target === target) || (l.source === target && l.target === source);
+    });
+    this.state.links.push({ source: source, target: target, sourceEp: sEp, targetEp: tEp, extra: null });
+    this.redrawEdges();
+    this.updateCounter();
+    this.selectLink(this.state.links.length - 1);
+    if (dup) toast('info', t('ui.topo.dupLinkInfo', { a: source, b: target }));
   };
 
   TopologyEditor.prototype.attachNodeHandlers = function (card, node) {
@@ -351,15 +441,15 @@
         self.highlight(node.name, false);
         self.linkSource = null;
       } else {
-        self.state.links.push({ source: self.linkSource, target: node.name, sourceEp: '', targetEp: '', extra: null });
-        self.highlight(self.linkSource, false);
+        const src = self.linkSource;
+        self.highlight(src, false);
         self.linkSource = null;
-        self.redrawEdges();
-        self.updateCounter();
+        self.createLink(src, node.name);
       }
       return;
     }
     self.selected = node.name;
+    self.selectedLink = null;
     self.renderPanel();
     Object.keys(self.nodeEls).forEach(function (nm) {
       self.nodeEls[nm].classList.toggle('selected', nm === node.name);
@@ -382,20 +472,23 @@
       const a = self.nodeByName(l.source);
       const b = self.nodeByName(l.target);
       if (!a || !b) return;
+      const sel = self.selectedLink === idx;
       const line = document.createElementNS(SVG_NS, 'line');
       line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
       line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-      line.setAttribute('stroke', 'rgba(56,189,248,0.6)');
-      line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke', sel ? 'var(--green)' : 'rgba(56,189,248,0.6)');
+      line.setAttribute('stroke-width', sel ? '3' : '2');
       line.style.cursor = 'pointer';
-      line.addEventListener('click', function () {
-        if (window.confirm(t('ui.topo.delLinkConfirm', { a: l.source, b: l.target }))) {
-          self.state.links.splice(idx, 1);
-          self.redrawEdges();
-          self.updateCounter();
-        }
-      });
+      // Área de clique mais larga (transparente) por cima da linha fina.
+      const hit = document.createElementNS(SVG_NS, 'line');
+      hit.setAttribute('x1', a.x); hit.setAttribute('y1', a.y);
+      hit.setAttribute('x2', b.x); hit.setAttribute('y2', b.y);
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '14');
+      hit.style.cursor = 'pointer';
+      hit.addEventListener('click', function () { self.selectLink(idx); });
       self.svg.appendChild(line);
+      self.svg.appendChild(hit);
     });
   };
 
@@ -426,9 +519,62 @@
     this.renderPanel();
   };
 
+  TopologyEditor.prototype.selectLink = function (idx) {
+    this.selectedLink = idx;
+    this.selected = null;
+    const self = this;
+    Object.keys(self.nodeEls).forEach(function (nm) { self.nodeEls[nm].classList.remove('selected'); });
+    this.redrawEdges();
+    this.renderPanel();
+  };
+
+  TopologyEditor.prototype.renderLinkPanel = function () {
+    const self = this;
+    const panel = self.panel;
+    panel.innerHTML = '';
+    const l = self.state.links[self.selectedLink];
+    if (!l) { self.selectedLink = null; panel.innerHTML = '<div class="hint">' + t('ui.topo.panelHint') + '</div>'; return; }
+
+    const title = document.createElement('div');
+    title.className = 'topo-panel-title';
+    title.textContent = t('ui.topo.editLink', { a: l.source, b: l.target });
+    panel.appendChild(title);
+
+    function epField(labelKey, node, value, onChange) {
+      const wrap = document.createElement('div');
+      wrap.className = 'field'; wrap.style.marginBottom = '8px';
+      const lbl = document.createElement('label');
+      lbl.textContent = t(labelKey, { node: node });
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'mono'; inp.value = value || '';
+      inp.addEventListener('change', function () { onChange(inp.value.trim()); });
+      wrap.appendChild(lbl); wrap.appendChild(inp);
+      return wrap;
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'topo-panel-grid';
+    grid.appendChild(epField('ui.topo.fEndpointA', l.source, l.sourceEp, function (v) { l.sourceEp = v; l.extra = null; }));
+    grid.appendChild(epField('ui.topo.fEndpointB', l.target, l.targetEp, function (v) { l.targetEp = v; l.extra = null; }));
+    panel.appendChild(grid);
+
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'pill-action'; del.style.cssText = 'margin-top:4px';
+    del.textContent = t('ui.topo.delLink');
+    del.addEventListener('click', function () {
+      self.state.links.splice(self.selectedLink, 1);
+      self.selectedLink = null;
+      self.redrawEdges();
+      self.updateCounter();
+      self.renderPanel();
+    });
+    panel.appendChild(del);
+  };
+
   TopologyEditor.prototype.renderPanel = function () {
     const self = this;
     const panel = self.panel;
+    if (self.selectedLink != null) { self.renderLinkPanel(); return; }
     panel.innerHTML = '';
     if (!self.selected) {
       panel.innerHTML = '<div class="hint">' + t('ui.topo.panelHint') + '</div>';
@@ -496,6 +642,22 @@
       else toast('error', (resp && resp.message) || t('ui.topo.saveFail'));
     }).catch(function () {
       toast('error', t('ui.topo.saveFail'));
+    }).finally(function () {
+      if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+    });
+  };
+
+  TopologyEditor.prototype.restore = function (btn) {
+    const self = this;
+    if (!window.confirm(t('ui.topo.restoreConfirm'))) return;
+    if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    const fields = { lab_name: self.lab, path: self.path };
+    if (self.labsDir) fields.labs_dir = self.labsDir;
+    postForm('/api/container-labs/topoviewer/restore', fields).then(function (resp) {
+      if (resp && resp.success) { toast('success', resp.message || t('ui.topo.restored')); self.load(); }
+      else toast('error', (resp && resp.message) || t('ui.topo.restoreFail'));
+    }).catch(function () {
+      toast('error', t('ui.topo.restoreFail'));
     }).finally(function () {
       if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
     });

@@ -340,6 +340,19 @@
       linkBtn.classList.toggle('active', self.linkMode);
       linkBtn.style.background = self.linkMode ? 'var(--surface-hover)' : '';
     });
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button'; undoBtn.className = 'btn-ghost'; undoBtn.style.cssText = 'padding:5px 11px;font-size:13px';
+    undoBtn.title = t('ui.topo.undo'); undoBtn.textContent = '↶';
+    undoBtn.addEventListener('click', function () { self.undo(); });
+    const redoBtn = document.createElement('button');
+    redoBtn.type = 'button'; redoBtn.className = 'btn-ghost'; redoBtn.style.cssText = 'padding:5px 11px;font-size:13px';
+    redoBtn.title = t('ui.topo.redo'); redoBtn.textContent = '↷';
+    redoBtn.addEventListener('click', function () { self.redo(); });
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button'; exportBtn.className = 'btn-ghost'; exportBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    exportBtn.textContent = t('ui.topo.exportSvg');
+    exportBtn.addEventListener('click', function () { self.exportSvg(); });
+
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     tidyBtn.textContent = t('ui.topo.tidyBtn');
@@ -382,9 +395,12 @@
     bar.appendChild(addBtn);
     bar.appendChild(palette);
     bar.appendChild(linkBtn);
+    bar.appendChild(undoBtn);
+    bar.appendChild(redoBtn);
     bar.appendChild(tidyBtn);
     bar.appendChild(statusBtn);
     bar.appendChild(yamlBtn);
+    bar.appendChild(exportBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
     bar.appendChild(restoreBtn);
@@ -450,6 +466,7 @@
     try { doc = window.jsyaml.load(self.yamlTa.value); }
     catch (e) { toast('error', t('ui.topo.yamlInvalid', { err: e.message })); return; }
     if (!doc || typeof doc !== 'object') { toast('error', t('ui.topo.yamlInvalid', { err: 'empty' })); return; }
+    self.snapshot();
     self.applyDoc(doc);
     self.yamlDirty = false;
     self.selected = null; self.selectedLink = null;
@@ -609,6 +626,7 @@
   TopologyEditor.prototype.createLink = function (source, target) {
     if (!source || !target) return;
     if (source === target) { toast('error', t('ui.topo.noSelfLink')); return; }
+    this.snapshot();
     const sEp = this.nextIface(source);
     const tEp = this.nextIface(target);
     const dup = this.state.links.some(function (l) {
@@ -627,6 +645,7 @@
 
     card.addEventListener('pointerdown', function (e) {
       if (self.linkMode) return;
+      self.snapshot();
       dragging = true; moved = false;
       startX = e.clientX; startY = e.clientY; origX = node.x; origY = node.y;
       card.setPointerCapture(e.pointerId);
@@ -723,6 +742,7 @@
     const name = (window.prompt(t('ui.topo.nodeNamePrompt'), 'node' + (this.state.nodes.length + 1)) || '').trim();
     if (!name) return;
     if (this.nodeByName(name)) { toast('error', t('ui.topo.nodeExists', { name: name })); return; }
+    this.snapshot();
     let kind = presetKind;
     if (!kind) kind = (window.prompt(t('ui.topo.nodeKindPrompt'), 'linux') || '').trim();
     const image = (window.prompt(t('ui.topo.nodeImagePrompt'), '') || '').trim();
@@ -734,6 +754,7 @@
   };
 
   TopologyEditor.prototype.deleteNode = function (name) {
+    this.snapshot();
     this.state.nodes = this.state.nodes.filter(function (n) { return n.name !== name; });
     this.state.links = this.state.links.filter(function (l) { return l.source !== name && l.target !== name; });
     if (this.nodeEls[name]) { this.nodeEls[name].remove(); delete this.nodeEls[name]; }
@@ -786,6 +807,7 @@
     del.type = 'button'; del.className = 'pill-action'; del.style.cssText = 'margin-top:4px';
     del.textContent = t('ui.topo.delLink');
     del.addEventListener('click', function () {
+      self.snapshot();
       self.state.links.splice(self.selectedLink, 1);
       self.selectedLink = null;
       self.redrawEdges();
@@ -892,6 +914,10 @@
       if (!window.confirm(t('ui.topo.yamlDirtyApply'))) return;
       self.applyYaml();
     }
+    const issues = self.validate();
+    if (issues.length) {
+      if (!window.confirm(t('ui.topo.validateFail') + '\n\n- ' + issues.join('\n- ') + '\n\n' + t('ui.topo.validateSaveAnyway'))) return;
+    }
     const newYaml = self.currentYaml();
     self.showDiffAndSave(newYaml, btn);
   };
@@ -971,6 +997,72 @@
     }).finally(function () {
       if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
     });
+  };
+
+  // ---- Undo/redo ----
+  TopologyEditor.prototype.snapshot = function () {
+    if (!this.history) this.history = [];
+    this.history.push(JSON.stringify(this.state));
+    if (this.history.length > 50) this.history.shift();
+    this.future = [];
+  };
+  TopologyEditor.prototype.applyHistoryState = function (json) {
+    try { this.state = JSON.parse(json); } catch (e) { return; }
+    this.selected = null; this.selectedLink = null;
+    this.render();
+  };
+  TopologyEditor.prototype.undo = function () {
+    if (!this.history || !this.history.length) { toast('info', t('ui.topo.nothingUndo')); return; }
+    if (!this.future) this.future = [];
+    this.future.push(JSON.stringify(this.state));
+    this.applyHistoryState(this.history.pop());
+  };
+  TopologyEditor.prototype.redo = function () {
+    if (!this.future || !this.future.length) return;
+    this.history.push(JSON.stringify(this.state));
+    this.applyHistoryState(this.future.pop());
+  };
+
+  // ---- Validação client-side ----
+  TopologyEditor.prototype.validate = function () {
+    const issues = [];
+    const names = {};
+    this.state.nodes.forEach(function (n) {
+      if (!n.name) issues.push(t('ui.topo.vNoName'));
+      else if (names[n.name]) issues.push(t('ui.topo.vDupName', { name: n.name }));
+      names[n.name] = true;
+    });
+    this.state.links.forEach(function (l) {
+      if (!names[l.source] || !names[l.target]) issues.push(t('ui.topo.vBadLink', { a: l.source, b: l.target }));
+      if (l.source === l.target) issues.push(t('ui.topo.vSelfLink', { a: l.source }));
+    });
+    return issues;
+  };
+
+  // ---- Export SVG ----
+  TopologyEditor.prototype.exportSvg = function () {
+    const W2 = W, H2 = H;
+    let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W2 + ' ' + H2 + '" width="' + W2 + '" height="' + H2 + '">';
+    svg += '<rect width="' + W2 + '" height="' + H2 + '" fill="#070b15"/>';
+    const self = this;
+    this.state.links.forEach(function (l) {
+      const a = self.nodeByName(l.source), b = self.nodeByName(l.target);
+      if (!a || !b) return;
+      svg += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#38bdf8" stroke-width="2"/>';
+    });
+    this.state.nodes.forEach(function (n) {
+      const w = 96, h = 48, x = n.x - w / 2, y = n.y - h / 2;
+      svg += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="10" fill="#111d33" stroke="#2a3c5e"/>';
+      svg += '<text x="' + n.x + '" y="' + (n.y - 2) + '" fill="#e7eef9" font-family="monospace" font-size="13" text-anchor="middle">' + (n.name || '').replace(/[&<>]/g, '') + '</text>';
+      svg += '<text x="' + n.x + '" y="' + (n.y + 14) + '" fill="#9fb2cf" font-family="monospace" font-size="10" text-anchor="middle">' + (n.kind || '').replace(/[&<>]/g, '') + '</text>';
+    });
+    svg += '</svg>';
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = (this.lab || 'topology') + '.svg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   };
 
   TopologyEditor.prototype.restore = function (btn) {

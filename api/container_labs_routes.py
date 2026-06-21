@@ -827,6 +827,82 @@ def container_labs_topoviewer_restore():
     return jsonify(success=True, message=translate("container_labs.restore_success", lang), content=out or ""), 200
 
 
+@container_labs_bp.route("/check-images", methods=["POST"])
+def check_images():
+    """
+    Lê as imagens dos nós no topo YAML e compara com `docker images` no host.
+    Retorna {missing:[], present:[]} para avisar antes do deploy.
+    """
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+
+    # 1) lê o YAML
+    read_cmd = (
+        f"target='{labs_dir}/{lab_name}/{rel_path}'; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; cat \"$target\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, read_cmd, timeout=30)
+    if "__FILE_NOT_FOUND__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    try:
+        doc = yaml.safe_load(out or "") or {}
+    except Exception:
+        doc = {}
+    topo = doc.get("topology") if isinstance(doc, dict) else {}
+    topo = topo if isinstance(topo, dict) else {}
+    kinds = topo.get("kinds") if isinstance(topo.get("kinds"), dict) else {}
+    nodes = _normalize_nodes(topo)
+    images = set()
+    for node in nodes.values():
+        if not isinstance(node, dict):
+            continue
+        img = node.get("image")
+        if not img:
+            kind = node.get("kind")
+            kd = kinds.get(kind) if isinstance(kinds.get(kind), dict) else {}
+            img = kd.get("image")
+        if img:
+            images.add(str(img).strip())
+
+    if not images:
+        return jsonify(success=True, missing=[], present=[], images=[]), 200
+
+    # 2) lista imagens do runtime
+    list_cmd = (
+        "if command -v docker >/dev/null 2>&1; then docker images --format '{{.Repository}}:{{.Tag}}'; "
+        "elif command -v podman >/dev/null 2>&1; then podman images --format '{{.Repository}}:{{.Tag}}'; "
+        "else echo '__NO_RUNTIME__'; fi"
+    )
+    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, list_cmd, timeout=45)
+    have = set()
+    for line in (out2 or "").splitlines():
+        line = line.strip()
+        if line and line != "__NO_RUNTIME__":
+            have.add(line)
+
+    def _present(img):
+        if img in have:
+            return True
+        # docker normaliza :latest implícito
+        if ":" not in img and (img + ":latest") in have:
+            return True
+        return False
+
+    missing = sorted([i for i in images if not _present(i)])
+    present = sorted([i for i in images if _present(i)])
+    return jsonify(success=True, missing=missing, present=present, images=sorted(images)), 200
+
+
 @container_labs_bp.route("/deploy", methods=["POST"])
 def deploy_lab():
     """Executa `containerlab deploy -t <topo>` no host remoto."""

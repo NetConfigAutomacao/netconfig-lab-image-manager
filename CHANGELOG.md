@@ -2,6 +2,11 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.13.0
+
+- ContainerLab (issue #52) — item 6: impairments por enlace (netem).
+  - Painel do enlace ganha campos delay/loss/rate por endpoint; aplica via `containerlab tools netem set` (`POST /container-labs/netem`). Usa o container do nó (rode "Status" antes).
+
 ## 2.12.0
 
 - ContainerLab (issue #52) — item 5: criar e clonar laboratórios.

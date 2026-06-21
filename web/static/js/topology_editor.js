@@ -867,6 +867,42 @@
     grid.appendChild(epField('ui.topo.fEndpointB', l.target, l.targetEp, function (v) { l.targetEp = v; l.extra = null; }));
     panel.appendChild(grid);
 
+    // Impairments (netem) por endpoint.
+    const netem = document.createElement('div');
+    netem.style.cssText = 'margin-top:6px;padding:10px;border:1px solid var(--border-2);border-radius:8px';
+    const ntitle = document.createElement('div');
+    ntitle.style.cssText = 'font-size:12px;font-weight:700;margin-bottom:8px;color:var(--text-2)';
+    ntitle.textContent = t('ui.topo.netemTitle');
+    netem.appendChild(ntitle);
+    const nrow = document.createElement('div');
+    nrow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end';
+    const sideSel = document.createElement('select'); sideSel.className = 'topo-palette mono';
+    [['A', l.source, l.sourceEp], ['B', l.target, l.targetEp]].forEach(function (s) {
+      const o = document.createElement('option'); o.value = s[0]; o.textContent = s[1] + ':' + (s[2] || '?'); nrow.dataset; sideSel.appendChild(o);
+    });
+    function nin(ph, w) { const i = document.createElement('input'); i.type = 'text'; i.className = 'mono'; i.placeholder = ph; i.style.cssText = 'width:' + w + ';padding:6px 8px'; return i; }
+    const dIn = nin(t('ui.topo.netemDelay'), '80px');
+    const lIn = nin(t('ui.topo.netemLoss'), '70px');
+    const rIn = nin(t('ui.topo.netemRate'), '90px');
+    const applyN = document.createElement('button'); applyN.type = 'button'; applyN.className = 'btn-ghost'; applyN.style.cssText = 'padding:6px 12px;font-size:12px';
+    applyN.textContent = t('ui.topo.netemApply');
+    applyN.addEventListener('click', function () {
+      const side = sideSel.value === 'B' ? { node: l.target, iface: l.targetEp } : { node: l.source, iface: l.sourceEp };
+      const container = self.nodeContainer(side.node);
+      if (!container) { toast('error', t('ui.topo.netemNeedStatus')); return; }
+      if (!side.iface) { toast('error', t('ui.topo.netemNoIface')); return; }
+      const fields = { container: container, iface: side.iface, delay: dIn.value.trim(), loss: lIn.value.trim(), rate: rIn.value.trim() };
+      postForm('/api/container-labs/netem', fields).then(function (r) {
+        if (r && r.success) toast('success', r.message || t('ui.topo.netemOk'));
+        else toast('error', (r && r.message) || t('ui.topo.netemFail'));
+      }).catch(function () { toast('error', t('ui.topo.netemFail')); });
+    });
+    nrow.appendChild(sideSel); nrow.appendChild(dIn); nrow.appendChild(lIn); nrow.appendChild(rIn); nrow.appendChild(applyN);
+    netem.appendChild(nrow);
+    const nhint = document.createElement('div'); nhint.className = 'hint'; nhint.style.marginTop = '6px'; nhint.textContent = t('ui.topo.netemHint');
+    netem.appendChild(nhint);
+    panel.appendChild(netem);
+
     const del = document.createElement('button');
     del.type = 'button'; del.className = 'pill-action'; del.style.cssText = 'margin-top:4px';
     del.textContent = t('ui.topo.delLink');

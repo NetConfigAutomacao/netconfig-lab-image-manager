@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.9.0
+
+- ContainerLab (issue #52) — item 1: deploy/destroy **assíncrono com log ao vivo**.
+  - Novos endpoints `POST /container-labs/deploy_async` e `/destroy_async` (job em thread no backend) + `GET /container-labs/job?job_id` para polling.
+  - Stream da saída do containerlab linha a linha (via `run_ssh_stream`) na tela de progresso, sem travar a requisição. Estado final sucesso/erro + atalho "Ver status" após deploy.
+
 ## 2.8.1
 
 - Editor de topologia (issue #43): no modo expandido (tela cheia) agora há um botão flutuante ✕ para sair, e a tecla **Esc** também cancela a expansão.

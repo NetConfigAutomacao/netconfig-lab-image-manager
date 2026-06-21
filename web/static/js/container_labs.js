@@ -31,6 +31,60 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (!loadBtn || !listEl || !countEl) return;
 
+  // Botão "Novo lab" ao lado do listar.
+  (function addNewLabButton() {
+    if (!loadBtn.parentNode) return;
+    const nb = document.createElement('button');
+    nb.type = 'button'; nb.className = 'btn-secondary'; nb.id = 'labsNewBtn';
+    nb.style.cssText = 'margin-left:8px';
+    nb.textContent = t('ui.labs.newBtn');
+    nb.addEventListener('click', createNewLab);
+    loadBtn.parentNode.insertBefore(nb, loadBtn.nextSibling);
+  })();
+
+  function labsCreds() { return getCommonCreds(); }
+  function labsDirVal() { return (dirInput && dirInput.value) ? dirInput.value.trim() : ''; }
+
+  function createNewLab() {
+    const creds = labsCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) { showMessage('error', t('container_labs.missing_creds')); return; }
+    const name = (window.prompt(t('ui.labs.newPrompt'), 'meu-lab') || '').trim();
+    if (!name) return;
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+    fd.append('lab_name', name); if (labsDirVal()) fd.append('labs_dir', labsDirVal());
+    const x = new XMLHttpRequest(); x.open('POST', '/api/container-labs/create-lab', true);
+    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(x);
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      let r = null; try { r = JSON.parse(x.responseText || '{}'); } catch (e) {}
+      if (r && r.success) { showMessage('success', r.message); resetLabCache(); loadBtn.click(); }
+      else showMessage('error', (r && r.message) || t('ui.labs.actionFail'));
+    };
+    x.onerror = function () { showMessage('error', t('msg.networkError')); };
+    x.send(fd);
+  }
+
+  function cloneLab(srcLab) {
+    const creds = labsCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) { showMessage('error', t('container_labs.missing_creds')); return; }
+    const name = (window.prompt(t('ui.labs.clonePrompt', { src: srcLab }), srcLab + '-copy') || '').trim();
+    if (!name) return;
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+    fd.append('src_lab', srcLab); fd.append('new_lab', name); if (labsDirVal()) fd.append('labs_dir', labsDirVal());
+    const x = new XMLHttpRequest(); x.open('POST', '/api/container-labs/clone-lab', true);
+    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(x);
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      let r = null; try { r = JSON.parse(x.responseText || '{}'); } catch (e) {}
+      if (r && r.success) { showMessage('success', r.message); resetLabCache(); loadBtn.click(); }
+      else showMessage('error', (r && r.message) || t('ui.labs.actionFail'));
+    };
+    x.onerror = function () { showMessage('error', t('msg.networkError')); };
+    x.send(fd);
+  }
+
   function resetLabCache() {
     labFilesCache = {};
     labFetching = {};
@@ -1636,8 +1690,18 @@ document.addEventListener('DOMContentLoaded', function () {
         toggleBtn.style.padding = '2px 8px';
         toggleBtn.title = t('ui.labs.expand');
 
+        const headerActions = document.createElement('span');
+        headerActions.style.cssText = 'display:flex;align-items:center;gap:6px';
+        const cloneBtn = document.createElement('button');
+        cloneBtn.type = 'button'; cloneBtn.className = 'btn-secondary';
+        cloneBtn.style.cssText = 'padding:2px 8px;font-size:11px';
+        cloneBtn.textContent = t('ui.labs.cloneBtn');
+        cloneBtn.addEventListener('click', function (e) { e.stopPropagation(); cloneLab(lab); });
+        headerActions.appendChild(cloneBtn);
+        headerActions.appendChild(toggleBtn);
+
         header.appendChild(nameWrap);
-        header.appendChild(toggleBtn);
+        header.appendChild(headerActions);
 
         const topoWrap = document.createElement('div');
         topoWrap.className = 'lab-auto-topo';

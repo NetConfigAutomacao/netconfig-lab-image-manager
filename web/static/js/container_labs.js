@@ -217,6 +217,17 @@ document.addEventListener('DOMContentLoaded', function () {
           });
           actions.appendChild(deployBtn);
 
+          const redeployBtn = document.createElement('button');
+          redeployBtn.type = 'button';
+          redeployBtn.className = 'btn-secondary';
+          redeployBtn.style.padding = '3px 8px';
+          redeployBtn.style.fontSize = '11px';
+          redeployBtn.textContent = t('ui.labs.redeployBtn');
+          redeployBtn.addEventListener('click', function () {
+            runLabAction('deploy', lab, entry.path, redeployBtn, { reconfigure: true });
+          });
+          actions.appendChild(redeployBtn);
+
           const destroyBtn = document.createElement('button');
           destroyBtn.type = 'button';
           destroyBtn.className = 'pill-action';
@@ -1176,7 +1187,24 @@ document.addEventListener('DOMContentLoaded', function () {
     };
   }
 
-  function runLabAction(action, labName, relPath, btn) {
+  function checkImagesBeforeDeploy(labName, relPath) {
+    return new Promise(function (resolve) {
+      const creds = getCommonCreds();
+      const fd = new FormData();
+      fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+      fd.append('lab_name', labName); fd.append('path', relPath);
+      if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+      const x = new XMLHttpRequest();
+      x.open('POST', '/api/container-labs/check-images', true);
+      x.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(x);
+      x.onreadystatechange = function () { if (x.readyState === 4) { try { resolve(JSON.parse(x.responseText || '{}')); } catch (e) { resolve({ success: false }); } } };
+      x.onerror = function () { resolve({ success: false }); };
+      x.send(fd);
+    });
+  }
+
+  function runLabAction(action, labName, relPath, btn, opts) {
+    opts = opts || {};
     const creds = getCommonCreds();
     if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
       showMessage('error', t('container_labs.missing_creds'));
@@ -1184,6 +1212,24 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     const confirmKey = action === 'destroy' ? 'ui.labs.destroyConfirm' : 'ui.labs.deployConfirm';
     if (!window.confirm(t(confirmKey, { lab: labName }))) return;
+    if (action === 'destroy' && !opts.cleanup) {
+      opts.cleanup = window.confirm(t('ui.labs.destroyCleanupAsk'));
+    }
+    if (action === 'deploy') {
+      checkImagesBeforeDeploy(labName, relPath).then(function (chk) {
+        if (chk && chk.success && chk.missing && chk.missing.length) {
+          if (!window.confirm(t('ui.labs.imagesMissing', { list: chk.missing.join(', ') }))) return;
+        }
+        _runLabActionStart(action, labName, relPath, btn, opts);
+      });
+      return;
+    }
+    _runLabActionStart(action, labName, relPath, btn, opts);
+  }
+
+  function _runLabActionStart(action, labName, relPath, btn, opts) {
+    opts = opts || {};
+    const creds = getCommonCreds();
 
     const titleKey = action === 'destroy' ? 'ui.labs.destroyTitle' : 'ui.labs.deployTitle';
     const runningKey = action === 'destroy' ? 'ui.labs.destroyRunning' : 'ui.labs.deployRunning';
@@ -1203,6 +1249,8 @@ document.addEventListener('DOMContentLoaded', function () {
     fd.append('lab_name', labName);
     fd.append('path', relPath);
     if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+    if (opts.reconfigure) fd.append('reconfigure', '1');
+    if (opts.cleanup) fd.append('cleanup', '1');
 
     function finishBtn() {
       setBodyLoading(false);

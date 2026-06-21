@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.5.0
+
+- Visual Lab Manager (issue #43) — P3: paleta de nós + edição rica.
+  - Paleta de kinds comuns (nokia_srlinux, arista_ceos, linux, juniper_crpd, cisco_xrd/iol/n9kv, sonic-vs): adiciona nó já com o kind.
+  - Painel do nó ganha campos: Tipo, IPv4 de gerência, Grupo (alimenta o layout em camadas) e Startup-config — gravados no YAML preservando os demais campos.
+
 ## 2.4.0
 
 - Visual Lab Manager (issue #43) — P2: sync YAML↔grafo no editor de topologia.

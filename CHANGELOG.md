@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.6.0
+
+- Visual Lab Manager (issue #43) — P4: runtime no canvas.
+  - Botão "Status" no editor chama `containerlab inspect` e pinta cada nó: verde (rodando) / cinza (parado), com estado e IPv4 no tooltip.
+  - Painel do nó (quando rodando) ganha ações Logs e Exec direto do diagrama (casa o nó ao container clab-<lab>-<node>).
+
 ## 2.5.0
 
 - Visual Lab Manager (issue #43) — P3: paleta de nós + edição rica.

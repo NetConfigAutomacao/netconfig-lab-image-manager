@@ -1846,4 +1846,29 @@ document.addEventListener('DOMContentLoaded', function () {
         setLoading(false);
       });
   };
+
+  // Exposto para o editor de topologia nativo (P4: runtime no canvas).
+  window.NetConfigLabs = {
+    viewNodeLogs: viewNodeLogs,
+    execNodeCommand: execNodeCommand,
+    inspect: function (labName, relPath) {
+      const creds = getCommonCreds();
+      const fd = new FormData();
+      fd.append('eve_ip', creds.eve_ip);
+      fd.append('eve_user', creds.eve_user);
+      fd.append('eve_pass', creds.eve_pass);
+      fd.append('lab_name', labName);
+      fd.append('path', relPath);
+      if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+      return new Promise(function (resolve, reject) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/container-labs/inspect', true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        setLangHeader(xhr);
+        xhr.onreadystatechange = function () { if (xhr.readyState === 4) { try { resolve(JSON.parse(xhr.responseText || '{}')); } catch (e) { reject(e); } } };
+        xhr.onerror = function () { reject(new Error('network')); };
+        xhr.send(fd);
+      });
+    }
+  };
 });

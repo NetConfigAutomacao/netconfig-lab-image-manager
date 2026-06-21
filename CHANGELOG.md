@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.2
+
+- Editor de topologia (issue #7): auto-layout passa a usar **group/level do YAML** para organizar em camadas (ex.: spine no topo, leaf, client, telemetria embaixo). Lê `group` do node e labels `graph-level`/`graph-group`/`topoViewer-group`/`topoViewer-groupLevel`. Sem grupos, cai no layout em grade.
+
 ## 2.2.1
 
 - Editor de topologia (issue #7): auto-layout trocado de círculo (amontoava) para **grade** que preenche o canvas — sem sobreposição mesmo com muitos nós. Arestas agora alinham exatamente aos nós (`preserveAspectRatio=none`). Novo botão "Reorganizar" e canvas mais alto.

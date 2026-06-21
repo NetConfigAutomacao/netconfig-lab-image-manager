@@ -554,6 +554,103 @@
     m.body.appendChild(add);
   };
 
+  // P3 (#70): wrappers de `containerlab tools` (cert, veth, vxlan, sharing).
+  TopologyEditor.prototype.openToolsModal = function () {
+    const self = this;
+    const m = buildModal(t('ui.topo.toolsBtn'));
+
+    function section(titleKey) {
+      const d = document.createElement('details'); d.className = 'topo-adv'; d.style.marginTop = '6px';
+      const s = document.createElement('summary'); s.textContent = t(titleKey); d.appendChild(s);
+      m.body.appendChild(d); return d;
+    }
+    function inp(parent, labelKey, ph, opts) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '6px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      let el;
+      if (opts && opts.options) {
+        el = document.createElement('select'); el.className = 'mono';
+        opts.options.forEach(function (o) { const op = document.createElement('option'); op.value = o; op.textContent = o; el.appendChild(op); });
+      } else { el = document.createElement('input'); el.type = 'text'; el.className = 'mono'; if (ph) el.placeholder = ph; }
+      w.appendChild(el); parent.appendChild(w); return el;
+    }
+    function runBlock(parent, url, collect) {
+      const out = document.createElement('pre'); out.className = 'io-log'; out.style.cssText = 'margin-top:6px;max-height:180px;overflow:auto;font-size:11px;display:none';
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-primary'; btn.style.cssText = 'padding:5px 14px;font-size:12px;margin-top:4px';
+      btn.textContent = t('ui.topo.toolsRun');
+      btn.addEventListener('click', function () {
+        const fields = collect(); if (fields === false) { toast('error', t('ui.topo.toolsBadInput')); return; }
+        btn.disabled = true; out.style.display = 'block'; out.textContent = t('ui.topo.toolsRunning');
+        postForm(url, fields).then(function (r) {
+          btn.disabled = false;
+          out.textContent = (r && r.output) || (r && r.message) || '';
+          if (r && r.success) toast('success', r.message || t('ui.topo.toolsOk'));
+          else toast('error', (r && r.message) || t('ui.topo.toolsFail'));
+        }).catch(function () { btn.disabled = false; toast('error', t('ui.topo.toolsFail')); });
+      });
+      parent.appendChild(btn); parent.appendChild(out);
+    }
+    const labFields = function () { return { labs_dir: self.labsDir || '', lab_name: self.lab || '' }; };
+
+    // Certificados (CA + assinar)
+    const ca = section('ui.topo.toolsCertCa');
+    const caName = inp(ca, 'ui.topo.toolsName', 'ca'); caName.value = 'ca';
+    const caExp = inp(ca, 'ui.topo.toolsExpiry', '87600h');
+    runBlock(ca, '/api/container-labs/tools/cert-ca', function () {
+      const f = labFields(); f.name = caName.value.trim() || 'ca'; if (caExp.value.trim()) f.expiry = caExp.value.trim(); return f;
+    });
+    const sign = section('ui.topo.toolsCertSign');
+    const sName = inp(sign, 'ui.topo.toolsName', 'r1');
+    const sHosts = inp(sign, 'ui.topo.toolsHosts', 'r1,172.20.20.2');
+    const sCaCert = inp(sign, 'ui.topo.toolsCaCert', 'ca/ca.pem');
+    const sCaKey = inp(sign, 'ui.topo.toolsCaKey', 'ca/ca-key.pem');
+    runBlock(sign, '/api/container-labs/tools/cert-sign', function () {
+      if (!sName.value.trim() || !sHosts.value.trim()) return false;
+      const f = labFields(); f.name = sName.value.trim(); f.hosts = sHosts.value.trim();
+      if (sCaCert.value.trim()) f.ca_cert = sCaCert.value.trim();
+      if (sCaKey.value.trim()) f.ca_key = sCaKey.value.trim(); return f;
+    });
+
+    // veth
+    const veth = section('ui.topo.toolsVeth');
+    const va = inp(veth, 'ui.topo.toolsVethA', 'clab-lab-r1:eth5');
+    const vb = inp(veth, 'ui.topo.toolsVethB', 'clab-lab-r2:eth5');
+    const vmtu = inp(veth, 'ui.topo.fMtu', '1500');
+    runBlock(veth, '/api/container-labs/tools/veth', function () {
+      if (!va.value.trim() || !vb.value.trim()) return false;
+      const f = { a: va.value.trim(), b: vb.value.trim() }; if (vmtu.value.trim()) f.mtu = vmtu.value.trim(); return f;
+    });
+
+    // vxlan
+    const vx = section('ui.topo.toolsVxlan');
+    const vxAct = inp(vx, 'ui.topo.toolsAction', null, { options: ['create', 'delete'] });
+    const vxRemote = inp(vx, 'ui.topo.hlRemote', '10.0.0.20');
+    const vxVni = inp(vx, 'ui.topo.hlVni', '100');
+    const vxLink = inp(vx, 'ui.topo.toolsLink', 'eth1');
+    const vxPort = inp(vx, 'ui.topo.hlUdp', '4789');
+    const vxPrefix = inp(vx, 'ui.topo.toolsPrefix', 'vx-');
+    runBlock(vx, '/api/container-labs/tools/vxlan', function () {
+      const f = { action: vxAct.value };
+      if (vxAct.value === 'delete') { f.prefix = vxPrefix.value.trim() || 'vx-'; return f; }
+      if (!vxRemote.value.trim() || !vxVni.value.trim() || !vxLink.value.trim()) return false;
+      f.remote = vxRemote.value.trim(); f.vni = vxVni.value.trim(); f.link = vxLink.value.trim();
+      if (vxPort.value.trim()) f.port = vxPort.value.trim(); return f;
+    });
+
+    // Sharing
+    const sh = section('ui.topo.toolsShare');
+    const shTool = inp(sh, 'ui.topo.toolsShareTool', null, { options: ['gotty', 'sshx', 'api-server'] });
+    const shAct = inp(sh, 'ui.topo.toolsAction', 'start');
+    const shPort = inp(sh, 'ui.topo.toolsPort', '8080');
+    runBlock(sh, '/api/container-labs/tools/share', function () {
+      const f = { tool: shTool.value, action: shAct.value.trim(), lab_name: self.lab || '' };
+      if (shTool.value === 'gotty' && shPort.value.trim()) f.port = shPort.value.trim();
+      return f;
+    });
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '8px';
+    hint.textContent = t('ui.topo.toolsHint'); m.body.appendChild(hint);
+  };
+
   TopologyEditor.prototype.load = function () {
     const self = this;
     self.target.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.topo.loading') + '</span></div>';
@@ -837,6 +934,10 @@
     mgmtBtn.type = 'button'; mgmtBtn.className = 'btn-ghost'; mgmtBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     mgmtBtn.textContent = t('ui.topo.mgmtBtn');
     mgmtBtn.addEventListener('click', function () { self.openMgmtModal(); });
+    const toolsBtn = document.createElement('button');
+    toolsBtn.type = 'button'; toolsBtn.className = 'btn-ghost'; toolsBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    toolsBtn.textContent = t('ui.topo.toolsBtn');
+    toolsBtn.addEventListener('click', function () { self.openToolsModal(); });
     const hostLinksBtn = document.createElement('button');
     hostLinksBtn.type = 'button'; hostLinksBtn.className = 'btn-ghost'; hostLinksBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     hostLinksBtn.textContent = t('ui.topo.hostLinksBtn');
@@ -915,6 +1016,7 @@
       bar.appendChild(redoBtn);
       bar.appendChild(mgmtBtn);
       bar.appendChild(hostLinksBtn);
+      bar.appendChild(toolsBtn);
       bar.appendChild(tidyBtn);
       bar.appendChild(statusBtn);
       bar.appendChild(validateBtn);

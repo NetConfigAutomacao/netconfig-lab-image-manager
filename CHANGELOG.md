@@ -2,6 +2,16 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.21.0
+
+- ContainerLab full control (épico #67) — **P3: containerlab tools** (#70).
+  - Novo botão **Ferramentas** na topologia + endpoints SSH:
+    - `tools/cert-ca` e `tools/cert-sign` (PKI do lab: cria CA, assina nó) — rodam no diretório do lab.
+    - `tools/veth` (cria veth entre endpoints) e `tools/vxlan` (create/delete).
+    - `tools/share` (compartilhar lab): `gotty`, `sshx`, `api-server` (start/stop/list/attach/detach/status), expõe a URL/saída.
+  - Entradas validadas (regex de endpoint/nome/hosts), binário `containerlab` checado, saída crua retornada para diagnóstico. netem/captura já existentes seguem disponíveis.
+  - i18n PT/EN/ES.
+
 ## 2.20.0
 
 - ContainerLab full control (épico #67) — **P2: links ricos e rede de gerência** (#69).

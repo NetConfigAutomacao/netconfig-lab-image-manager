@@ -87,9 +87,10 @@ def _unl_to_elements(xml_text: str) -> list:
         except (TypeError, ValueError):
             return {"x": 0, "y": 0}
 
-    # Nós
+    # Nós (equipamentos)
     nodes_el = topo.find("nodes")
-    node_ifaces = {}
+    node_elems = {}   # network_id ausente aqui; só metadados
+    net_conns = {}    # net_id -> [(node_name, iface_name)]
     if nodes_el is not None:
         for node in nodes_el.findall("node"):
             nid = node.get("id") or ""
@@ -108,51 +109,57 @@ def _unl_to_elements(xml_text: str) -> list:
                 },
                 "position": p,
             })
-            ifaces = []
             for itf in node.findall("interface"):
-                ifaces.append({
-                    "id": itf.get("id") or "", "name": itf.get("name") or "",
-                    "network_id": itf.get("network_id") or "",
-                })
-            node_ifaces["node-" + nid] = (name, ifaces)
+                net = itf.get("network_id") or ""
+                if not net:
+                    continue
+                net_conns.setdefault(net, []).append((name, itf.get("name") or ""))
 
-    # Redes (bridges/clouds)
+    # Redes: ponto-a-ponto (2 pontas) viram enlace direto; bridges/clouds
+    # de verdade (3+ pontas, ou 0/1) ficam como nó.
     nets_el = topo.find("networks")
-    net_names = {}
+    nets = {}
     if nets_el is not None:
         for net in nets_el.findall("network"):
-            nid = net.get("id") or ""
-            name = net.get("name") or ("net" + nid)
-            p = pos(net)
-            net_names["net-" + nid] = name
-            elements.append({
-                "group": "nodes",
-                "data": {
-                    "id": "net-" + nid, "name": name, "topoViewerRole": "bridge",
-                    "extraData": {"kind": "bridge", "image": "", "type": net.get("type") or "",
-                                  "labels": {"graph-posX": str(int(p["x"])), "graph-posY": str(int(p["y"]))}},
-                },
-                "position": p,
-            })
+            nets[net.get("id") or ""] = net
 
-    # Arestas: interface do nó -> rede
     idx = 0
-    for node_id, (nname, ifaces) in node_ifaces.items():
-        for itf in ifaces:
-            net = itf.get("network_id")
-            if not net:
-                continue
-            net_id = "net-" + net
+    for net_id, conns in net_conns.items():
+        if len(conns) == 2:
+            # enlace direto equipamento <-> equipamento (some com a "iface")
+            (na, ia), (nb, ib) = conns[0], conns[1]
             idx += 1
             elements.append({
                 "group": "edges",
                 "data": {
-                    "id": "edge-" + str(idx),
-                    "source": nname,
-                    "target": net_names.get(net_id, net_id),
-                    "sourceEndpoint": itf.get("name") or "",
-                    "targetEndpoint": "",
-                    "endpoints": [nname + ":" + (itf.get("name") or ""), net_names.get(net_id, net_id)],
+                    "id": "edge-" + str(idx), "source": na, "target": nb,
+                    "sourceEndpoint": ia, "targetEndpoint": ib,
+                    "endpoints": [na + ":" + ia, nb + ":" + ib],
+                },
+            })
+            continue
+        # rede real (bridge/cloud): cria o nó + arestas até cada equipamento
+        net = nets.get(net_id)
+        nname = (net.get("name") if net is not None else None) or ("net" + net_id)
+        p = pos(net) if net is not None else {"x": 0, "y": 0}
+        elements.append({
+            "group": "nodes",
+            "data": {
+                "id": "net-" + net_id, "name": nname, "topoViewerRole": "bridge",
+                "extraData": {"kind": "bridge", "image": "",
+                              "type": (net.get("type") if net is not None else "") or "",
+                              "labels": {"graph-posX": str(int(p["x"])), "graph-posY": str(int(p["y"]))}},
+            },
+            "position": p,
+        })
+        for (nn, ii) in conns:
+            idx += 1
+            elements.append({
+                "group": "edges",
+                "data": {
+                    "id": "edge-" + str(idx), "source": nn, "target": nname,
+                    "sourceEndpoint": ii, "targetEndpoint": "",
+                    "endpoints": [nn + ":" + ii, nname],
                 },
             })
     return elements

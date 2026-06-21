@@ -611,3 +611,9 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 
 /* Topology palette select */
 .topo-palette { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border-2); border-radius: 999px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+/* Topology node runtime status */
+.topo-node-status { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text-3); display: none; z-index: 4; }
+.topo-node.is-running .topo-node-status { background: var(--green); box-shadow: 0 0 0 3px rgba(62,196,109,.25); }
+.topo-node.is-stopped .topo-node-status { background: var(--text-3); }
+.topo-node.is-running { border-color: var(--green-bd); }

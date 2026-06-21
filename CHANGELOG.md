@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.10.0
+
+- ContainerLab (issue #52) — itens 4 e 10:
+  - **Checagem de imagens antes do deploy**: novo `POST /container-labs/check-images` compara as imagens dos nós (kind/image) com `docker images` do host; se faltar alguma, a UI avisa e pede confirmação.
+  - Botão **Redeploy** (deploy `--reconfigure`) por topologia.
+  - Destroy pergunta se também faz `--cleanup` (limpa diretórios do lab).
+
 ## 2.9.0
 
 - ContainerLab (issue #52) — item 1: deploy/destroy **assíncrono com log ao vivo**.

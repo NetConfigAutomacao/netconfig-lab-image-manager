@@ -124,6 +124,10 @@ TRANSLATIONS = {
         "container_labs.restore_success": "Backup restaurado com sucesso.",
         "container_labs.saveconfigs_ok": "Configurações dos nós salvas.",
         "container_labs.saveconfigs_fail": "Falha ao salvar configurações (código {rc}).",
+        "container_labs.lab_exists": "Já existe um lab chamado '{name}'.",
+        "container_labs.lab_created": "Lab '{name}' criado.",
+        "container_labs.lab_cloned": "Lab '{src}' clonado para '{dst}'.",
+        "container_labs.clone_fail": "Falha ao clonar o lab (código {rc}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -233,6 +237,10 @@ TRANSLATIONS = {
         "container_labs.restore_success": "Backup restored successfully.",
         "container_labs.saveconfigs_ok": "Node configs saved.",
         "container_labs.saveconfigs_fail": "Failed to save configs (exit code {rc}).",
+        "container_labs.lab_exists": "A lab named '{name}' already exists.",
+        "container_labs.lab_created": "Lab '{name}' created.",
+        "container_labs.lab_cloned": "Lab '{src}' cloned to '{dst}'.",
+        "container_labs.clone_fail": "Failed to clone the lab (exit code {rc}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -342,6 +350,10 @@ TRANSLATIONS = {
         "container_labs.restore_success": "Backup restaurado con éxito.",
         "container_labs.saveconfigs_ok": "Configuraciones de los nodos guardadas.",
         "container_labs.saveconfigs_fail": "Fallo al guardar configuraciones (código {rc}).",
+        "container_labs.lab_exists": "Ya existe un lab llamado '{name}'.",
+        "container_labs.lab_created": "Lab '{name}' creado.",
+        "container_labs.lab_cloned": "Lab '{src}' clonado a '{dst}'.",
+        "container_labs.clone_fail": "Fallo al clonar el lab (código {rc}).",
     },
 }
 

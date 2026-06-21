@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.16.3
+
+- Topologia UNL (issue #50): redes ponto-a-ponto do EVE (os nós "...iface_N", que são as interfaces dos equipamentos) agora colapsam em **enlace direto** entre os dois equipamentos, em vez de aparecerem como nós. Bridges/clouds reais (3+ conexões, ex.: "Net") continuam como nó.
+
 ## 2.16.2
 
 - Editor de topologia (issue #50): layout **force-directed** (Fruchterman–Reingold) com anti-sobreposição para topologias UNL — espalha nós e arestas sem encostar (antes os nós do .unl se sobrepunham). Aplicado ao abrir e no botão "Reorganizar" (UNL).

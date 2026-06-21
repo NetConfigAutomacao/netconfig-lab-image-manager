@@ -66,11 +66,31 @@ class TestUnl(unittest.TestCase):
         nodes = [e for e in els if e["group"] == "nodes"]
         edges = [e for e in els if e["group"] == "edges"]
         names = sorted(n["data"]["name"] for n in nodes)
-        self.assertEqual(names, ["Net1", "R1", "R2"])
-        self.assertEqual(len(edges), 2)
+        # Rede ponto-a-ponto (2 pontas) colapsa em enlace direto: Net1 não vira nó.
+        self.assertEqual(names, ["R1", "R2"])
+        self.assertEqual(len(edges), 1)
+        self.assertEqual(sorted(edges[0]["data"]["endpoints"]), ["R1:Gi0/0", "R2:Gi0/0"])
         r1 = next(n for n in nodes if n["data"]["name"] == "R1")
         self.assertEqual(r1["data"]["extraData"]["kind"], "vios")
         self.assertEqual(r1["position"], {"x": 100.0, "y": 120.0})
+
+    def test_unl_bridge_with_three_kept(self):
+        u = _import_unl()
+        xml = (
+            '<lab name="T" id="1"><topology><nodes>'
+            '<node id="1" name="R1" template="vios" left="1" top="1"><interface id="0" name="e0" network_id="1"/></node>'
+            '<node id="2" name="R2" template="vios" left="2" top="2"><interface id="0" name="e0" network_id="1"/></node>'
+            '<node id="3" name="R3" template="vios" left="3" top="3"><interface id="0" name="e0" network_id="1"/></node>'
+            '</nodes><networks><network id="1" type="bridge" name="Net" left="5" top="5"/></networks>'
+            '</topology></lab>'
+        )
+        els = u._unl_to_elements(xml)
+        nodes = [e for e in els if e["group"] == "nodes"]
+        edges = [e for e in els if e["group"] == "edges"]
+        names = sorted(n["data"]["name"] for n in nodes)
+        # 3 pontas -> bridge "Net" permanece como nó, 3 arestas até ela.
+        self.assertEqual(names, ["Net", "R1", "R2", "R3"])
+        self.assertEqual(len(edges), 3)
 
     def test_unl_bad_xml(self):
         u = _import_unl()

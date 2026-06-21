@@ -21,11 +21,11 @@ import shlex
 import threading
 import uuid
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 import yaml
 
 from i18n import get_request_lang, translate
-from utils import run_ssh_command, run_ssh_stream
+from utils import run_ssh_command, run_ssh_stream, run_ssh_binary
 
 
 # Jobs assíncronos de deploy/destroy (log ao vivo). Em memória.
@@ -1327,6 +1327,43 @@ def validate_topology():
                 issues.append(f"Endpoint duplicado: '{ep}'.")
             seen_eps.add(str(ep))
     return jsonify(success=True, ok=len(issues) == 0, issues=issues), 200
+
+
+@container_labs_bp.route("/node/capture", methods=["POST"])
+def node_capture():
+    """Captura pacotes numa interface do nó (tcpdump dentro do container) e
+    devolve um .pcap para download."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    iface = (request.form.get("iface") or "").strip()
+    try:
+        count = int(request.form.get("count") or 200)
+    except (TypeError, ValueError):
+        count = 200
+    count = max(1, min(count, 5000))
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container) or not iface or not _IFACE_RE.match(iface):
+        return jsonify(success=False, message=translate("container_labs.invalid_iface", lang)), 400
+    q = shlex.quote(container)
+    qi = shlex.quote(iface)
+    cmd = (
+        "if command -v docker >/dev/null 2>&1; then RT=docker; "
+        "elif command -v podman >/dev/null 2>&1; then RT=podman; else exit 45; fi; "
+        f"$RT exec {q} timeout 60 tcpdump -i {qi} -w - -c {int(count)} 2>/dev/null"
+    )
+    rc, data, errtxt = run_ssh_binary(eve_ip, eve_user, eve_pass, cmd, timeout=90)
+    if not data:
+        return jsonify(success=False, message=translate("container_labs.capture_fail", lang)), 200
+    fname = (container + "_" + iface + ".pcap").replace("/", "_")
+    return Response(
+        data,
+        mimetype="application/vnd.tcpdump.pcap",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @container_labs_bp.route("/node/stats", methods=["POST"])

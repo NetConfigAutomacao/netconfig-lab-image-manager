@@ -18,12 +18,43 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import threading
+import uuid
 
 from flask import Blueprint, jsonify, request
 import yaml
 
 from i18n import get_request_lang, translate
-from utils import run_ssh_command
+from utils import run_ssh_command, run_ssh_stream
+
+
+# Jobs assíncronos de deploy/destroy (log ao vivo). Em memória.
+_CLAB_JOBS = {}
+_CLAB_JOBS_LOCK = threading.Lock()
+
+
+def _job_new():
+    job_id = uuid.uuid4().hex
+    with _CLAB_JOBS_LOCK:
+        _CLAB_JOBS[job_id] = {"status": "running", "lines": [], "rc": None}
+    return job_id
+
+
+def _job_append(job_id, line):
+    with _CLAB_JOBS_LOCK:
+        j = _CLAB_JOBS.get(job_id)
+        if j:
+            j["lines"].append(line)
+            if len(j["lines"]) > 5000:
+                j["lines"] = j["lines"][-5000:]
+
+
+def _job_finish(job_id, rc):
+    with _CLAB_JOBS_LOCK:
+        j = _CLAB_JOBS.get(job_id)
+        if j:
+            j["rc"] = rc
+            j["status"] = "success" if rc == 0 else "error"
 
 
 container_labs_bp = Blueprint("container_labs_bp", __name__, url_prefix="/container-labs")
@@ -860,6 +891,68 @@ def destroy_lab():
         return jsonify(success=False, message=translate("container_labs.destroy_fail", lang, rc=rc), stdout=combined, stderr=(err or "").strip()), 500
 
     return jsonify(success=True, message=translate("container_labs.destroy_success", lang), stdout=combined, stderr=(err or "").strip()), 200
+
+
+def _run_clab_job(job_id, eve_ip, eve_user, eve_pass, labs_dir, lab_name, rel_path, action):
+    target = f"{labs_dir}/{lab_name}/{rel_path}"
+    cmd = (
+        f"if [ ! -f '{target}' ]; then echo 'arquivo não encontrado: {target}'; exit 44; fi; "
+        "if ! command -v containerlab >/dev/null 2>&1; then echo 'containerlab não encontrado no host'; exit 46; fi; "
+        f"containerlab {action} -t '{target}' 2>&1"
+    )
+    _job_append(job_id, f"$ containerlab {action} -t {rel_path}")
+    try:
+        rc = run_ssh_stream(eve_ip, eve_user, eve_pass, cmd, lambda ln: _job_append(job_id, ln), timeout=1200)
+    except Exception as exc:  # pragma: no cover
+        _job_append(job_id, f"erro: {exc}")
+        rc = 1
+    _job_finish(job_id, rc)
+
+
+def _start_clab_job(action_label, action_cmd):
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+    job_id = _job_new()
+    th = threading.Thread(
+        target=_run_clab_job,
+        args=(job_id, eve_ip, eve_user, eve_pass, labs_dir, lab_name, rel_path, action_cmd),
+        daemon=True,
+    )
+    th.start()
+    return jsonify(success=True, job_id=job_id), 200
+
+
+@container_labs_bp.route("/deploy_async", methods=["POST"])
+def deploy_async():
+    reconfigure = str(request.form.get("reconfigure") or "").strip().lower() in {"1", "true", "yes", "on"}
+    return _start_clab_job("deploy", "deploy --reconfigure" if reconfigure else "deploy")
+
+
+@container_labs_bp.route("/destroy_async", methods=["POST"])
+def destroy_async():
+    cleanup = str(request.form.get("cleanup") or "").strip().lower() in {"1", "true", "yes", "on"}
+    return _start_clab_job("destroy", "destroy --cleanup" if cleanup else "destroy")
+
+
+@container_labs_bp.route("/job", methods=["GET"])
+def clab_job():
+    job_id = (request.args.get("job_id") or "").strip()
+    with _CLAB_JOBS_LOCK:
+        j = _CLAB_JOBS.get(job_id)
+        if not j:
+            return jsonify(success=False, status="unknown", log="", done=True), 404
+        return jsonify(success=True, status=j["status"], log="\n".join(j["lines"]), rc=j["rc"], done=j["status"] != "running"), 200
 
 
 def _normalize_inspect(parsed) -> list:

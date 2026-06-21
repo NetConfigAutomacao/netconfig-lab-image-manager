@@ -1177,6 +1177,57 @@ def clab_job():
         return jsonify(success=True, status=j["status"], log="\n".join(j["lines"]), rc=j["rc"], done=j["status"] != "running"), 200
 
 
+# ---------------------------------------------------------------------------
+# P6 (#73): operações em massa (deploy/destroy/save) sobre vários labs.
+# ---------------------------------------------------------------------------
+
+def _run_bulk_job(job_id, eve_ip, eve_user, eve_pass, labs_dir, labs, action):
+    quoted = " ".join(shlex.quote(l) for l in labs)
+    script = (
+        "if ! command -v containerlab >/dev/null 2>&1; then echo 'containerlab não encontrado'; exit 46; fi; "
+        f"base={shlex.quote(labs_dir)}; rc_all=0; "
+        f"for lab in {quoted}; do "
+        "  echo \"=== $lab ===\"; "
+        "  f=$(find \"$base/$lab\" -maxdepth 2 -type f -name '*clab*.yml' 2>/dev/null | head -1); "
+        "  if [ -z \"$f\" ]; then echo \"  (sem .clab.yml, pulando)\"; continue; fi; "
+        f"  containerlab {action} -t \"$f\" 2>&1 || rc_all=$?; "
+        "done; exit $rc_all"
+    )
+    _job_append(job_id, f"$ bulk {action}: " + ", ".join(labs))
+    try:
+        rc = run_ssh_stream(eve_ip, eve_user, eve_pass, script, lambda ln: _job_append(job_id, ln), timeout=3600)
+    except Exception as exc:  # pragma: no cover
+        _job_append(job_id, f"erro: {exc}")
+        rc = 1
+    _job_finish(job_id, rc)
+
+
+@container_labs_bp.route("/bulk", methods=["POST"])
+def bulk_action():
+    """Executa deploy/destroy/save em vários labs (job assíncrono, log ao vivo)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    action = (request.form.get("action") or "").strip()
+    raw_labs = (request.form.get("labs") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    labs = [x.strip() for x in raw_labs.split(",") if x.strip()]
+    if not labs or any(not _is_safe_relpath(l) for l in labs):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    act_map = {"deploy": "deploy", "deploy-reconfigure": "deploy --reconfigure",
+               "destroy": "destroy", "destroy-cleanup": "destroy --cleanup", "save": "save"}
+    if action not in act_map:
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    job_id = _job_new()
+    threading.Thread(
+        target=_run_bulk_job,
+        args=(job_id, eve_ip, eve_user, eve_pass, labs_dir, labs, act_map[action]),
+        daemon=True,
+    ).start()
+    return jsonify(success=True, job_id=job_id), 200
+
+
 def _normalize_inspect(parsed) -> list:
     """
     Normaliza a saída JSON do `containerlab inspect --format json` para uma lista
@@ -1494,3 +1545,335 @@ def node_exec():
         return jsonify(success=False, message=translate("container_labs.exec_fail", lang, rc=rc), output=combined), 500
 
     return jsonify(success=True, output=combined, rc=rc, stderr=(err or "").strip()), 200
+
+
+# ---------------------------------------------------------------------------
+# P3 (#70): wrappers de `containerlab tools` — cert, veth, vxlan, sharing.
+# ---------------------------------------------------------------------------
+
+_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+_ENDPOINT_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+_HOSTS_RE = re.compile(r"^[A-Za-z0-9_.,:*-]+$")
+_IPADDR_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+
+
+def _tool_creds():
+    return (
+        (request.form.get("eve_ip") or "").strip(),
+        (request.form.get("eve_user") or "").strip(),
+        (request.form.get("eve_pass") or "").strip(),
+    )
+
+
+def _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang, cd_dir=None, timeout=120):
+    """Roda `containerlab tools ...` (após checar o binário), com cd opcional
+    para o diretório do lab. Retorna a tupla (json, status)."""
+    body = " ".join(parts) + " 2>&1"
+    if cd_dir:
+        body = f"cd {shlex.quote(cd_dir)} 2>/dev/null || {{ echo '__NO_DIR__'; exit 47; }}; " + body
+    cmd = "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; " + body
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=timeout)
+    combined = out or ""
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    if "__NO_DIR__" in combined or rc == 47:
+        return jsonify(success=False, message=translate("container_labs.tool_no_dir", lang), output=combined), 400
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.tool_fail", lang, rc=rc), output=combined, rc=rc), 200
+    return jsonify(success=True, message=translate("container_labs.tool_ok", lang), output=combined, rc=rc), 200
+
+
+def _lab_dir(labs_dir, lab_name):
+    """Diretório do lab para cd (se labs_dir e lab_name válidos)."""
+    labs_dir = (labs_dir or "").strip()
+    lab_name = (lab_name or "").strip()
+    if labs_dir and lab_name and _is_safe_relpath(lab_name) and not lab_name.startswith("/"):
+        return labs_dir.rstrip("/") + "/" + lab_name
+    return None
+
+
+@container_labs_bp.route("/tools/cert-ca", methods=["POST"])
+def tools_cert_ca():
+    """`containerlab tools cert ca create` — cria a CA do lab."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    name = (request.form.get("name") or "ca").strip()
+    expiry = (request.form.get("expiry") or "").strip()
+    cd_dir = _lab_dir(request.form.get("labs_dir"), request.form.get("lab_name"))
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _TOOL_NAME_RE.match(name) or (expiry and not re.match(r"^[0-9]+[smhd]?$|^[0-9]+(\.[0-9]+)?h$", expiry)):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "tools", "cert", "ca", "create", "--name", shlex.quote(name)]
+    if expiry:
+        parts += ["--expiry", shlex.quote(expiry)]
+    return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang, cd_dir=cd_dir)
+
+
+@container_labs_bp.route("/tools/cert-sign", methods=["POST"])
+def tools_cert_sign():
+    """`containerlab tools cert sign` — assina um certificado de nó com a CA."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    name = (request.form.get("name") or "").strip()
+    hosts = (request.form.get("hosts") or "").strip()
+    ca_cert = (request.form.get("ca_cert") or "").strip()
+    ca_key = (request.form.get("ca_key") or "").strip()
+    cd_dir = _lab_dir(request.form.get("labs_dir"), request.form.get("lab_name"))
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _TOOL_NAME_RE.match(name) or not hosts or not _HOSTS_RE.match(hosts):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    if (ca_cert and not _is_safe_relpath(ca_cert)) or (ca_key and not _is_safe_relpath(ca_key)):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "tools", "cert", "sign", "--name", shlex.quote(name), "--hosts", shlex.quote(hosts)]
+    if ca_cert:
+        parts += ["--ca-cert", shlex.quote(ca_cert)]
+    if ca_key:
+        parts += ["--ca-key", shlex.quote(ca_key)]
+    return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang, cd_dir=cd_dir)
+
+
+@container_labs_bp.route("/tools/veth", methods=["POST"])
+def tools_veth():
+    """`containerlab tools veth create` — cria um veth entre dois endpoints."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    a = (request.form.get("a") or "").strip()
+    b = (request.form.get("b") or "").strip()
+    mtu = (request.form.get("mtu") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _ENDPOINT_RE.match(a) or not _ENDPOINT_RE.match(b) or (mtu and not mtu.isdigit()):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "tools", "veth", "create", "-a", shlex.quote(a), "-b", shlex.quote(b)]
+    if mtu:
+        parts += ["--mtu", shlex.quote(mtu)]
+    return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang)
+
+
+@container_labs_bp.route("/tools/vxlan", methods=["POST"])
+def tools_vxlan():
+    """`containerlab tools vxlan create|delete`."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    action = (request.form.get("action") or "create").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if action == "delete":
+        prefix = (request.form.get("prefix") or "vx-").strip()
+        if not _TOOL_NAME_RE.match(prefix):
+            return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+        parts = ["containerlab", "tools", "vxlan", "delete", "--prefix", shlex.quote(prefix)]
+        return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang)
+    remote = (request.form.get("remote") or "").strip()
+    vni = (request.form.get("vni") or "").strip()
+    link = (request.form.get("link") or "").strip()
+    port = (request.form.get("port") or "").strip()
+    dev = (request.form.get("dev") or "").strip()
+    if not _IPADDR_RE.match(remote) or not vni.isdigit() or not _ENDPOINT_RE.match(link):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    if (port and not port.isdigit()) or (dev and not _ENDPOINT_RE.match(dev)):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "tools", "vxlan", "create", "--remote", shlex.quote(remote),
+             "--id", shlex.quote(vni), "--link", shlex.quote(link)]
+    if port:
+        parts += ["--port", shlex.quote(port)]
+    if dev:
+        parts += ["--dev", shlex.quote(dev)]
+    return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang)
+
+
+@container_labs_bp.route("/tools/share", methods=["POST"])
+def tools_share():
+    """Compartilhamento do lab: `gotty`, `sshx` e `api-server`.
+    tool ∈ {gotty,sshx,api-server}; action ∈ {start/stop/list ou attach/detach/list ou start/stop/status}."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    tool = (request.form.get("tool") or "").strip()
+    action = (request.form.get("action") or "").strip()
+    lab_name = (request.form.get("lab_name") or "").strip()
+    port = (request.form.get("port") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    allowed = {
+        "gotty": {"start", "stop", "list"},
+        "sshx": {"attach", "detach", "list", "reattach"},
+        "api-server": {"start", "stop", "status"},
+    }
+    if tool not in allowed or action not in allowed[tool]:
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "tools", tool, action]
+    # ações por lab precisam do nome do lab.
+    needs_lab = not (tool == "api-server" or action == "list")
+    if needs_lab:
+        if not _is_safe_container_name(lab_name):
+            return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+        parts += ["-l", shlex.quote(lab_name)]
+    if tool == "gotty" and action == "start" and port:
+        if not port.isdigit():
+            return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+        parts += ["-p", shlex.quote(port)]
+    return _clab_tool_run(eve_ip, eve_user, eve_pass, parts, lang)
+
+
+# ---------------------------------------------------------------------------
+# P4 (#71): graph (mermaid), generate (CLOS/grid) e inventário (ansible/nornir).
+# ---------------------------------------------------------------------------
+
+def _target_guard(labs_dir, lab_name, rel_path):
+    """Prefixo shell que resolve e valida o caminho do .clab.yml ($target)."""
+    return (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+        "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+    )
+
+
+@container_labs_bp.route("/graph", methods=["POST"])
+def graph_mermaid():
+    """`containerlab graph --mermaid` — devolve o diagrama Mermaid (texto)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    # --mermaid escreve <name>.mermaid; emitimos para stdout via diretório temporário.
+    cmd = (
+        _target_guard(labs_dir, lab_name, rel_path)
+        + "tmpd=$(mktemp -d); containerlab graph -t \"$target\" --mermaid --output-dir \"$tmpd\" >/dev/null 2>&1; "
+        "f=$(ls \"$tmpd\"/*.mermaid 2>/dev/null | head -1); "
+        "if [ -n \"$f\" ]; then cat \"$f\"; else containerlab graph -t \"$target\" --mermaid 2>&1; fi; "
+        "rm -rf \"$tmpd\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=60)
+    combined = (out or "")
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    return jsonify(success=True, mermaid=combined.strip()), 200
+
+
+@container_labs_bp.route("/generate", methods=["POST"])
+def generate_topology():
+    """`containerlab generate` — gera uma topologia CLOS/linear a partir de
+    parâmetros. Retorna o YAML; salva no diretório do lab se save=1."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    name = (request.form.get("name") or "").strip()
+    kind = (request.form.get("kind") or "").strip()
+    image = (request.form.get("image") or "").strip()
+    nodes = (request.form.get("nodes") or "").strip()  # ex: "4,2,1"
+    save = (request.form.get("save") or "").strip() in ("1", "true", "yes")
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or name).strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _TOOL_NAME_RE.match(name) or not _TOOL_NAME_RE.match(kind):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    if not re.match(r"^[0-9]+(,[0-9]+)*$", nodes):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    if image and not re.match(r"^[A-Za-z0-9_./:@-]+$", image):
+        return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+    parts = ["containerlab", "generate", "--name", shlex.quote(name),
+             "--kind", shlex.quote(kind), "--nodes", shlex.quote(nodes)]
+    if image:
+        parts += ["--image", shlex.quote(kind + "=" + image)]
+    guard = "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+    if save:
+        if not _is_safe_relpath(lab_name):
+            return jsonify(success=False, message=translate("container_labs.tool_bad_input", lang)), 400
+        out_dir = labs_dir.rstrip("/") + "/" + lab_name
+        out_file = out_dir + "/" + name + ".clab.yml"
+        cmd = (guard + f"mkdir -p {shlex.quote(out_dir)}; "
+               + " ".join(parts) + f" --file {shlex.quote(out_file)} 2>&1; "
+               + f"echo '__FILE__'; cat {shlex.quote(out_file)} 2>/dev/null")
+    else:
+        cmd = guard + " ".join(parts) + " 2>&1"
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=60)
+    combined = (out or "")
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    yaml_text = combined
+    if "__FILE__" in combined:
+        yaml_text = combined.split("__FILE__", 1)[1].strip()
+    return jsonify(success=True, yaml=yaml_text.strip(), saved=save,
+                   path=(name + ".clab.yml" if save else "")), 200
+
+
+@container_labs_bp.route("/inventory", methods=["POST"])
+def export_inventory():
+    """Lê o inventário gerado pelo containerlab no deploy (ansible/nornir)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    fmt = (request.form.get("format") or "ansible").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    fname = "ansible-inventory.yml" if fmt == "ansible" else "nornir-simple-inventory.yml"
+    lab_dir = labs_dir.rstrip("/") + "/" + lab_name
+    # o clab cria clab-<name>/<inventário>; procuramos sob o diretório do lab.
+    cmd = (
+        f"d={shlex.quote(lab_dir)}; "
+        f"f=$(find \"$d\" -maxdepth 3 -type f -name {shlex.quote(fname)} 2>/dev/null | head -1); "
+        "if [ -z \"$f\" ]; then echo '__NO_INV__'; exit 48; fi; cat \"$f\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
+    combined = (out or "")
+    if "__NO_INV__" in combined or rc == 48:
+        return jsonify(success=False, message=translate("container_labs.inv_missing", lang)), 404
+    return jsonify(success=True, inventory=combined, format=fmt), 200
+
+
+# ---------------------------------------------------------------------------
+# P5 (#72): versão do containerlab + upgrade; inspect de runtime por nó.
+# ---------------------------------------------------------------------------
+
+@container_labs_bp.route("/version", methods=["POST"])
+def clab_version():
+    """`containerlab version` (e `version upgrade` se action=upgrade)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    action = (request.form.get("action") or "show").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    guard = "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+    sub = "version upgrade" if action == "upgrade" else "version"
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, guard + "containerlab " + sub + " 2>&1", timeout=300)
+    combined = (out or "")
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    return jsonify(success=(rc == 0), output=combined.strip(), rc=rc), 200
+
+
+@container_labs_bp.route("/node/inspect", methods=["POST"])
+def node_inspect():
+    """`docker/podman inspect <container>` — detalhes de runtime de um nó."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+    q = shlex.quote(container)
+    cmd = (
+        "if command -v docker >/dev/null 2>&1; then docker inspect " + q + " 2>&1; "
+        "elif command -v podman >/dev/null 2>&1; then podman inspect " + q + " 2>&1; "
+        "else echo '__NO_RUNTIME__'; exit 45; fi"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
+    combined = (out or "")
+    if "__NO_RUNTIME__" in combined or rc == 45:
+        return jsonify(success=False, message=translate("container_labs.logs_fail", lang, rc=rc), output=combined), 500
+    return jsonify(success=(rc == 0), output=combined.strip(), rc=rc), 200

@@ -15,13 +15,49 @@
 
 from __future__ import annotations
 
+import re
+import shlex
+import threading
+import uuid
+
 from flask import Blueprint, jsonify, request
 
 from i18n import get_request_lang, translate
-from utils import run_ssh_command
+from utils import run_ssh_command, run_ssh_stream
 
 
 vrnetlab_bp = Blueprint("vrnetlab_bp", __name__, url_prefix="/vrnetlab")
+
+VRNETLAB_DIR = "/opt/containerlab/vrnetlab"
+_VENDOR_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+# Jobs de build (log ao vivo) em memória.
+_VRL_JOBS = {}
+_VRL_LOCK = threading.Lock()
+
+
+def _vrl_job_new():
+    jid = uuid.uuid4().hex
+    with _VRL_LOCK:
+        _VRL_JOBS[jid] = {"status": "running", "lines": [], "rc": None}
+    return jid
+
+
+def _vrl_job_append(jid, line):
+    with _VRL_LOCK:
+        j = _VRL_JOBS.get(jid)
+        if j:
+            j["lines"].append(line)
+            if len(j["lines"]) > 5000:
+                j["lines"] = j["lines"][-5000:]
+
+
+def _vrl_job_finish(jid, rc):
+    with _VRL_LOCK:
+        j = _VRL_JOBS.get(jid)
+        if j:
+            j["rc"] = rc
+            j["status"] = "success" if rc == 0 else "error"
 
 
 @vrnetlab_bp.route("/status", methods=["POST"])
@@ -170,3 +206,86 @@ def vrnetlab_install():
         )
 
     return jsonify(success=True, message=translate("vrnetlab.install.success", lang), stdout=cleaned_out), 200
+
+
+# ---------------------------------------------------------------------------
+# P5 (#72): listar vendors vrnetlab e construir imagem (build com log ao vivo).
+# ---------------------------------------------------------------------------
+
+@vrnetlab_bp.route("/vendors", methods=["POST"])
+def vrnetlab_vendors():
+    """Lista os diretórios de vendor sob /opt/containerlab/vrnetlab e os
+    arquivos de imagem (qcow2/vmdk/bin) presentes em cada um."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("vrnetlab.missing_creds", lang)), 400
+    cmd = (
+        f"d={shlex.quote(VRNETLAB_DIR)}; if [ ! -d \"$d\" ]; then echo '__NO_REPO__'; exit 44; fi; "
+        "for v in \"$d\"/*/; do "
+        "  name=$(basename \"$v\"); "
+        "  if [ ! -f \"$v/Makefile\" ]; then continue; fi; "
+        "  imgs=$(ls \"$v\" 2>/dev/null | grep -iE '\\.(qcow2|vmdk|bin|tgz|iso|qcow)$' | tr '\\n' ',' ); "
+        "  echo \"$name|$imgs\"; "
+        "done"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
+    combined = (out or "")
+    if "__NO_REPO__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("vrnetlab.status.no_repo", lang), vendors=[]), 200
+    vendors = []
+    for line in combined.splitlines():
+        line = line.strip()
+        if not line or "|" not in line:
+            continue
+        name, imgs = line.split("|", 1)
+        files = [x for x in imgs.split(",") if x.strip()]
+        vendors.append({"name": name.strip(), "images": files, "ready": bool(files)})
+    return jsonify(success=True, vendors=vendors), 200
+
+
+@vrnetlab_bp.route("/build", methods=["POST"])
+def vrnetlab_build():
+    """Inicia `make docker-image` no diretório do vendor (build assíncrono)."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    vendor = (request.form.get("vendor") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("vrnetlab.missing_creds", lang)), 400
+    if not _VENDOR_RE.match(vendor):
+        return jsonify(success=False, message=translate("vrnetlab.build.bad_vendor", lang)), 400
+    vdir = VRNETLAB_DIR + "/" + vendor
+    cmd = (
+        f"cd {shlex.quote(vdir)} 2>/dev/null || {{ echo '__NO_VENDOR__'; exit 44; }}; "
+        "if ! command -v make >/dev/null 2>&1; then echo '__NO_MAKE__'; exit 45; fi; "
+        "make docker-image 2>&1"
+    )
+    jid = _vrl_job_new()
+
+    def worker():
+        rc_box = {"rc": 1}
+
+        def on_line(line):
+            _vrl_job_append(jid, line)
+
+        rc = run_ssh_stream(eve_ip, eve_user, eve_pass, cmd, on_line, timeout=3600)
+        rc_box["rc"] = rc
+        _vrl_job_finish(jid, rc)
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify(success=True, job_id=jid), 200
+
+
+@vrnetlab_bp.route("/build/job", methods=["GET"])
+def vrnetlab_build_job():
+    """Polling do build: linhas + status."""
+    jid = (request.args.get("job_id") or "").strip()
+    with _VRL_LOCK:
+        j = _VRL_JOBS.get(jid)
+        if not j:
+            return jsonify(success=False, status="unknown", lines=[], rc=None), 404
+        return jsonify(success=True, status=j["status"], lines=list(j["lines"]), rc=j["rc"]), 200

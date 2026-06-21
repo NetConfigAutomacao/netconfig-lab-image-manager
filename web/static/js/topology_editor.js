@@ -43,6 +43,179 @@
     if (app.showMessage) app.showMessage(type, msg);
   }
 
+  // P1 (#68): campos extras de nó ContainerLab editáveis no painel, além dos
+  // básicos (name/kind/image/type/mgmt/group/startup-config já tratados à parte).
+  // type: 'scalar' (texto), 'bool' (checkbox), 'list' (1 por linha), 'kv' (CHAVE=VALOR por linha).
+  const EXTRA_NODE_FIELDS = [
+    { id: 'mgmt-ipv6', path: ['mgmt-ipv6'], type: 'scalar', t: 'ui.topo.fMgmt6' },
+    { id: 'license', path: ['license'], type: 'scalar', t: 'ui.topo.fLicense' },
+    { id: 'enforce-startup-config', path: ['enforce-startup-config'], type: 'bool', t: 'ui.topo.fEnforceStartup' },
+    { id: 'image-pull-policy', path: ['image-pull-policy'], type: 'scalar', t: 'ui.topo.fPullPolicy' },
+    { id: 'restart-policy', path: ['restart-policy'], type: 'scalar', t: 'ui.topo.fRestart' },
+    { id: 'startup-delay', path: ['startup-delay'], type: 'scalar', t: 'ui.topo.fStartupDelay' },
+    { id: 'runtime', path: ['runtime'], type: 'scalar', t: 'ui.topo.fRuntime' },
+    { id: 'network-mode', path: ['network-mode'], type: 'scalar', t: 'ui.topo.fNetMode' },
+    { id: 'user', path: ['user'], type: 'scalar', t: 'ui.topo.fUser' },
+    { id: 'entrypoint', path: ['entrypoint'], type: 'scalar', t: 'ui.topo.fEntrypoint' },
+    { id: 'cmd', path: ['cmd'], type: 'scalar', t: 'ui.topo.fCmd' },
+    { id: 'memory', path: ['memory'], type: 'scalar', t: 'ui.topo.fMemory' },
+    { id: 'cpu', path: ['cpu'], type: 'scalar', t: 'ui.topo.fCpu' },
+    { id: 'cpu-set', path: ['cpu-set'], type: 'scalar', t: 'ui.topo.fCpuSet' },
+    { id: 'shm-size', path: ['shm-size'], type: 'scalar', t: 'ui.topo.fShmSize' },
+    { id: 'binds', path: ['binds'], type: 'list', t: 'ui.topo.fBinds' },
+    { id: 'ports', path: ['ports'], type: 'list', t: 'ui.topo.fPorts' },
+    { id: 'exec', path: ['exec'], type: 'list', t: 'ui.topo.fExecList' },
+    { id: 'env-files', path: ['env-files'], type: 'list', t: 'ui.topo.fEnvFiles' },
+    { id: 'cap-add', path: ['cap-add'], type: 'list', t: 'ui.topo.fCapAdd' },
+    { id: 'aliases', path: ['aliases'], type: 'list', t: 'ui.topo.fAliases' },
+    { id: 'dns-servers', path: ['dns', 'servers'], type: 'list', t: 'ui.topo.fDnsServers' },
+    { id: 'dns-search', path: ['dns', 'search'], type: 'list', t: 'ui.topo.fDnsSearch' },
+    { id: 'env', path: ['env'], type: 'kv', t: 'ui.topo.fEnv' },
+    { id: 'sysctls', path: ['sysctls'], type: 'kv', t: 'ui.topo.fSysctls' },
+    { id: 'cert-issue', path: ['certificate', 'issue'], type: 'bool', t: 'ui.topo.fCertIssue' },
+    { id: 'cert-sans', path: ['certificate', 'sans'], type: 'list', t: 'ui.topo.fCertSans' }
+  ];
+
+  function getInPath(obj, path) {
+    let cur = obj;
+    for (let i = 0; i < path.length; i++) {
+      if (!cur || typeof cur !== 'object') return undefined;
+      cur = cur[path[i]];
+    }
+    return cur;
+  }
+  // Lê os campos extras de um objeto de nó (YAML) -> props {id:value}.
+  function readExtraProps(o) {
+    const props = {};
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const v = getInPath(o, f.path);
+      if (v === undefined || v === null) return;
+      if (f.type === 'bool') props[f.id] = v === true || v === 'true';
+      else if (f.type === 'list') props[f.id] = Array.isArray(v) ? v.map(String) : [String(v)];
+      else if (f.type === 'kv') {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const m = {}; Object.keys(v).forEach(function (k) { m[k] = String(v[k]); }); props[f.id] = m;
+        }
+      } else props[f.id] = String(v);
+    });
+    return props;
+  }
+  // Aplica props nos caminhos de um objeto JS simples (fallback js-yaml).
+  function writeExtraPropsPlain(base, props) {
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const v = props ? props[f.id] : undefined;
+      const empty = v === undefined || v === '' ||
+        (f.type === 'bool' && !v) ||
+        (f.type === 'list' && (!v || !v.length)) ||
+        (f.type === 'kv' && (!v || !Object.keys(v).length));
+      if (empty) return;
+      let cur = base;
+      for (let i = 0; i < f.path.length - 1; i++) {
+        if (!cur[f.path[i]] || typeof cur[f.path[i]] !== 'object') cur[f.path[i]] = {};
+        cur = cur[f.path[i]];
+      }
+      cur[f.path[f.path.length - 1]] = v;
+    });
+  }
+  // Aplica props num Document eemeli (preserva comentários); apaga quando vazio.
+  function writeExtraPropsDoc(doc, YAML, baseArr, props) {
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const full = baseArr.concat(f.path);
+      const v = props ? props[f.id] : undefined;
+      const empty = v === undefined || v === '' ||
+        (f.type === 'bool' && !v) ||
+        (f.type === 'list' && (!v || !v.length)) ||
+        (f.type === 'kv' && (!v || !Object.keys(v).length));
+      if (empty) { if (doc.hasIn(full)) doc.deleteIn(full); return; }
+      if (f.type === 'list' || f.type === 'kv') doc.setIn(full, doc.createNode(v));
+      else doc.setIn(full, v);
+    });
+  }
+
+  // P2 (#69): rede de gerência (doc-level `mgmt:`).
+  const MGMT_FIELDS = [
+    { id: 'network', path: ['network'], type: 'scalar', t: 'ui.topo.mgmtNetwork' },
+    { id: 'ipv4-subnet', path: ['ipv4-subnet'], type: 'scalar', t: 'ui.topo.mgmtV4' },
+    { id: 'ipv6-subnet', path: ['ipv6-subnet'], type: 'scalar', t: 'ui.topo.mgmtV6' },
+    { id: 'bridge', path: ['bridge'], type: 'scalar', t: 'ui.topo.mgmtBridge' },
+    { id: 'mtu', path: ['mtu'], type: 'scalar', t: 'ui.topo.mgmtMtu' }
+  ];
+  // Tipos de link single-endpoint (nó <-> host/cloud).
+  const SPECIAL_LINK_TYPES = ['mgmt-net', 'macvlan', 'host', 'vxlan', 'vxlan-stitch', 'dummy'];
+
+  function readMgmt(doc) {
+    const m = {};
+    const src = (doc && typeof doc.mgmt === 'object' && doc.mgmt) ? doc.mgmt : {};
+    MGMT_FIELDS.forEach(function (f) { if (src[f.id] !== undefined && src[f.id] !== null) m[f.id] = String(src[f.id]); });
+    return m;
+  }
+  function kvObj(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    const m = {}; Object.keys(v).forEach(function (k) { m[k] = String(v[k]); }); return m;
+  }
+  // Divide topology.links em arestas nó-a-nó (grafo) e links especiais.
+  function parseClabLinks(topo) {
+    const edges = [];   // {source,target,sourceEp,targetEp,linkType,mtu,vars,labels,extra}
+    const special = []; // {type,node,iface,hostInterface,mode,remote,vni,udpPort,mtu,vars,labels}
+    const rawLinks = (topo && Array.isArray(topo.links)) ? topo.links : [];
+    function epParts(ep) {
+      if (typeof ep === 'string') { const s = ep.split(':'); return { node: s[0], iface: s[1] || '' }; }
+      if (ep && typeof ep === 'object') return { node: ep.node || '', iface: ep.interface || ep.iface || '' };
+      return { node: '', iface: '' };
+    }
+    rawLinks.forEach(function (l) {
+      if (!l || typeof l !== 'object') return;
+      const type = l.type || '';
+      const single = l.endpoint && !Array.isArray(l.endpoints);
+      const eps = Array.isArray(l.endpoints) ? l.endpoints : [];
+      if (single || (type && SPECIAL_LINK_TYPES.indexOf(type) !== -1 && eps.length < 2)) {
+        const e = epParts(l.endpoint || eps[0] || {});
+        special.push({
+          type: type || 'host', node: e.node, iface: e.iface,
+          hostInterface: l['host-interface'] || '', mode: l.mode || '',
+          remote: l.remote || '', vni: (l.vni != null ? String(l.vni) : ''),
+          udpPort: (l['udp-port'] != null ? String(l['udp-port']) : ''),
+          mtu: (l.mtu != null ? String(l.mtu) : ''), vars: kvObj(l.vars), labels: kvObj(l.labels)
+        });
+      } else if (eps.length >= 2) {
+        const a = epParts(eps[0]); const b = epParts(eps[1]);
+        edges.push({
+          source: a.node, target: b.node, sourceEp: a.iface, targetEp: b.iface,
+          linkType: type || '', mtu: (l.mtu != null ? String(l.mtu) : ''),
+          vars: kvObj(l.vars), labels: kvObj(l.labels), extra: null
+        });
+      }
+    });
+    return { edges: edges, special: special };
+  }
+  // Serializa uma aresta nó-a-nó: forma curta se sem atributos; estendida c/ atributos.
+  function vethToYaml(l) {
+    const sEp = l.sourceEp || 'eth1'; const tEp = l.targetEp || 'eth1';
+    const hasVars = l.vars && Object.keys(l.vars).length;
+    const hasLabels = l.labels && Object.keys(l.labels).length;
+    const extended = (l.linkType && l.linkType !== 'veth') || l.mtu || hasVars || hasLabels;
+    if (!extended) return { endpoints: [l.source + ':' + sEp, l.target + ':' + tEp] };
+    const o = { type: l.linkType || 'veth', endpoints: [{ node: l.source, interface: sEp }, { node: l.target, interface: tEp }] };
+    if (l.mtu) o.mtu = isNaN(Number(l.mtu)) ? l.mtu : Number(l.mtu);
+    if (hasVars) o.vars = l.vars;
+    if (hasLabels) o.labels = l.labels;
+    return o;
+  }
+  function specialToYaml(s) {
+    const o = { type: s.type || 'host', endpoint: { node: s.node, interface: s.iface || 'eth1' } };
+    if (s.hostInterface) o['host-interface'] = s.hostInterface;
+    if (s.type === 'macvlan' && s.mode) o.mode = s.mode;
+    if ((s.type === 'vxlan' || s.type === 'vxlan-stitch')) {
+      if (s.remote) o.remote = s.remote;
+      if (s.vni) o.vni = isNaN(Number(s.vni)) ? s.vni : Number(s.vni);
+      if (s.udpPort) o['udp-port'] = isNaN(Number(s.udpPort)) ? s.udpPort : Number(s.udpPort);
+    }
+    if (s.mtu) o.mtu = isNaN(Number(s.mtu)) ? s.mtu : Number(s.mtu);
+    if (s.vars && Object.keys(s.vars).length) o.vars = s.vars;
+    if (s.labels && Object.keys(s.labels).length) o.labels = s.labels;
+    return o;
+  }
+
   function postForm(url, fields) {
     return new Promise(function (resolve, reject) {
       const c = creds();
@@ -90,7 +263,8 @@
           x: typeof pos.x === 'number' && pos.x ? pos.x : 0,
           y: typeof pos.y === 'number' && pos.y ? pos.y : 0,
           level: isNaN(lvl) ? null : lvl,
-          labels: labels
+          labels: labels,
+          props: {}
         });
       } else if (el.group === 'edges') {
         links.push({
@@ -274,7 +448,430 @@
     this.linkSource = null;
     this.nodeEls = {};
     this.statusMap = {};        // nodeName -> { state, ipv4, container }
+    this.specialLinks = [];     // links single-endpoint (host/macvlan/vxlan/...)
+    this.mgmt = {};             // rede de gerência (doc-level)
   }
+
+  // Modal genérico (overlay + caixa), seguindo o padrão io-overlay/io-modal.
+  function buildModal(titleText) {
+    const overlay = document.createElement('div');
+    overlay.className = 'io-overlay';
+    const modal = document.createElement('div');
+    modal.className = 'io-modal'; modal.style.maxWidth = '640px';
+    const head = document.createElement('div'); head.className = 'io-head';
+    const h = document.createElement('div'); h.className = 'io-title'; h.textContent = titleText; head.appendChild(h);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+    head.appendChild(x);
+    const body = document.createElement('div'); body.className = 'io-body'; body.style.cssText = 'padding:14px;overflow:auto';
+    modal.appendChild(head); modal.appendChild(body); overlay.appendChild(modal);
+    function close() { overlay.remove(); }
+    x.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.body.appendChild(overlay);
+    return { box: modal, body: body, close: close };
+  }
+
+  // Rede de gerência (`mgmt:`).
+  TopologyEditor.prototype.openMgmtModal = function () {
+    const self = this;
+    if (!self.mgmt || typeof self.mgmt !== 'object') self.mgmt = {};
+    const m = buildModal(t('ui.topo.mgmtBtn'));
+    MGMT_FIELDS.forEach(function (f) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '8px';
+      const lab = document.createElement('label'); lab.textContent = t(f.t); w.appendChild(lab);
+      const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = self.mgmt[f.id] || '';
+      inp.addEventListener('change', function () {
+        const v = inp.value.trim();
+        if (v) self.mgmt[f.id] = v; else delete self.mgmt[f.id];
+        self.refreshYaml();
+      });
+      w.appendChild(inp); m.body.appendChild(w);
+    });
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '4px';
+    hint.textContent = t('ui.topo.mgmtHint'); m.body.appendChild(hint);
+  };
+
+  // Links especiais (single-endpoint): host/macvlan/vxlan/mgmt-net/dummy.
+  TopologyEditor.prototype.openHostLinksModal = function () {
+    const self = this;
+    if (!Array.isArray(self.specialLinks)) self.specialLinks = [];
+    const m = buildModal(t('ui.topo.hostLinksBtn'));
+    const list = document.createElement('div'); m.body.appendChild(list);
+
+    function fieldRow(parent, labelKey, value, onChange, opts) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '6px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      let inp;
+      if (opts && opts.options) {
+        inp = document.createElement('select'); inp.className = 'mono';
+        opts.options.forEach(function (o) { const op = document.createElement('option'); op.value = o; op.textContent = o; inp.appendChild(op); });
+        inp.value = value || opts.options[0];
+        inp.addEventListener('change', function () { onChange(inp.value); });
+      } else {
+        inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = value || '';
+        inp.addEventListener('change', function () { onChange(inp.value.trim()); });
+      }
+      w.appendChild(inp); parent.appendChild(w); return inp;
+    }
+    function nodeOptions() { return self.state.nodes.filter(function (n) { return !n.isHost; }).map(function (n) { return n.name; }); }
+
+    function renderList() {
+      list.innerHTML = '';
+      if (!self.specialLinks.length) {
+        const e = document.createElement('div'); e.className = 'hint'; e.textContent = t('ui.topo.hostLinksEmpty'); list.appendChild(e);
+      }
+      self.specialLinks.forEach(function (s, idx) {
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--border-2);border-radius:8px;padding:10px;margin-bottom:10px';
+        const grid = document.createElement('div'); grid.className = 'topo-panel-grid';
+        fieldRow(grid, 'ui.topo.fLinkType', s.type, function (v) { s.type = v; self.refreshYaml(); renderList(); }, { options: SPECIAL_LINK_TYPES });
+        const nopts = nodeOptions();
+        fieldRow(grid, 'ui.topo.hlNode', s.node, function (v) { s.node = v; self.refreshYaml(); }, nopts.length ? { options: nopts } : null);
+        fieldRow(grid, 'ui.topo.hlIface', s.iface, function (v) { s.iface = v; self.refreshYaml(); });
+        if (s.type !== 'dummy') fieldRow(grid, 'ui.topo.hlHostIface', s.hostInterface, function (v) { s.hostInterface = v; self.refreshYaml(); });
+        if (s.type === 'macvlan') fieldRow(grid, 'ui.topo.hlMode', s.mode, function (v) { s.mode = v; self.refreshYaml(); }, { options: ['bridge', 'vepa', 'private', 'passthru'] });
+        if (s.type === 'vxlan' || s.type === 'vxlan-stitch') {
+          fieldRow(grid, 'ui.topo.hlRemote', s.remote, function (v) { s.remote = v; self.refreshYaml(); });
+          fieldRow(grid, 'ui.topo.hlVni', s.vni, function (v) { s.vni = v; self.refreshYaml(); });
+          fieldRow(grid, 'ui.topo.hlUdp', s.udpPort, function (v) { s.udpPort = v; self.refreshYaml(); });
+        }
+        fieldRow(grid, 'ui.topo.fMtu', s.mtu, function (v) { s.mtu = v; self.refreshYaml(); });
+        card.appendChild(grid);
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'pill-action'; del.style.marginTop = '4px';
+        del.textContent = t('ui.topo.delLink');
+        del.addEventListener('click', function () { self.specialLinks.splice(idx, 1); self.refreshYaml(); renderList(); });
+        card.appendChild(del); list.appendChild(card);
+      });
+    }
+    renderList();
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'btn-ghost'; add.style.cssText = 'padding:5px 12px;font-size:12px';
+    add.textContent = t('ui.topo.hlAdd');
+    add.addEventListener('click', function () {
+      const first = nodeOptions()[0] || '';
+      self.specialLinks.push({ type: 'host', node: first, iface: 'eth1', hostInterface: '', mode: '', remote: '', vni: '', udpPort: '', mtu: '', vars: {}, labels: {} });
+      self.refreshYaml(); renderList();
+    });
+    m.body.appendChild(add);
+  };
+
+  // Modal simples só-leitura para mostrar texto (inspect, etc).
+  TopologyEditor.prototype.showTextModal = function (title, text) {
+    const m = buildModal(title);
+    const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 16; ta.readOnly = true;
+    ta.style.cssText = 'width:100%'; ta.value = text || '';
+    m.body.appendChild(ta);
+  };
+
+  // Mostra a saída do gotty com os links http(s) clicáveis (terminal web). P6.
+  TopologyEditor.prototype.showTermLinks = function (output) {
+    const m = buildModal(t('ui.topo.webTermBtn'));
+    const urls = (output || '').match(/https?:\/\/[^\s"']+/g) || [];
+    if (urls.length) {
+      const ul = document.createElement('div'); ul.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-bottom:8px';
+      urls.forEach(function (u) {
+        const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.textContent = u;
+        a.className = 'mono'; a.style.cssText = 'font-size:12px;word-break:break-all';
+        ul.appendChild(a);
+      });
+      m.body.appendChild(ul);
+    } else {
+      const h = document.createElement('div'); h.className = 'hint'; h.textContent = t('ui.topo.webTermNoUrl'); m.body.appendChild(h);
+    }
+    const pre = document.createElement('pre'); pre.className = 'io-log'; pre.style.cssText = 'max-height:200px;overflow:auto;font-size:11px';
+    pre.textContent = output || ''; m.body.appendChild(pre);
+  };
+
+  // Edita o startup-config de um nó (arquivo no diretório do lab). P6.
+  TopologyEditor.prototype.editStartupConfig = function (relPath) {
+    const self = this;
+    const m = buildModal(t('ui.topo.editStartup') + ' — ' + relPath);
+    const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 18; ta.style.cssText = 'width:100%';
+    ta.value = t('ui.topo.toolsRunning'); m.body.appendChild(ta);
+    const bar = document.createElement('div'); bar.style.cssText = 'margin-top:8px;display:flex;gap:8px';
+    const save = document.createElement('button'); save.type = 'button'; save.className = 'btn-primary'; save.style.cssText = 'padding:5px 14px;font-size:12px';
+    save.textContent = t('ui.topo.editStartupSave'); save.disabled = true;
+    bar.appendChild(save); m.body.appendChild(bar);
+    postForm('/api/container-labs/file', { lab_name: self.lab, path: relPath, labs_dir: self.labsDir || '' }).then(function (r) {
+      if (r && r.success !== false && (r.content != null)) { ta.value = r.content; save.disabled = false; }
+      else { ta.value = (r && r.message) || t('ui.topo.genFail'); }
+    }).catch(function () { ta.value = t('ui.topo.genFail'); });
+    save.addEventListener('click', function () {
+      save.disabled = true;
+      postForm('/api/container-labs/file/save', { lab_name: self.lab, path: relPath, content: ta.value, labs_dir: self.labsDir || '' }).then(function (r) {
+        save.disabled = false;
+        if (r && r.success) { toast('success', t('ui.topo.editStartupOk')); m.close(); }
+        else toast('error', (r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { save.disabled = false; toast('error', t('ui.topo.genFail')); });
+    });
+  };
+
+  // Liga/desliga o monitoramento periódico de status (health watch). P6.
+  TopologyEditor.prototype.toggleHealthWatch = function (btn) {
+    const self = this;
+    if (self.healthTimer) {
+      clearInterval(self.healthTimer); self.healthTimer = null;
+      btn.classList.remove('active'); btn.style.background = '';
+      toast('info', t('ui.topo.healthOff'));
+      return;
+    }
+    self.loadStatus();
+    self.healthTimer = setInterval(function () { self.loadStatus(); }, 10000);
+    btn.classList.add('active'); btn.style.background = 'var(--surface-hover)';
+    toast('success', t('ui.topo.healthOn'));
+  };
+
+  // P3 (#70): wrappers de `containerlab tools` (cert, veth, vxlan, sharing).
+  TopologyEditor.prototype.openToolsModal = function () {
+    const self = this;
+    const m = buildModal(t('ui.topo.toolsBtn'));
+
+    function section(titleKey) {
+      const d = document.createElement('details'); d.className = 'topo-adv'; d.style.marginTop = '6px';
+      const s = document.createElement('summary'); s.textContent = t(titleKey); d.appendChild(s);
+      m.body.appendChild(d); return d;
+    }
+    function inp(parent, labelKey, ph, opts) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '6px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      let el;
+      if (opts && opts.options) {
+        el = document.createElement('select'); el.className = 'mono';
+        opts.options.forEach(function (o) { const op = document.createElement('option'); op.value = o; op.textContent = o; el.appendChild(op); });
+      } else { el = document.createElement('input'); el.type = 'text'; el.className = 'mono'; if (ph) el.placeholder = ph; }
+      w.appendChild(el); parent.appendChild(w); return el;
+    }
+    function runBlock(parent, url, collect) {
+      const out = document.createElement('pre'); out.className = 'io-log'; out.style.cssText = 'margin-top:6px;max-height:180px;overflow:auto;font-size:11px;display:none';
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-primary'; btn.style.cssText = 'padding:5px 14px;font-size:12px;margin-top:4px';
+      btn.textContent = t('ui.topo.toolsRun');
+      btn.addEventListener('click', function () {
+        const fields = collect(); if (fields === false) { toast('error', t('ui.topo.toolsBadInput')); return; }
+        btn.disabled = true; out.style.display = 'block'; out.textContent = t('ui.topo.toolsRunning');
+        postForm(url, fields).then(function (r) {
+          btn.disabled = false;
+          out.textContent = (r && r.output) || (r && r.message) || '';
+          if (r && r.success) toast('success', r.message || t('ui.topo.toolsOk'));
+          else toast('error', (r && r.message) || t('ui.topo.toolsFail'));
+        }).catch(function () { btn.disabled = false; toast('error', t('ui.topo.toolsFail')); });
+      });
+      parent.appendChild(btn); parent.appendChild(out);
+    }
+    const labFields = function () { return { labs_dir: self.labsDir || '', lab_name: self.lab || '' }; };
+
+    // Certificados (CA + assinar)
+    const ca = section('ui.topo.toolsCertCa');
+    const caName = inp(ca, 'ui.topo.toolsName', 'ca'); caName.value = 'ca';
+    const caExp = inp(ca, 'ui.topo.toolsExpiry', '87600h');
+    runBlock(ca, '/api/container-labs/tools/cert-ca', function () {
+      const f = labFields(); f.name = caName.value.trim() || 'ca'; if (caExp.value.trim()) f.expiry = caExp.value.trim(); return f;
+    });
+    const sign = section('ui.topo.toolsCertSign');
+    const sName = inp(sign, 'ui.topo.toolsName', 'r1');
+    const sHosts = inp(sign, 'ui.topo.toolsHosts', 'r1,172.20.20.2');
+    const sCaCert = inp(sign, 'ui.topo.toolsCaCert', 'ca/ca.pem');
+    const sCaKey = inp(sign, 'ui.topo.toolsCaKey', 'ca/ca-key.pem');
+    runBlock(sign, '/api/container-labs/tools/cert-sign', function () {
+      if (!sName.value.trim() || !sHosts.value.trim()) return false;
+      const f = labFields(); f.name = sName.value.trim(); f.hosts = sHosts.value.trim();
+      if (sCaCert.value.trim()) f.ca_cert = sCaCert.value.trim();
+      if (sCaKey.value.trim()) f.ca_key = sCaKey.value.trim(); return f;
+    });
+
+    // veth
+    const veth = section('ui.topo.toolsVeth');
+    const va = inp(veth, 'ui.topo.toolsVethA', 'clab-lab-r1:eth5');
+    const vb = inp(veth, 'ui.topo.toolsVethB', 'clab-lab-r2:eth5');
+    const vmtu = inp(veth, 'ui.topo.fMtu', '1500');
+    runBlock(veth, '/api/container-labs/tools/veth', function () {
+      if (!va.value.trim() || !vb.value.trim()) return false;
+      const f = { a: va.value.trim(), b: vb.value.trim() }; if (vmtu.value.trim()) f.mtu = vmtu.value.trim(); return f;
+    });
+
+    // vxlan
+    const vx = section('ui.topo.toolsVxlan');
+    const vxAct = inp(vx, 'ui.topo.toolsAction', null, { options: ['create', 'delete'] });
+    const vxRemote = inp(vx, 'ui.topo.hlRemote', '10.0.0.20');
+    const vxVni = inp(vx, 'ui.topo.hlVni', '100');
+    const vxLink = inp(vx, 'ui.topo.toolsLink', 'eth1');
+    const vxPort = inp(vx, 'ui.topo.hlUdp', '4789');
+    const vxPrefix = inp(vx, 'ui.topo.toolsPrefix', 'vx-');
+    runBlock(vx, '/api/container-labs/tools/vxlan', function () {
+      const f = { action: vxAct.value };
+      if (vxAct.value === 'delete') { f.prefix = vxPrefix.value.trim() || 'vx-'; return f; }
+      if (!vxRemote.value.trim() || !vxVni.value.trim() || !vxLink.value.trim()) return false;
+      f.remote = vxRemote.value.trim(); f.vni = vxVni.value.trim(); f.link = vxLink.value.trim();
+      if (vxPort.value.trim()) f.port = vxPort.value.trim(); return f;
+    });
+
+    // Sharing
+    const sh = section('ui.topo.toolsShare');
+    const shTool = inp(sh, 'ui.topo.toolsShareTool', null, { options: ['gotty', 'sshx', 'api-server'] });
+    const shAct = inp(sh, 'ui.topo.toolsAction', 'start');
+    const shPort = inp(sh, 'ui.topo.toolsPort', '8080');
+    runBlock(sh, '/api/container-labs/tools/share', function () {
+      const f = { tool: shTool.value, action: shAct.value.trim(), lab_name: self.lab || '' };
+      if (shTool.value === 'gotty' && shPort.value.trim()) f.port = shPort.value.trim();
+      return f;
+    });
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '8px';
+    hint.textContent = t('ui.topo.toolsHint'); m.body.appendChild(hint);
+  };
+
+  // Templates de nó por fabricante (P4 #71).
+  var VENDOR_TEMPLATES = [
+    { label: 'Nokia SR Linux', kind: 'nokia_srlinux', image: 'ghcr.io/nokia/srlinux:latest' },
+    { label: 'Arista cEOS', kind: 'arista_ceos', image: 'ceos:4.32.0F' },
+    { label: 'Juniper cRPD', kind: 'juniper_crpd', image: 'crpd:23.4R1' },
+    { label: 'Cisco IOL', kind: 'cisco_iol', image: 'vrnetlab/cisco_iol:latest' },
+    { label: 'Nokia SROS (vr)', kind: 'nokia_sros', image: 'vrnetlab/nokia_sros:23.10' },
+    { label: 'Juniper vMX (vr)', kind: 'juniper_vmx', image: 'vrnetlab/juniper_vmx:23.4' },
+    { label: 'Arista vEOS (vr)', kind: 'arista_veos', image: 'vrnetlab/arista_veos:4.32' },
+    { label: 'Cisco vSRX/csr (vr)', kind: 'cisco_csr1000v', image: 'vrnetlab/cisco_csr1000v:17.03' },
+    { label: 'FRR', kind: 'linux', image: 'frrouting/frr:latest' },
+    { label: 'Linux (alpine)', kind: 'linux', image: 'alpine:latest' }
+  ];
+
+  // P4 (#71): inspect --all, export Mermaid, generate, inventário, templates.
+  TopologyEditor.prototype.openGenExportModal = function () {
+    const self = this;
+    const m = buildModal(t('ui.topo.genBtn'));
+    function section(titleKey) {
+      const d = document.createElement('details'); d.className = 'topo-adv'; d.style.marginTop = '6px';
+      const s = document.createElement('summary'); s.textContent = t(titleKey); d.appendChild(s);
+      m.body.appendChild(d); return d;
+    }
+    function download(name, text) {
+      try {
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      } catch (e) { toast('error', t('ui.topo.genFail')); }
+    }
+    function outArea(parent) {
+      const o = document.createElement('textarea'); o.className = 'mono'; o.rows = 8; o.readOnly = true;
+      o.style.cssText = 'width:100%;display:none;margin-top:6px'; parent.appendChild(o); return o;
+    }
+    function btn(parent, labelKey, primary) {
+      const b = document.createElement('button'); b.type = 'button';
+      b.className = primary ? 'btn-primary' : 'btn-ghost'; b.style.cssText = 'padding:5px 12px;font-size:12px;margin-top:4px;margin-right:6px';
+      b.textContent = t(labelKey); parent.appendChild(b); return b;
+    }
+    var labF = function () { return { labs_dir: self.labsDir || '', lab_name: self.lab || '', path: self.path || '' }; };
+
+    // Inspect --all
+    const insp = section('ui.topo.genInspect');
+    const inspOut = outArea(insp);
+    btn(insp, 'ui.topo.genRun', true).addEventListener('click', function () {
+      inspOut.style.display = 'block'; inspOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/inspect', {}).then(function (r) {
+        if (!r || r.success === false) { inspOut.value = (r && r.message) || t('ui.topo.genFail'); return; }
+        const rows = (r.containers || []).map(function (c) { return [c.name, c.kind || '', c.state || '', c.ipv4 || ''].join('\t'); });
+        inspOut.value = rows.length ? ('name\tkind\tstate\tipv4\n' + rows.join('\n')) : t('ui.topo.genNone');
+      }).catch(function () { inspOut.value = t('ui.topo.genFail'); });
+    });
+
+    // Mermaid
+    const mer = section('ui.topo.genMermaid');
+    const merOut = outArea(mer);
+    const merRun = btn(mer, 'ui.topo.genRun', true);
+    const merDl = btn(mer, 'ui.topo.genDownload', false);
+    merRun.addEventListener('click', function () {
+      merOut.style.display = 'block'; merOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/graph', labF()).then(function (r) {
+        merOut.value = (r && r.success) ? (r.mermaid || '') : ((r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { merOut.value = t('ui.topo.genFail'); });
+    });
+    merDl.addEventListener('click', function () { if (merOut.value.trim()) download((self.lab || 'lab') + '.mmd', merOut.value); });
+
+    // Generate
+    const gen = section('ui.topo.genGenerate');
+    function gi(labelKey, ph, val) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '6px';
+      const l = document.createElement('label'); l.textContent = t(labelKey); w.appendChild(l);
+      const i = document.createElement('input'); i.type = 'text'; i.className = 'mono'; if (ph) i.placeholder = ph; if (val) i.value = val;
+      w.appendChild(i); gen.appendChild(w); return i;
+    }
+    const gName = gi('ui.topo.toolsName', 'clos01');
+    const gKind = gi('ui.topo.fKind', 'nokia_srlinux');
+    const gImage = gi('ui.topo.fImage', 'ghcr.io/nokia/srlinux:latest');
+    const gNodes = gi('ui.topo.genNodes', '4,2,1');
+    const gSave = document.createElement('label'); gSave.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0';
+    const gSaveCb = document.createElement('input'); gSaveCb.type = 'checkbox'; gSaveCb.style.width = 'auto';
+    gSave.appendChild(gSaveCb); gSave.appendChild(document.createTextNode(t('ui.topo.genSave'))); gen.appendChild(gSave);
+    const genOut = outArea(gen);
+    const genRun = btn(gen, 'ui.topo.genRun', true);
+    const genDl = btn(gen, 'ui.topo.genDownload', false);
+    genRun.addEventListener('click', function () {
+      if (!gName.value.trim() || !gKind.value.trim() || !gNodes.value.trim()) { toast('error', t('ui.topo.toolsBadInput')); return; }
+      genOut.style.display = 'block'; genOut.value = t('ui.topo.toolsRunning');
+      const f = { name: gName.value.trim(), kind: gKind.value.trim(), nodes: gNodes.value.trim(), labs_dir: self.labsDir || '' };
+      if (gImage.value.trim()) f.image = gImage.value.trim();
+      if (gSaveCb.checked) { f.save = '1'; f.lab_name = gName.value.trim(); }
+      postForm('/api/container-labs/generate', f).then(function (r) {
+        genOut.value = (r && r.success) ? (r.yaml || '') : ((r && r.message) || t('ui.topo.genFail'));
+        if (r && r.success && r.saved) toast('success', t('ui.topo.genSaved', { path: r.path }));
+      }).catch(function () { genOut.value = t('ui.topo.genFail'); });
+    });
+    genDl.addEventListener('click', function () { if (genOut.value.trim()) download((gName.value.trim() || 'topology') + '.clab.yml', genOut.value); });
+
+    // Inventory
+    const inv = section('ui.topo.genInventory');
+    const invFmt = document.createElement('select'); invFmt.className = 'mono'; invFmt.style.marginBottom = '6px';
+    ['ansible', 'nornir'].forEach(function (k) { const o = document.createElement('option'); o.value = k; o.textContent = k; invFmt.appendChild(o); });
+    inv.appendChild(invFmt);
+    const invOut = outArea(inv);
+    const invRun = btn(inv, 'ui.topo.genRun', true);
+    const invDl = btn(inv, 'ui.topo.genDownload', false);
+    invRun.addEventListener('click', function () {
+      invOut.style.display = 'block'; invOut.value = t('ui.topo.toolsRunning');
+      const f = labF(); f.format = invFmt.value;
+      postForm('/api/container-labs/inventory', f).then(function (r) {
+        invOut.value = (r && r.success) ? (r.inventory || '') : ((r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { invOut.value = t('ui.topo.genFail'); });
+    });
+    invDl.addEventListener('click', function () { if (invOut.value.trim()) download((self.lab || 'lab') + '-' + invFmt.value + '.yml', invOut.value); });
+
+    // Versão do containerlab (+ upgrade)
+    const ver = section('ui.topo.genVersion');
+    const verOut = outArea(ver);
+    const verRun = btn(ver, 'ui.topo.genVerShow', true);
+    const verUp = btn(ver, 'ui.topo.genVerUpgrade', false);
+    function verCall(action) {
+      verOut.style.display = 'block'; verOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/version', { action: action }).then(function (r) {
+        verOut.value = (r && r.output) || (r && r.message) || t('ui.topo.genFail');
+      }).catch(function () { verOut.value = t('ui.topo.genFail'); });
+    }
+    verRun.addEventListener('click', function () { verCall('show'); });
+    verUp.addEventListener('click', function () { if (window.confirm(t('ui.topo.genVerConfirm'))) verCall('upgrade'); });
+
+    // Vendor templates → adiciona nó
+    const tpl = section('ui.topo.genTemplates');
+    const tgrid = document.createElement('div'); tgrid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px';
+    VENDOR_TEMPLATES.forEach(function (v) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn-ghost'; b.style.cssText = 'padding:4px 10px;font-size:11px';
+      b.textContent = v.label;
+      b.addEventListener('click', function () { self.addVendorNode(v.kind, v.image); toast('success', t('ui.topo.genAdded', { kind: v.kind })); });
+      tgrid.appendChild(b);
+    });
+    tpl.appendChild(tgrid);
+  };
+
+  // Adiciona um nó já com kind+image (templates de fabricante).
+  TopologyEditor.prototype.addVendorNode = function (kind, image) {
+    const self = this;
+    self.snapshot && self.snapshot();
+    let i = 1; const baseName = (kind || 'node').replace(/[^A-Za-z0-9]/g, '').slice(0, 6) || 'node';
+    while (self.nodeByName(baseName + i)) i++;
+    const node = { name: baseName + i, kind: kind || 'linux', image: image || '', type: '', mgmtIpv4: '',
+      group: '', startupConfig: '', x: W / 2 + (i * 8 % 120), y: H / 2 + (i * 12 % 80), labels: {}, props: {} };
+    self.state.nodes.push(node);
+    self.renderNode(node);
+    self.redrawEdges();
+    self.updateCounter && self.updateCounter();
+    self.refreshYaml();
+  };
 
   TopologyEditor.prototype.load = function () {
     const self = this;
@@ -318,11 +915,50 @@
       try { self.baseDoc = (window.jsyaml ? window.jsyaml.load(self.baseYaml) : null) || {}; } catch (e) { self.baseDoc = {}; }
       if (typeof self.baseDoc !== 'object' || !self.baseDoc) self.baseDoc = {};
       self.state = cytoToState(resp.elements || []);
+      self.mergePropsFromDoc();
+      self.mergeLinkData();
       autoLayout(self.state.nodes);
       self.render();
     }).catch(function (e) {
       try { console.error('[topology] load failed:', e && (e.stack || e.message || e)); } catch (_) {}
       self.target.innerHTML = '<div class="empty-state">' + t('ui.topo.loadFail') + '</div>';
+    });
+  };
+
+  // Enriquece o estado (vindo do endpoint cyto) com os campos extras do nó
+  // lidos do YAML cru (baseDoc), que o grafo cyto não carrega. P1 (#68).
+  TopologyEditor.prototype.mergePropsFromDoc = function () {
+    const topo = (this.baseDoc && typeof this.baseDoc.topology === 'object') ? this.baseDoc.topology : null;
+    if (!topo) return;
+    let raw = topo.nodes;
+    if (Array.isArray(raw)) {
+      const m = {}; raw.forEach(function (it, i) { if (it && typeof it === 'object') m[it.name || ('node-' + (i + 1))] = it; }); raw = m;
+    }
+    if (!raw || typeof raw !== 'object') return;
+    this.state.nodes.forEach(function (nd) {
+      const o = raw[nd.name];
+      if (!o || typeof o !== 'object') return;
+      nd.props = readExtraProps(o);
+      if (!nd.startupConfig && o['startup-config']) nd.startupConfig = String(o['startup-config']);
+      if (!nd.mgmtIpv4 && o['mgmt-ipv4']) nd.mgmtIpv4 = String(o['mgmt-ipv4']);
+    });
+  };
+
+  // Enriquece arestas com atributos (type/mtu/vars/labels) e extrai os links
+  // especiais (single-endpoint) + a rede de gerência a partir do YAML cru. P2 (#69).
+  TopologyEditor.prototype.mergeLinkData = function () {
+    const topo = (this.baseDoc && typeof this.baseDoc.topology === 'object') ? this.baseDoc.topology : null;
+    const parsed = parseClabLinks(topo || {});
+    this.specialLinks = parsed.special;
+    this.mgmt = readMgmt(this.baseDoc || {});
+    // casa atributos de aresta por assinatura de endpoints (sem ordem).
+    const sig = function (s, se, t, te) { return [s + ':' + (se || ''), t + ':' + (te || '')].sort().join('|'); };
+    const byKey = {};
+    parsed.edges.forEach(function (e) { byKey[sig(e.source, e.sourceEp, e.target, e.targetEp)] = e; });
+    this.state.links.forEach(function (l) {
+      const m = byKey[sig(l.source, l.sourceEp, l.target, l.targetEp)];
+      if (m) { l.linkType = m.linkType || ''; l.mtu = m.mtu || ''; l.vars = m.vars || {}; l.labels = m.labels || {}; }
+      else { l.linkType = l.linkType || ''; l.mtu = l.mtu || ''; l.vars = l.vars || {}; l.labels = l.labels || {}; }
     });
   };
 
@@ -346,6 +982,7 @@
       if (nd.mgmtIpv4) base['mgmt-ipv4'] = nd.mgmtIpv4;
       if (nd.group) base.group = nd.group;
       if (nd.startupConfig) base['startup-config'] = nd.startupConfig;
+      writeExtraPropsPlain(base, nd.props);
       const labels = (base.labels && typeof base.labels === 'object') ? base.labels : {};
       if (nd.labels) Object.keys(nd.labels).forEach(function (k) { labels[k] = nd.labels[k]; });
       labels['graph-posX'] = String(Math.round(nd.x));
@@ -353,12 +990,15 @@
       base.labels = labels;
       nodes[nd.name] = base;
     });
-    const links = this.state.links.map(function (l) {
-      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
-    });
+    const links = this.state.links.map(vethToYaml)
+      .concat((this.specialLinks || []).map(specialToYaml));
     topo.nodes = nodes;
     topo.links = links;
     doc.topology = topo;
+    const mgmt = this.mgmt || {};
+    const mObj = {};
+    MGMT_FIELDS.forEach(function (f) { if (mgmt[f.id]) mObj[f.id] = mgmt[f.id]; });
+    if (Object.keys(mObj).length) doc.mgmt = Object.assign({}, doc.mgmt || {}, mObj);
     return doc;
   };
 
@@ -382,17 +1022,17 @@
         mgmtIpv4: o['mgmt-ipv4'] || '', startupConfig: o['startup-config'] || '',
         x: isNaN(x) ? 0 : x, y: isNaN(y) ? 0 : y,
         group: (o.group || labels['graph-group'] || '').toString().trim(),
-        level: isNaN(lvl) ? null : lvl, labels: labels
+        level: isNaN(lvl) ? null : lvl, labels: labels,
+        props: readExtraProps(o)
       });
     });
-    const links = [];
-    const rawLinks = Array.isArray(topo.links) ? topo.links : [];
-    rawLinks.forEach(function (l) {
-      const eps = (l && Array.isArray(l.endpoints)) ? l.endpoints : [];
-      if (eps.length < 2) return;
-      const a = String(eps[0]).split(':'); const b = String(eps[1]).split(':');
-      links.push({ source: a[0], target: b[0], sourceEp: a[1] || '', targetEp: b[1] || '', extra: l });
+    const parsed = parseClabLinks(topo);
+    const links = parsed.edges.map(function (e) {
+      return { source: e.source, target: e.target, sourceEp: e.sourceEp, targetEp: e.targetEp,
+        linkType: e.linkType || '', mtu: e.mtu || '', vars: e.vars || {}, labels: e.labels || {}, extra: null };
     });
+    this.specialLinks = parsed.special;
+    this.mgmt = readMgmt(this.baseDoc || {});
     this.state = { nodes: nodes, links: links };
     autoLayout(this.state.nodes);
   };
@@ -428,15 +1068,23 @@
       if (n.mgmtIpv4) doc.setIn(base.concat('mgmt-ipv4'), n.mgmtIpv4);
       if (n.group) doc.setIn(base.concat('group'), n.group);
       if (n.startupConfig) doc.setIn(base.concat('startup-config'), n.startupConfig);
+      writeExtraPropsDoc(doc, YAML, base, n.props);
       if (!YAML.isMap(doc.getIn(base.concat('labels')))) doc.setIn(base.concat('labels'), doc.createNode({}));
       doc.setIn(base.concat(['labels', 'graph-posX']), String(Math.round(n.x)));
       doc.setIn(base.concat(['labels', 'graph-posY']), String(Math.round(n.y)));
     });
-    // links: regenerados (comentários de link não são preservados)
-    const links = this.state.links.map(function (l) {
-      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
+    // links: regenerados (comentários de link não são preservados).
+    // Arestas nó-a-nó + links especiais (single-endpoint) preservados.
+    const links = this.state.links.map(vethToYaml)
+      .concat((this.specialLinks || []).map(specialToYaml));
+    doc.setIn(['topology', 'links'], doc.createNode(links));
+    // rede de gerência (doc-level `mgmt:`)
+    const mgmt = this.mgmt || {};
+    MGMT_FIELDS.forEach(function (f) {
+      const v = mgmt[f.id];
+      if (v === undefined || v === '') { if (doc.hasIn(['mgmt'].concat(f.path))) doc.deleteIn(['mgmt'].concat(f.path)); }
+      else doc.setIn(['mgmt'].concat(f.path), v);
     });
-    doc.setIn(['topology', 'links'], links);
     try { return doc.toString(); } catch (e) { return null; }
   };
 
@@ -504,6 +1152,23 @@
     self.expandBtn = expandBtn;
     expandBtn.addEventListener('click', function () { self.setFullscreen(!self.isFullscreen); });
 
+    const mgmtBtn = document.createElement('button');
+    mgmtBtn.type = 'button'; mgmtBtn.className = 'btn-ghost'; mgmtBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    mgmtBtn.textContent = t('ui.topo.mgmtBtn');
+    mgmtBtn.addEventListener('click', function () { self.openMgmtModal(); });
+    const toolsBtn = document.createElement('button');
+    toolsBtn.type = 'button'; toolsBtn.className = 'btn-ghost'; toolsBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    toolsBtn.textContent = t('ui.topo.toolsBtn');
+    toolsBtn.addEventListener('click', function () { self.openToolsModal(); });
+    const genBtn = document.createElement('button');
+    genBtn.type = 'button'; genBtn.className = 'btn-ghost'; genBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    genBtn.textContent = t('ui.topo.genBtn');
+    genBtn.addEventListener('click', function () { self.openGenExportModal(); });
+    const hostLinksBtn = document.createElement('button');
+    hostLinksBtn.type = 'button'; hostLinksBtn.className = 'btn-ghost'; hostLinksBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    hostLinksBtn.textContent = t('ui.topo.hostLinksBtn');
+    hostLinksBtn.addEventListener('click', function () { self.openHostLinksModal(); });
+
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     tidyBtn.textContent = t('ui.topo.tidyBtn');
@@ -524,6 +1189,10 @@
     statusBtn.type = 'button'; statusBtn.className = 'btn-ghost'; statusBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     statusBtn.textContent = t('ui.topo.statusBtn');
     statusBtn.addEventListener('click', function () { self.loadStatus(statusBtn); });
+    const healthBtn = document.createElement('button');
+    healthBtn.type = 'button'; healthBtn.className = 'btn-ghost'; healthBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    healthBtn.textContent = t('ui.topo.healthBtn');
+    healthBtn.addEventListener('click', function () { self.toggleHealthWatch(healthBtn); });
 
     const validateBtn = document.createElement('button');
     validateBtn.type = 'button'; validateBtn.className = 'btn-ghost'; validateBtn.style.cssText = 'padding:5px 12px;font-size:12px';
@@ -575,8 +1244,13 @@
       bar.appendChild(linkBtn);
       bar.appendChild(undoBtn);
       bar.appendChild(redoBtn);
+      bar.appendChild(mgmtBtn);
+      bar.appendChild(hostLinksBtn);
+      bar.appendChild(toolsBtn);
+      bar.appendChild(genBtn);
       bar.appendChild(tidyBtn);
       bar.appendChild(statusBtn);
+      bar.appendChild(healthBtn);
       bar.appendChild(validateBtn);
       bar.appendChild(yamlBtn);
       bar.appendChild(exportBtn);
@@ -932,7 +1606,7 @@
     let kind = presetKind;
     if (!kind) kind = (window.prompt(t('ui.topo.nodeKindPrompt'), 'linux') || '').trim();
     const image = (window.prompt(t('ui.topo.nodeImagePrompt'), '') || '').trim();
-    const node = { name: name, kind: kind, image: image, type: '', mgmtIpv4: '', group: '', startupConfig: '', x: W / 2, y: H / 2, labels: {} };
+    const node = { name: name, kind: kind, image: image, type: '', mgmtIpv4: '', group: '', startupConfig: '', x: W / 2, y: H / 2, labels: {}, props: {} };
     this.state.nodes.push(node);
     this.renderNode(node);
     this.updateCounter();
@@ -988,6 +1662,40 @@
     grid.appendChild(epField('ui.topo.fEndpointA', l.source, l.sourceEp, function (v) { l.sourceEp = v; l.extra = null; }));
     grid.appendChild(epField('ui.topo.fEndpointB', l.target, l.targetEp, function (v) { l.targetEp = v; l.extra = null; }));
     panel.appendChild(grid);
+
+    // P2 (#69): atributos da aresta (veth) — tipo/mtu/vars/labels.
+    if (!l.vars || typeof l.vars !== 'object') l.vars = {};
+    if (!l.labels || typeof l.labels !== 'object') l.labels = {};
+    const lgrid = document.createElement('div'); lgrid.className = 'topo-panel-grid'; lgrid.style.marginTop = '6px';
+    const tw = document.createElement('div'); tw.className = 'field'; tw.style.marginBottom = '8px';
+    const tl = document.createElement('label'); tl.textContent = t('ui.topo.fLinkType'); tw.appendChild(tl);
+    const tsel = document.createElement('select'); tsel.className = 'mono';
+    ['veth'].forEach(function (k) { const o = document.createElement('option'); o.value = k; o.textContent = k; tsel.appendChild(o); });
+    tsel.value = l.linkType || 'veth';
+    tsel.addEventListener('change', function () { l.linkType = tsel.value; self.refreshYaml(); });
+    tw.appendChild(tsel); lgrid.appendChild(tw);
+    const mw = document.createElement('div'); mw.className = 'field'; mw.style.marginBottom = '8px';
+    const ml = document.createElement('label'); ml.textContent = t('ui.topo.fMtu'); mw.appendChild(ml);
+    const minp = document.createElement('input'); minp.type = 'text'; minp.className = 'mono'; minp.value = l.mtu || '';
+    minp.addEventListener('change', function () { l.mtu = minp.value.trim(); self.refreshYaml(); });
+    mw.appendChild(minp); lgrid.appendChild(mw);
+    function kvBox(labelKey, obj) {
+      const w = document.createElement('div'); w.className = 'field'; w.style.marginBottom = '8px';
+      const lab = document.createElement('label'); lab.textContent = t(labelKey); w.appendChild(lab);
+      const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 2; ta.placeholder = 'KEY=value';
+      ta.value = Object.keys(obj).map(function (k) { return k + '=' + obj[k]; }).join('\n');
+      ta.addEventListener('change', function () {
+        Object.keys(obj).forEach(function (k) { delete obj[k]; });
+        ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean).forEach(function (ln) {
+          const i = ln.indexOf('='); if (i > 0) obj[ln.slice(0, i).trim()] = ln.slice(i + 1).trim();
+        });
+        self.refreshYaml();
+      });
+      w.appendChild(ta); return w;
+    }
+    lgrid.appendChild(kvBox('ui.topo.fLinkVars', l.vars));
+    lgrid.appendChild(kvBox('ui.topo.fLinkLabels', l.labels));
+    panel.appendChild(lgrid);
 
     // Impairments (netem) por endpoint.
     const netem = document.createElement('div');
@@ -1111,6 +1819,63 @@
     grid.appendChild(field('ui.topo.fStartup', node.startupConfig, function (v) { node.startupConfig = v; }));
     panel.appendChild(grid);
 
+    // P1 (#68): campos avançados do nó ContainerLab (colapsável).
+    if (!node.props || typeof node.props !== 'object') node.props = {};
+    const adv = document.createElement('details');
+    adv.className = 'topo-adv';
+    const sum = document.createElement('summary');
+    sum.textContent = t('ui.topo.advNode');
+    adv.appendChild(sum);
+    const advGrid = document.createElement('div');
+    advGrid.className = 'topo-panel-grid';
+    advGrid.style.marginTop = '8px';
+
+    function advField(spec) {
+      const wrap = document.createElement('div'); wrap.className = 'field'; wrap.style.marginBottom = '8px';
+      const lbl = document.createElement('label'); lbl.textContent = t(spec.t); wrap.appendChild(lbl);
+      const cur = node.props[spec.id];
+      if (spec.type === 'bool') {
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = cur === true;
+        cb.style.cssText = 'width:auto;margin-left:4px';
+        cb.addEventListener('change', function () { node.props[spec.id] = cb.checked; self.refreshYaml(); });
+        lbl.style.cssText = 'display:flex;align-items:center;gap:6px'; lbl.appendChild(cb);
+        return wrap;
+      }
+      if (spec.type === 'list' || spec.type === 'kv') {
+        const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 3;
+        ta.placeholder = spec.type === 'kv' ? 'KEY=value' : t('ui.topo.onePerLine');
+        if (spec.type === 'kv' && cur && typeof cur === 'object') {
+          ta.value = Object.keys(cur).map(function (k) { return k + '=' + cur[k]; }).join('\n');
+        } else if (spec.type === 'list' && Array.isArray(cur)) {
+          ta.value = cur.join('\n');
+        }
+        ta.addEventListener('change', function () {
+          const lines = ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+          if (spec.type === 'kv') {
+            const m = {}; lines.forEach(function (ln) { const i = ln.indexOf('='); if (i > 0) m[ln.slice(0, i).trim()] = ln.slice(i + 1).trim(); });
+            node.props[spec.id] = m;
+          } else { node.props[spec.id] = lines; }
+          self.refreshYaml();
+        });
+        wrap.appendChild(ta); return wrap;
+      }
+      const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = (cur != null ? cur : '');
+      inp.addEventListener('change', function () { node.props[spec.id] = inp.value.trim(); self.refreshYaml(); });
+      wrap.appendChild(inp); return wrap;
+    }
+    EXTRA_NODE_FIELDS.forEach(function (spec) { advGrid.appendChild(advField(spec)); });
+    adv.appendChild(advGrid);
+    panel.appendChild(adv);
+
+    // P6 (#73): editar o startup-config do nó (arquivo no diretório do lab).
+    if (node.startupConfig && self.mode !== 'unl' && self.lab) {
+      const scBtn = document.createElement('button');
+      scBtn.type = 'button'; scBtn.className = 'btn-ghost'; scBtn.style.cssText = 'margin-top:6px;padding:4px 12px;font-size:11px';
+      scBtn.textContent = t('ui.topo.editStartup');
+      scBtn.addEventListener('click', function () { self.editStartupConfig(node.startupConfig); });
+      panel.appendChild(scBtn);
+    }
+
     // Ações de runtime (se houver status do nó via inspect).
     const st = self.statusMap[node.name];
     if (st && st.container) {
@@ -1127,6 +1892,17 @@
       execB.type = 'button'; execB.className = 'btn-ghost'; execB.style.cssText = 'padding:4px 10px;font-size:11px';
       execB.textContent = t('ui.labs.execBtn');
       execB.addEventListener('click', function () { if (window.NetConfigLabs) window.NetConfigLabs.execNodeCommand(st.container); });
+      const inspB = document.createElement('button');
+      inspB.type = 'button'; inspB.className = 'btn-ghost'; inspB.style.cssText = 'padding:4px 10px;font-size:11px';
+      inspB.textContent = t('ui.topo.inspectBtn');
+      inspB.addEventListener('click', function () {
+        inspB.disabled = true;
+        postForm('/api/container-labs/node/inspect', { container: st.container }).then(function (r) {
+          inspB.disabled = false;
+          if (r && r.output) self.showTextModal(t('ui.topo.inspectBtn') + ' — ' + st.container, r.output);
+          else toast('error', (r && r.message) || t('ui.topo.genFail'));
+        }).catch(function () { inspB.disabled = false; toast('error', t('ui.topo.genFail')); });
+      });
       const statsB = document.createElement('button');
       statsB.type = 'button'; statsB.className = 'btn-ghost'; statsB.style.cssText = 'padding:4px 10px;font-size:11px';
       statsB.textContent = t('ui.topo.statsBtn');
@@ -1171,7 +1947,19 @@
           navigator.clipboard.writeText(cmd).then(function () { toast('success', t('ui.topo.termCopied')); }, function () { window.prompt(t('ui.topo.termCopy'), cmd); });
         } else { window.prompt(t('ui.topo.termCopy'), cmd); }
       });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB);
+      // P6 (#73): terminal web real via gotty (containerlab tools gotty).
+      const webB = document.createElement('button');
+      webB.type = 'button'; webB.className = 'btn-ghost'; webB.style.cssText = 'padding:4px 10px;font-size:11px';
+      webB.textContent = t('ui.topo.webTermBtn');
+      webB.addEventListener('click', function () {
+        webB.disabled = true; toast('info', t('ui.topo.webTermStarting'));
+        postForm('/api/container-labs/tools/share', { tool: 'gotty', action: 'start', lab_name: self.lab || '' }).then(function (r) {
+          webB.disabled = false;
+          const out = (r && r.output) || '';
+          self.showTermLinks(out);
+        }).catch(function () { webB.disabled = false; toast('error', t('ui.topo.genFail')); });
+      });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB); acts.appendChild(webB);
       panel.appendChild(acts);
     }
 
@@ -1466,6 +2254,8 @@
       const ed = new TopologyEditor(target, opts || {});
       ed.load();
       return ed;
-    }
+    },
+    // Seam para testes headless (não usar em produção).
+    Editor: TopologyEditor
   };
 })();

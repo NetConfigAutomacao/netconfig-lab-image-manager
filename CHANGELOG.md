@@ -2,6 +2,62 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.24.0
+
+- ContainerLab full control (épico #67) — **P6: operação de produção** (#73). Conclui o épico.
+  - **Terminal web** real por nó via `containerlab tools gotty` — botão no painel do nó abre os URLs do gotty (ttyd-like).
+  - **Operações em massa**: botão "Operações em massa" na aba de labs — seleciona vários labs e roda deploy/deploy-reconfigure/destroy/destroy-cleanup/save com log ao vivo (job assíncrono `/bulk`).
+  - **startup-config por nó**: editar/salvar o arquivo de startup-config do nó direto no painel (aplicar ao nó rodando = redeploy).
+  - **Health watch**: botão "Monitorar" na topologia atualiza o status dos nós a cada 10s.
+  - **Multi-host**: já suportado — todas as chamadas levam IP/usuário/senha do host por requisição; troque o host na tela de credenciais.
+  - i18n PT/EN/ES.
+
+## 2.23.0
+
+- ContainerLab full control (épico #67) — **P5: imagens e runtime** (#72).
+  - **Imagens de container**: `pull` (puxar imagem) e `remove` (remover) na aba de imagens, além da listagem.
+  - **Runtime por nó**: botão **Inspect** (`docker/podman inspect`) no painel do nó, ao lado de logs/exec/stats/captura.
+  - **Versão do containerlab**: seção em Gerar/Exportar mostra `containerlab version` e oferece `version upgrade`.
+  - **VRNetLab build**: lista os vendors em `/opt/containerlab/vrnetlab` (com os arquivos de imagem presentes) e executa `make docker-image` com **log ao vivo** (job assíncrono + polling).
+  - Endpoints validados; i18n PT/EN/ES.
+
+## 2.22.0
+
+- ContainerLab full control (épico #67) — **P4: inventário, geração e export** (#71).
+  - Novo botão **Gerar/Exportar** na topologia:
+    - **Inspecionar todos os labs** (`containerlab inspect --all`).
+    - **Exportar diagrama Mermaid** (`containerlab graph --mermaid`) com download `.mmd`.
+    - **Gerar topologia** CLOS/linear (`containerlab generate`, nós por camada), com preview e opção de salvar `.clab.yml` no diretório do lab.
+    - **Exportar inventário** Ansible e Nornir (lê os arquivos gerados no deploy).
+    - **Templates por fabricante**: adiciona nó já com kind+image (Nokia SR Linux/SROS, Arista cEOS/vEOS, Juniper cRPD/vMX, Cisco IOL/CSR, FRR, Linux).
+  - Endpoints `graph`, `generate`, `inventory` com entradas validadas; i18n PT/EN/ES.
+
+## 2.21.0
+
+- ContainerLab full control (épico #67) — **P3: containerlab tools** (#70).
+  - Novo botão **Ferramentas** na topologia + endpoints SSH:
+    - `tools/cert-ca` e `tools/cert-sign` (PKI do lab: cria CA, assina nó) — rodam no diretório do lab.
+    - `tools/veth` (cria veth entre endpoints) e `tools/vxlan` (create/delete).
+    - `tools/share` (compartilhar lab): `gotty`, `sshx`, `api-server` (start/stop/list/attach/detach/status), expõe a URL/saída.
+  - Entradas validadas (regex de endpoint/nome/hosts), binário `containerlab` checado, saída crua retornada para diagnóstico. netem/captura já existentes seguem disponíveis.
+  - i18n PT/EN/ES.
+
+## 2.20.0
+
+- ContainerLab full control (épico #67) — **P2: links ricos e rede de gerência** (#69).
+  - Painel de aresta (veth) ganha `type`, `mtu`, `vars` e `labels`; salva em forma estendida quando há atributos e mantém a forma curta quando não há.
+  - Botão **Links de host** gerencia links single-endpoint: `host`, `macvlan` (com `mode`), `vxlan`/`vxlan-stitch` (`remote`/`vni`/`udp-port`), `mgmt-net`, `dummy` — com `host-interface`, `mtu`, `vars`, `labels`. Preservados em ida-e-volta (não são mais perdidos no save).
+  - Botão **Rede de gerência** edita o bloco `mgmt:` do lab (network, ipv4-subnet, ipv6-subnet, bridge, mtu). IP de gerência por nó já disponível (mgmt-ipv4/ipv6).
+  - Save preserva comentários do YAML; i18n PT/EN/ES.
+
+## 2.19.0
+
+- ContainerLab full control (épico #67) — **P1: editor de nó completo** (#68).
+  - Painel do nó ganha seção "Campos avançados" cobrindo todos os campos do `.clab.yml`: `mgmt-ipv6`, `license`, `enforce-startup-config`, `image-pull-policy`, `restart-policy`, `startup-delay`, `runtime`, `network-mode`, `user`, `entrypoint`, `cmd`, `memory`, `cpu`, `cpu-set`, `shm-size`, `binds`, `ports`, `exec`, `env-files`, `cap-add`, `aliases`, `dns.servers`, `dns.search`, `env`, `sysctls`, `certificate.issue`, `certificate.sans`.
+  - Editores por tipo: texto, checkbox, lista (um por linha) e chave=valor.
+  - Save preserva comentários/ordem do YAML (caminho eemeli `yaml`); limpar um campo o remove do arquivo. Campos `stages`/`healthcheck` permanecem editáveis pela aba YAML.
+  - i18n PT/EN/ES.
+
 ## 2.18.1
 
 - EVE-NG/PNETLab (issue #50): detecção de status rodando/parado migrada da API REST para **SSH** (mais confiável, mesmo canal das outras operações).

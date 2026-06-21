@@ -2035,6 +2035,95 @@ document.addEventListener('DOMContentLoaded', function () {
       });
   };
 
+  // P6 (#73): operações em massa (deploy/destroy/save) sobre vários labs.
+  (function bulkOps() {
+    if (!loadBtn || !loadBtn.parentNode) return;
+    const bulkBtn = document.createElement('button');
+    bulkBtn.type = 'button'; bulkBtn.className = 'btn-secondary'; bulkBtn.style.cssText = 'padding:6px 14px;font-size:12px;margin-left:8px';
+    bulkBtn.textContent = t('ui.labs.bulkBtn');
+    loadBtn.parentNode.insertBefore(bulkBtn, loadBtn.nextSibling);
+
+    function clabPost(url, fields) {
+      return new Promise(function (resolve, reject) {
+        const creds = getCommonCreds();
+        if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) { showMessage('error', t('container_labs.missing_creds')); return reject(new Error('creds')); }
+        const fd = new FormData();
+        fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+        if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+        Object.keys(fields || {}).forEach(function (k) { fd.append(k, fields[k]); });
+        const xhr = new XMLHttpRequest(); xhr.open('POST', url, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xhr);
+        xhr.onreadystatechange = function () { if (xhr.readyState !== 4) return; try { resolve(JSON.parse(xhr.responseText || '{}')); } catch (e) { reject(e); } };
+        xhr.onerror = function () { reject(new Error('network')); };
+        xhr.send(fd);
+      });
+    }
+
+    bulkBtn.addEventListener('click', function () {
+      const overlay = document.createElement('div'); overlay.className = 'io-overlay';
+      const modal = document.createElement('div'); modal.className = 'io-modal'; modal.style.maxWidth = '640px';
+      const head = document.createElement('div'); head.className = 'io-head';
+      const h = document.createElement('div'); h.className = 'io-title'; h.textContent = t('ui.labs.bulkBtn');
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+      x.addEventListener('click', function () { overlay.remove(); });
+      head.appendChild(h); head.appendChild(x);
+      const body = document.createElement('div'); body.className = 'io-body'; body.style.cssText = 'padding:14px;overflow:auto';
+      modal.appendChild(head); modal.appendChild(body); overlay.appendChild(modal);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
+
+      const listWrap = document.createElement('div'); listWrap.style.cssText = 'max-height:240px;overflow:auto;border:1px solid var(--border-2);border-radius:8px;padding:8px;margin-bottom:10px';
+      listWrap.innerHTML = '<div class="loading-state"><span class="spinner"></span></div>';
+      body.appendChild(listWrap);
+      const checks = [];
+      clabPost('/api/container-labs/list', {}).then(function (r) {
+        listWrap.innerHTML = '';
+        const labs = (r && r.labs) || [];
+        if (!labs.length) { listWrap.innerHTML = '<div class="hint">' + t('ui.labs.none') + '</div>'; return; }
+        labs.forEach(function (lab) {
+          const lb = document.createElement('label'); lb.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0';
+          const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = lab; cb.style.width = 'auto';
+          lb.appendChild(cb); lb.appendChild(document.createTextNode(lab)); listWrap.appendChild(lb); checks.push(cb);
+        });
+      }).catch(function () { listWrap.innerHTML = '<div class="hint">' + t('ui.labs.actionFail') + '</div>'; });
+
+      const ctl = document.createElement('div'); ctl.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+      const sel = document.createElement('select'); sel.className = 'mono';
+      [['deploy', 'ui.labs.deployBtn'], ['deploy-reconfigure', 'ui.labs.bulkDeployReconf'], ['destroy', 'ui.labs.destroyBtn'], ['destroy-cleanup', 'ui.labs.bulkDestroyCleanup'], ['save', 'ui.labs.bulkSave']].forEach(function (o) {
+        const op = document.createElement('option'); op.value = o[0]; op.textContent = t(o[1]); sel.appendChild(op);
+      });
+      const run = document.createElement('button'); run.type = 'button'; run.className = 'btn-primary'; run.style.cssText = 'padding:6px 14px;font-size:12px';
+      run.textContent = t('ui.labs.bulkRun');
+      ctl.appendChild(sel); ctl.appendChild(run); body.appendChild(ctl);
+      const log = document.createElement('pre'); log.className = 'io-log'; log.style.cssText = 'margin-top:10px;max-height:260px;overflow:auto;font-size:11px;display:none';
+      body.appendChild(log);
+
+      let poll = null;
+      run.addEventListener('click', function () {
+        const labs = checks.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        if (!labs.length) { showMessage('error', t('ui.labs.bulkPick')); return; }
+        if ((sel.value === 'destroy' || sel.value === 'destroy-cleanup') && !window.confirm(t('ui.labs.bulkConfirm', { n: labs.length }))) return;
+        run.disabled = true; log.style.display = 'block'; log.textContent = t('ui.labs.actionRunning');
+        clabPost('/api/container-labs/bulk', { action: sel.value, labs: labs.join(',') }).then(function (r) {
+          if (!r || !r.job_id) { run.disabled = false; showMessage('error', (r && r.message) || t('ui.labs.actionFail')); return; }
+          if (poll) clearInterval(poll);
+          poll = setInterval(function () {
+            const xhr = new XMLHttpRequest(); xhr.open('GET', '/api/container-labs/job?job_id=' + encodeURIComponent(r.job_id), true);
+            setLangHeader(xhr);
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState !== 4) return;
+              let j = null; try { j = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
+              if (!j) return;
+              log.textContent = j.log || ''; log.scrollTop = log.scrollHeight;
+              if (j.done) { clearInterval(poll); poll = null; run.disabled = false; showMessage(j.status === 'success' ? 'success' : 'error', j.status === 'success' ? t('ui.labs.actionDone') : t('ui.labs.actionFail')); resetLabCache(); }
+            };
+            xhr.send();
+          }, 1500);
+        }).catch(function () { run.disabled = false; showMessage('error', t('msg.networkError')); });
+      });
+    });
+  })();
+
   // Exposto para o editor de topologia nativo (P4: runtime no canvas).
   window.NetConfigLabs = {
     viewNodeLogs: viewNodeLogs,

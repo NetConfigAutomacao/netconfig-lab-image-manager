@@ -155,6 +155,25 @@ class TestContainerLabsOps(unittest.TestCase):
         # only a group node -> no real nodes -> refuse
         self.assertIsNone(r._cyto_to_doc({}, [{"group": "nodes", "data": {"id": "g:1", "topoViewerRole": "group"}}]))
 
+    def test_tools_input_validation(self):
+        r = _import_routes()
+        self.assertTrue(r._ENDPOINT_RE.match("clab-lab-r1:eth5"))
+        self.assertFalse(r._ENDPOINT_RE.match("a;rm -rf /"))
+        self.assertFalse(r._ENDPOINT_RE.match("a b"))
+        self.assertTrue(r._TOOL_NAME_RE.match("ca"))
+        self.assertTrue(r._TOOL_NAME_RE.match("vx-"))
+        self.assertFalse(r._TOOL_NAME_RE.match("a$(id)"))
+        self.assertTrue(r._HOSTS_RE.match("r1,172.20.20.2,*.lab"))
+        self.assertFalse(r._HOSTS_RE.match("r1;reboot"))
+
+    def test_lab_dir_resolution(self):
+        r = _import_routes()
+        self.assertEqual(r._lab_dir("/opt/labs", "bgp"), "/opt/labs/bgp")
+        self.assertEqual(r._lab_dir("/opt/labs/", "bgp"), "/opt/labs/bgp")
+        self.assertIsNone(r._lab_dir("/opt/labs", "../etc"))
+        self.assertIsNone(r._lab_dir("/opt/labs", "/etc"))
+        self.assertIsNone(r._lab_dir("", "bgp"))
+
 
 if __name__ == "__main__":
     unittest.main()

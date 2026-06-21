@@ -160,6 +160,10 @@
             <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5 8a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3l-5-8V3M8 3h8"/></svg></span>
             <span data-i18n="ui.tabs.labs">Laboratórios</span>
           </button>
+          <button type="button" class="tab-button nav-item" data-tab="eve-labs-tab" style="display:none;">
+            <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v6l-5 8a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3l-5-8V3M8 3h8"/></svg></span>
+            <span data-i18n="ui.tabs.eveLabs">Labs (EVE/PNETLab)</span>
+          </button>
           <button type="button" class="tab-button nav-item" data-tab="system-tab">
             <span class="nav-ico" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
             <span data-i18n="ui.tabs.system">Sistema</span>
@@ -581,6 +585,38 @@
               </div>
             </div>
 
+            <!-- ==================== ABA EVE/PNETLab LABS (UNL) ==================== -->
+            <div id="eve-labs-tab" class="tab-content" style="display:none;">
+              <div class="view-card">
+                <div class="field">
+                  <label data-i18n="ui.eveLabs.title">Laboratórios EVE-NG / PNETLab (UNL)</label>
+                  <div class="hint" data-i18n-html="ui.eveLabs.hint">
+                    Descobre os labs <code>.unl</code> em <code>/opt/unetlab/labs</code> e desenha a topologia (somente leitura).
+                  </div>
+                  <input type="text" id="eveLabsDir" class="mono" value="/opt/unetlab/labs" style="margin-top:6px;">
+                </div>
+                <div class="vrnetlab-actions">
+                  <button type="button" class="btn-primary" id="eveLabsListBtn" data-requires-load="true">
+                    <span class="icon">📂</span>
+                    <span data-i18n="ui.eveLabs.listBtn">Listar labs</span>
+                  </button>
+                  <div class="small-info" data-i18n="ui.eveLabs.listHint">Lista arquivos .unl recursivamente.</div>
+                </div>
+                <div class="images-section">
+                  <div class="images-section-header">
+                    <div class="images-section-main">
+                      <div class="images-section-title" data-i18n="ui.eveLabs.found">Labs encontrados</div>
+                    </div>
+                    <div class="images-section-count" id="eveLabsCount">0</div>
+                  </div>
+                  <div class="field" style="margin-top:8px;">
+                    <input type="text" id="eveLabsFilter" placeholder="Buscar lab" data-i18n-placeholder="ui.eveLabs.search">
+                  </div>
+                  <div class="vrnetlab-images" id="eveLabsList"></div>
+                </div>
+              </div>
+            </div>
+
             <!-- ==================== ABA SISTEMA ==================== -->
             <div id="system-tab" class="tab-content">
               <div class="view-card system-card">
@@ -645,6 +681,7 @@
   </script>
   <script src="/static/js/topology_editor.js"></script>
   <script src="/static/js/container_labs.js"></script>
+  <script src="/static/js/eve_labs.js"></script>
   <script src="/static/js/ishare2.js"></script>
   <script src="/static/js/fix_permissions.js"></script>
   <script src="/static/js/main.js"></script>

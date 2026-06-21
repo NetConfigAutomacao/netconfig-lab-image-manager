@@ -24,6 +24,7 @@ from ishare2_routes import ishare2_bp
 from vrnetlab_routes import vrnetlab_bp
 from container_images_routes import container_images_bp
 from container_labs_routes import container_labs_bp
+from unl_routes import unl_bp
 from version import get_app_version, check_for_update
 
 
@@ -47,6 +48,7 @@ def create_app() -> Flask:
     app.register_blueprint(vrnetlab_bp)
     app.register_blueprint(container_images_bp)
     app.register_blueprint(container_labs_bp)
+    app.register_blueprint(unl_bp)
 
     @app.route("/health", methods=["GET"])
     def health():

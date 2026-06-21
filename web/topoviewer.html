@@ -6001,13 +6001,47 @@
         if (endpoint === 'topo-editor-load-viewer-settings') return { settings: {} };
         return { success: true };
       }
+      const SAVE_ENDPOINTS = [
+        'topo-editor-viewport-save',
+        'topo-editor-viewport-save-suppress-notification',
+        'topo-viewport-save'
+      ];
       window.vscode = {
         postMessage: function (msg) {
           if (!msg || msg.type !== 'POST') return;
+          if (SAVE_ENDPOINTS.indexOf(msg.endpointName) !== -1) {
+            persistTopology(msg);
+            return;
+          }
           const result = defaultResult(msg.endpointName);
           respond(msg.requestId, result, null);
         }
       };
+    }
+
+    function persistTopology(msg) {
+      function respondSave(ok, error) {
+        window.postMessage(
+          { type: 'POST_RESPONSE', requestId: msg.requestId, result: { success: ok }, error: error || undefined },
+          window.location.origin
+        );
+      }
+      var elements = null;
+      try {
+        var p = JSON.parse(msg.payload || 'null');
+        if (Array.isArray(p)) elements = p;
+        else if (p && Array.isArray(p.elements)) elements = p.elements;
+        else if (p && Array.isArray(p.updatedElements)) elements = p.updatedElements;
+      } catch (e) { /* ignore */ }
+      if (!elements) { respondSave(false, 'no-elements'); return; }
+
+      var params = new URLSearchParams(window.location.search);
+      var fd = buildFormData(params.get('lab') || '', params.get('file') || '');
+      fd.append('elements', JSON.stringify(elements));
+      fetch('/api/container-labs/topoviewer/save', { method: 'POST', body: fd })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { respondSave(!!d.success, d.success ? null : (d.message || 'save-failed')); })
+        .catch(function () { respondSave(false, 'network'); });
     }
 
     function getCreds() {

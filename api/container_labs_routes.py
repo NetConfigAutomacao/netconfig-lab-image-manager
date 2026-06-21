@@ -15,6 +15,10 @@
 
 from __future__ import annotations
 
+import json
+import re
+import shlex
+
 from flask import Blueprint, jsonify, request
 import yaml
 
@@ -23,6 +27,10 @@ from utils import run_ssh_command
 
 
 container_labs_bp = Blueprint("container_labs_bp", __name__, url_prefix="/container-labs")
+
+# Nomes de container do ContainerLab: clab-<lab>-<node>. Restringe a um conjunto
+# seguro para evitar injeção de comando ao passar para docker/podman.
+_CONTAINER_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def _is_safe_relpath(name: str) -> bool:
@@ -34,6 +42,30 @@ def _is_safe_relpath(name: str) -> bool:
     if ".." in cleaned.split("/"):
         return False
     return True
+
+
+def _is_safe_container_name(name: str) -> bool:
+    cleaned = (name or "").strip()
+    return bool(cleaned) and bool(_CONTAINER_NAME_RE.match(cleaned))
+
+
+def _runtime_logs_cmd(container: str, tail: int = 200) -> str:
+    quoted = shlex.quote(container)
+    return (
+        f"if command -v docker >/dev/null 2>&1; then docker logs --tail {int(tail)} {quoted} 2>&1; "
+        f"elif command -v podman >/dev/null 2>&1; then podman logs --tail {int(tail)} {quoted} 2>&1; "
+        "else echo '__NO_RUNTIME__'; exit 45; fi"
+    )
+
+
+def _runtime_exec_cmd(container: str, command: str) -> str:
+    quoted = shlex.quote(container)
+    inner = shlex.quote(command)
+    return (
+        f"if command -v docker >/dev/null 2>&1; then docker exec {quoted} sh -c {inner} 2>&1; "
+        f"elif command -v podman >/dev/null 2>&1; then podman exec {quoted} sh -c {inner} 2>&1; "
+        "else echo '__NO_RUNTIME__'; exit 45; fi"
+    )
 
 
 def _normalize_nodes(topology: dict) -> dict:
@@ -576,3 +608,357 @@ def container_labs_topoviewer_env():
     }
 
     return jsonify(success=True, environment=environment), 200
+
+
+def _topology_target_cmd(labs_dir: str, lab_name: str, rel_path: str, action: str) -> str:
+    """
+    Monta o comando containerlab para deploy/destroy. labs_dir/lab_name/rel_path
+    são interpolados como variáveis shell entre aspas simples (já validados a montante).
+    """
+    return (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; "
+        "target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+        "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+        f"containerlab {action} -t \"$target\" 2>&1"
+    )
+
+
+def _cyto_to_doc(existing_doc, elements):
+    """
+    Converte elementos cytoscape (do editor TopoViewer) de volta para um doc
+    ContainerLab, **preservando** campos existentes de cada node e as chaves de
+    topo-nível (name, mgmt, prefix, etc.). Retorna None se nenhum node válido
+    for encontrado (recusa-se a gravar um arquivo destrutivo/vazio).
+    """
+    doc = dict(existing_doc) if isinstance(existing_doc, dict) else {}
+    topo = dict(doc.get("topology")) if isinstance(doc.get("topology"), dict) else {}
+
+    existing_nodes = topo.get("nodes")
+    if isinstance(existing_nodes, list):
+        existing_nodes = _normalize_nodes({"nodes": existing_nodes})
+    if not isinstance(existing_nodes, dict):
+        existing_nodes = {}
+
+    if not isinstance(elements, list):
+        return None
+
+    new_nodes = {}
+    new_links = []
+
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        group = el.get("group")
+        data = el.get("data") if isinstance(el.get("data"), dict) else {}
+
+        if group == "nodes":
+            if data.get("topoViewerRole") == "group":
+                continue
+            name = (data.get("name") or data.get("id") or "").strip()
+            if not name:
+                continue
+            base = dict(existing_nodes.get(name) or {})
+            extra = data.get("extraData") if isinstance(data.get("extraData"), dict) else {}
+            for key in ("kind", "image", "type"):
+                if extra.get(key):
+                    base[key] = extra[key]
+            pos = el.get("position") if isinstance(el.get("position"), dict) else {}
+            labels = dict(base.get("labels")) if isinstance(base.get("labels"), dict) else {}
+            if isinstance(extra.get("labels"), dict):
+                labels.update(extra["labels"])
+            if "x" in pos:
+                labels["graph-posX"] = str(pos.get("x"))
+            if "y" in pos:
+                labels["graph-posY"] = str(pos.get("y"))
+            if labels:
+                base["labels"] = labels
+            new_nodes[name] = base
+
+        elif group == "edges":
+            extra = data.get("extraData")
+            if isinstance(extra, dict) and isinstance(extra.get("endpoints"), list) and len(extra["endpoints"]) >= 2:
+                new_links.append(extra)
+                continue
+            eps = data.get("endpoints")
+            if isinstance(eps, list) and len(eps) >= 2:
+                new_links.append({"endpoints": [eps[0], eps[1]]})
+
+    if not new_nodes:
+        return None
+
+    topo["nodes"] = new_nodes
+    topo["links"] = new_links
+    doc["topology"] = topo
+    return doc
+
+
+@container_labs_bp.route("/topoviewer/save", methods=["POST"])
+def container_labs_topoviewer_save():
+    """
+    Persiste edições do TopoViewer: recebe elementos cytoscape, faz merge no
+    YAML existente (preservando campos) e grava de volta no host.
+    """
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    elements_raw = request.form.get("elements") or ""
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+
+    try:
+        elements = json.loads(elements_raw)
+    except (ValueError, TypeError):
+        return jsonify(success=False, message=translate("container_labs.save_invalid_payload", lang)), 400
+
+    read_cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; cat \"$target\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, read_cmd)
+    if "__FILE_NOT_FOUND__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+
+    try:
+        existing_doc = yaml.safe_load(out or "") or {}
+    except Exception:
+        existing_doc = {}
+    if not isinstance(existing_doc, dict):
+        existing_doc = {}
+
+    merged = _cyto_to_doc(existing_doc, elements)
+    if merged is None:
+        # Payload não reconhecível / sem nós: não grava nada (não destrói o arquivo).
+        return jsonify(success=False, message=translate("container_labs.save_invalid_payload", lang)), 400
+
+    try:
+        new_yaml = yaml.safe_dump(merged, sort_keys=False, default_flow_style=False, allow_unicode=True)
+    except Exception as exc:
+        return jsonify(success=False, message=f"{translate('container_labs.save_fail', lang, rc=1)} ({exc})"), 500
+
+    import base64 as _b64
+    b64 = _b64.b64encode(new_yaml.encode("utf-8")).decode("ascii")
+    write_cmd = (
+        f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+        "if [ ! -d \"$base/$lab\" ]; then echo '__MISSING_LAB_DIR__'; exit 44; fi; "
+        f"echo '{b64}' | base64 -d > \"$target\""
+    )
+    rc2, out2, err2 = run_ssh_command(eve_ip, eve_user, eve_pass, write_cmd)
+    if "__MISSING_LAB_DIR__" in (out2 or "") or rc2 == 44:
+        return jsonify(success=False, message=translate("container_labs.lab_missing", lang, name=lab_name)), 400
+    if rc2 != 0:
+        return jsonify(success=False, message=translate("container_labs.save_fail", lang, rc=rc2), stderr=(err2 or "").strip()), 500
+
+    return jsonify(success=True, message=translate("container_labs.save_success", lang)), 200
+
+
+@container_labs_bp.route("/deploy", methods=["POST"])
+def deploy_lab():
+    """Executa `containerlab deploy -t <topo>` no host remoto."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    reconfigure = str(request.form.get("reconfigure") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+
+    action = "deploy --reconfigure" if reconfigure else "deploy"
+    cmd = _topology_target_cmd(labs_dir, lab_name, rel_path, action)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    combined = (out or "")
+
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.deploy_fail", lang, rc=rc), stdout=combined, stderr=(err or "").strip()), 500
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.deploy_fail", lang, rc=rc), stdout=combined, stderr=(err or "").strip()), 500
+
+    return jsonify(success=True, message=translate("container_labs.deploy_success", lang), stdout=combined, stderr=(err or "").strip()), 200
+
+
+@container_labs_bp.route("/destroy", methods=["POST"])
+def destroy_lab():
+    """Executa `containerlab destroy -t <topo>` no host remoto."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    cleanup = str(request.form.get("cleanup") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    if not rel_path.lower().endswith((".yml", ".yaml")):
+        return jsonify(success=False, message=translate("container_labs.only_yaml", lang)), 400
+
+    action = "destroy --cleanup" if cleanup else "destroy"
+    cmd = _topology_target_cmd(labs_dir, lab_name, rel_path, action)
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    combined = (out or "")
+
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.destroy_fail", lang, rc=rc), stdout=combined, stderr=(err or "").strip()), 500
+
+    return jsonify(success=True, message=translate("container_labs.destroy_success", lang), stdout=combined, stderr=(err or "").strip()), 200
+
+
+def _normalize_inspect(parsed) -> list:
+    """
+    Normaliza a saída JSON do `containerlab inspect --format json` para uma lista
+    de containers. O formato variou entre versões: ora {"containers":[...]},
+    ora {"<lab>":[...]}, ora uma lista direta.
+    """
+    rows = []
+    if isinstance(parsed, dict) and isinstance(parsed.get("containers"), list):
+        candidates = parsed["containers"]
+    elif isinstance(parsed, list):
+        candidates = parsed
+    elif isinstance(parsed, dict):
+        candidates = []
+        for value in parsed.values():
+            if isinstance(value, list):
+                candidates.extend(value)
+    else:
+        candidates = []
+
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        rows.append(
+            {
+                "name": item.get("name") or item.get("Names") or "",
+                "lab": item.get("lab_name") or item.get("labName") or item.get("Labels", {}).get("clab-topo-file", "") if isinstance(item.get("Labels"), dict) else item.get("lab_name") or "",
+                "kind": item.get("kind") or item.get("Kind") or "",
+                "image": item.get("image") or item.get("Image") or "",
+                "state": item.get("state") or item.get("State") or item.get("status") or "",
+                "ipv4": item.get("ipv4_address") or item.get("ipv4") or item.get("IPv4Address") or "",
+                "ipv6": item.get("ipv6_address") or item.get("ipv6") or item.get("IPv6Address") or "",
+            }
+        )
+    return rows
+
+
+@container_labs_bp.route("/inspect", methods=["POST"])
+def inspect_labs():
+    """Executa `containerlab inspect [--all|-t file] --format json` e normaliza."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+
+    if lab_name and rel_path:
+        if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+            return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+        selector = (
+            f"base='{labs_dir}'; lab='{lab_name}'; file='{rel_path}'; target=\"$base/$lab/$file\"; "
+            "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; "
+            "containerlab inspect -t \"$target\" --format json 2>/dev/null"
+        )
+    else:
+        selector = "containerlab inspect --all --format json 2>/dev/null"
+
+    cmd = (
+        "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+        + selector
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd)
+    combined = (out or "").strip()
+
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.inspect_fail", lang, rc=rc), containers=[], raw=combined), 200
+
+    if not combined:
+        # Sem labs rodando: inspect pode não emitir JSON.
+        return jsonify(success=True, containers=[], raw="", ssh_rc=rc), 200
+
+    try:
+        parsed = json.loads(combined)
+    except (ValueError, TypeError):
+        return jsonify(success=False, message=translate("container_labs.inspect_parse_fail", lang), containers=[], raw=combined), 200
+
+    return jsonify(success=True, containers=_normalize_inspect(parsed), raw=combined, ssh_rc=rc), 200
+
+
+@container_labs_bp.route("/node/logs", methods=["POST"])
+def node_logs():
+    """Retorna as últimas linhas de log do container de um node."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    try:
+        tail = int(request.form.get("tail") or 200)
+    except (TypeError, ValueError):
+        tail = 200
+    tail = max(1, min(tail, 2000))
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_logs_cmd(container, tail))
+    combined = (out or "")
+    if "__NO_RUNTIME__" in combined or rc == 45:
+        return jsonify(success=False, message=translate("container_labs.logs_fail", lang, rc=rc), logs=combined), 500
+
+    return jsonify(success=True, logs=combined, ssh_rc=rc, stderr=(err or "").strip()), 200
+
+
+@container_labs_bp.route("/node/exec", methods=["POST"])
+def node_exec():
+    """Executa um comando único dentro do container de um node (não interativo)."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    command = (request.form.get("command") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+    if not command:
+        return jsonify(success=False, message=translate("container_labs.missing_command", lang)), 400
+
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, _runtime_exec_cmd(container, command))
+    combined = (out or "")
+    if "__NO_RUNTIME__" in combined or rc == 45:
+        return jsonify(success=False, message=translate("container_labs.exec_fail", lang, rc=rc), output=combined), 500
+
+    return jsonify(success=True, output=combined, rc=rc, stderr=(err or "").strip()), 200

@@ -2,6 +2,49 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.2.0
+
+- Integração ContainerLab (issue #7) — entrega 6 (editor de topologia nativo inline):
+  - Novo `web/static/js/topology_editor.js`: editor visual SVG próprio (sem dependência vendored) renderizado inline na aba Laboratórios ao clicar em "Topologia".
+  - Arrastar nós (posições persistem em labels graph-posX/Y), adicionar/remover nós, criar/remover enlaces (modo "Ligar nós") e editar nome/kind/imagem.
+  - Carrega via `/container-labs/topoviewer/cyto` e salva via `/container-labs/topoviewer/save` (merge no YAML existente).
+  - Botão "Tela cheia" mantém o TopoViewer vendored como opção. Estados loading/empty/erro; i18n PT/EN/ES.
+
+## 2.1.4
+
+- Correção: `web/static/js/vendor/js-yaml.min.js` estava truncado (~7KB) e lançava erro no carregamento de toda página. Substituído pelo js-yaml 4.1.0 oficial (39KB); parsing de YAML no client volta a funcionar e o erro no console desaparece.
+
+## 2.1.3
+
+- Integração ContainerLab (issue #7) — entrega 4 (salvar topologia do TopoViewer):
+  - Novo endpoint `POST /container-labs/topoviewer/save`: converte os elementos do editor (cytoscape) de volta para YAML ContainerLab fazendo **merge** no arquivo existente (preserva campos de node e chaves de topo-nível) e grava no host.
+  - Recusa gravar (sem destruir o arquivo) se o payload não contiver nós válidos.
+  - Stub do TopoViewer (`topoviewer.html`) passa a persistir de verdade nos endpoints de save do editor vendored.
+  - Testes do conversor cyto→YAML (merge e recusa de payload vazio). Nova chave i18n backend `container_labs.save_invalid_payload` (PT/EN/ES).
+
+## 2.1.2
+
+- Integração ContainerLab (issue #7) — entrega 3 (status + logs/exec por nó):
+  - Botão Status por topologia: chama `containerlab inspect` e abre modal com os containers do lab (nome, kind, estado, IPv4).
+  - Por nó rodando: botões Logs (últimas linhas via docker/podman) e Exec (comando único não interativo) com saída em modal.
+  - Novas chaves i18n `ui.labs.status*`/`ui.labs.logs*`/`ui.labs.exec*` (PT/EN/ES).
+
+## 2.1.1
+
+- Integração ContainerLab (issue #7) — entrega 2 (frontend deploy/destroy):
+  - Botões Deploy e Destroy por arquivo de topologia (*.clab.yml) na aba Laboratórios, com confirmação e modal de log da saída do containerlab.
+  - Novas chaves i18n `ui.labs.deploy*`/`ui.labs.destroy*`/`ui.labs.action*` (PT/EN/ES).
+  - Observado (pré-existente, não regressão): `web/static/js/vendor/js-yaml.min.js` está truncado (~7KB) e lança erro no load — não afeta deploy/destroy; rastrear separadamente.
+
+## 2.1.0
+
+- Integração ContainerLab (issue #7) — entrega 1 (backend): novos endpoints no blueprint `/container-labs`:
+  - `POST /deploy` e `POST /destroy` (`containerlab deploy/destroy -t <topo>`, com `--reconfigure`/`--cleanup` opcionais).
+  - `POST /inspect` (`containerlab inspect [--all|-t] --format json`) com normalização tolerante a variações de formato.
+  - `POST /node/logs` e `POST /node/exec` (docker/podman, com fallback), comando único não interativo.
+  - Validação de nome de container (`^[A-Za-z0-9_.-]+$`) e `shlex.quote` para evitar injeção.
+  - Chaves i18n backend (PT/EN/ES) e testes unitários (validação, construção de comando, parsing do inspect).
+
 ## 2.0.1
 
 - Testes unitários para o endpoint `GET /repositories` do serviço ishare2 (ranking por latência e tratamento de erro).

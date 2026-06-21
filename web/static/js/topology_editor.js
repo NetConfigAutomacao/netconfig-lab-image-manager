@@ -424,6 +424,11 @@
     statusBtn.textContent = t('ui.topo.statusBtn');
     statusBtn.addEventListener('click', function () { self.loadStatus(statusBtn); });
 
+    const validateBtn = document.createElement('button');
+    validateBtn.type = 'button'; validateBtn.className = 'btn-ghost'; validateBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    validateBtn.textContent = t('ui.topo.validateBtn');
+    validateBtn.addEventListener('click', function () { self.validateRemote(validateBtn); });
+
     const yamlBtn = document.createElement('button');
     yamlBtn.type = 'button'; yamlBtn.className = 'btn-ghost'; yamlBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     yamlBtn.textContent = t('ui.topo.yamlBtn');
@@ -459,6 +464,7 @@
     bar.appendChild(redoBtn);
     bar.appendChild(tidyBtn);
     bar.appendChild(statusBtn);
+    bar.appendChild(validateBtn);
     bar.appendChild(yamlBtn);
     bar.appendChild(exportBtn);
     bar.appendChild(expandBtn);
@@ -993,7 +999,18 @@
       execB.type = 'button'; execB.className = 'btn-ghost'; execB.style.cssText = 'padding:4px 10px;font-size:11px';
       execB.textContent = t('ui.labs.execBtn');
       execB.addEventListener('click', function () { if (window.NetConfigLabs) window.NetConfigLabs.execNodeCommand(st.container); });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB);
+      const statsB = document.createElement('button');
+      statsB.type = 'button'; statsB.className = 'btn-ghost'; statsB.style.cssText = 'padding:4px 10px;font-size:11px';
+      statsB.textContent = t('ui.topo.statsBtn');
+      statsB.addEventListener('click', function () {
+        statsB.disabled = true;
+        postForm('/api/container-labs/node/stats', { container: st.container }).then(function (r) {
+          statsB.disabled = false;
+          if (r && r.success) info.textContent = 'CPU ' + (r.cpu || '?') + ' · ' + (r.mem || '?');
+          else toast('error', (r && r.message) || t('ui.topo.statsFail'));
+        }).catch(function () { statsB.disabled = false; toast('error', t('ui.topo.statsFail')); });
+      });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(statsB);
       panel.appendChild(acts);
     }
 
@@ -1194,6 +1211,24 @@
     a.href = url; a.download = (this.lab || 'topology') + '.svg';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  };
+
+  TopologyEditor.prototype.validateRemote = function (btn) {
+    const self = this;
+    // Junta validação local (rápida) + estrutural no backend.
+    const local = self.validate();
+    if (btn) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    const fields = { lab_name: self.lab, path: self.path };
+    if (self.labsDir) fields.labs_dir = self.labsDir;
+    postForm('/api/container-labs/validate', fields).then(function (r) {
+      const issues = local.concat((r && r.issues) || []);
+      const uniq = issues.filter(function (v, i) { return issues.indexOf(v) === i; });
+      if (!uniq.length) { toast('success', t('ui.topo.validateOk')); return; }
+      toast('error', t('ui.topo.validateFail') + '\n- ' + uniq.join('\n- '));
+    }).catch(function () {
+      if (!local.length) toast('success', t('ui.topo.validateOk'));
+      else toast('error', t('ui.topo.validateFail') + '\n- ' + local.join('\n- '));
+    }).finally(function () { if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); } });
   };
 
   TopologyEditor.prototype.saveConfigs = function (btn) {

@@ -132,6 +132,7 @@ TRANSLATIONS = {
         "container_labs.netem_bad_value": "Valor de impairment inválido.",
         "container_labs.netem_ok": "Impairments aplicados na interface.",
         "container_labs.netem_fail": "Falha ao aplicar impairments (código {rc}).",
+        "container_labs.stats_fail": "Falha ao obter stats do nó.",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -249,6 +250,7 @@ TRANSLATIONS = {
         "container_labs.netem_bad_value": "Invalid impairment value.",
         "container_labs.netem_ok": "Impairments applied to the interface.",
         "container_labs.netem_fail": "Failed to apply impairments (exit code {rc}).",
+        "container_labs.stats_fail": "Failed to get node stats.",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -366,6 +368,7 @@ TRANSLATIONS = {
         "container_labs.netem_bad_value": "Valor de impairment inválido.",
         "container_labs.netem_ok": "Impairments aplicados a la interfaz.",
         "container_labs.netem_fail": "Fallo al aplicar impairments (código {rc}).",
+        "container_labs.stats_fail": "Fallo al obtener stats del nodo.",
     },
 }
 

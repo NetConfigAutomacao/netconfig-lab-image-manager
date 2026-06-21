@@ -128,6 +128,10 @@ TRANSLATIONS = {
         "container_labs.lab_created": "Lab '{name}' criado.",
         "container_labs.lab_cloned": "Lab '{src}' clonado para '{dst}'.",
         "container_labs.clone_fail": "Falha ao clonar o lab (código {rc}).",
+        "container_labs.invalid_iface": "Interface inválida.",
+        "container_labs.netem_bad_value": "Valor de impairment inválido.",
+        "container_labs.netem_ok": "Impairments aplicados na interface.",
+        "container_labs.netem_fail": "Falha ao aplicar impairments (código {rc}).",
     },
     "en": {
         "errors.missing_credentials": "Provide EVE-NG IP, user and password.",
@@ -241,6 +245,10 @@ TRANSLATIONS = {
         "container_labs.lab_created": "Lab '{name}' created.",
         "container_labs.lab_cloned": "Lab '{src}' cloned to '{dst}'.",
         "container_labs.clone_fail": "Failed to clone the lab (exit code {rc}).",
+        "container_labs.invalid_iface": "Invalid interface.",
+        "container_labs.netem_bad_value": "Invalid impairment value.",
+        "container_labs.netem_ok": "Impairments applied to the interface.",
+        "container_labs.netem_fail": "Failed to apply impairments (exit code {rc}).",
     },
     "es": {
         "errors.missing_credentials": "Informa IP, usuario y contraseña del EVE-NG.",
@@ -354,6 +362,10 @@ TRANSLATIONS = {
         "container_labs.lab_created": "Lab '{name}' creado.",
         "container_labs.lab_cloned": "Lab '{src}' clonado a '{dst}'.",
         "container_labs.clone_fail": "Fallo al clonar el lab (código {rc}).",
+        "container_labs.invalid_iface": "Interfaz inválida.",
+        "container_labs.netem_bad_value": "Valor de impairment inválido.",
+        "container_labs.netem_ok": "Impairments aplicados a la interfaz.",
+        "container_labs.netem_fail": "Fallo al aplicar impairments (código {rc}).",
     },
 }
 

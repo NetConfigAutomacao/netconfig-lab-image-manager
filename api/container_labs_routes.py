@@ -1265,6 +1265,60 @@ def inspect_labs():
     return jsonify(success=True, containers=_normalize_inspect(parsed), raw=combined, ssh_rc=rc), 200
 
 
+_IFACE_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
+
+
+@container_labs_bp.route("/netem", methods=["POST"])
+def node_netem():
+    """Aplica impairments (delay/loss/rate) numa interface de um nó via
+    `containerlab tools netem set`."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    iface = (request.form.get("iface") or "").strip()
+    delay = (request.form.get("delay") or "").strip()
+    loss = (request.form.get("loss") or "").strip()
+    rate = (request.form.get("rate") or "").strip()
+
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+    if not iface or not _IFACE_RE.match(iface):
+        return jsonify(success=False, message=translate("container_labs.invalid_iface", lang)), 400
+    # valores: delay tipo '50ms', loss/rate numéricos
+    if delay and not re.match(r"^[0-9]+(\.[0-9]+)?(ms|s|us)?$", delay):
+        return jsonify(success=False, message=translate("container_labs.netem_bad_value", lang)), 400
+    if loss and not re.match(r"^[0-9]+(\.[0-9]+)?$", loss):
+        return jsonify(success=False, message=translate("container_labs.netem_bad_value", lang)), 400
+    if rate and not re.match(r"^[0-9]+$", rate):
+        return jsonify(success=False, message=translate("container_labs.netem_bad_value", lang)), 400
+
+    parts = [
+        "containerlab", "tools", "netem", "set",
+        "-n", shlex.quote(container), "-i", shlex.quote(iface),
+    ]
+    if delay:
+        parts += ["--delay", shlex.quote(delay)]
+    if loss:
+        parts += ["--loss", shlex.quote(loss)]
+    if rate:
+        parts += ["--rate", shlex.quote(rate)]
+    cmd = (
+        "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+        + " ".join(parts) + " 2>&1"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=60)
+    combined = out or ""
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.netem_fail", lang, rc=rc), output=combined), 500
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.netem_fail", lang, rc=rc), output=combined), 500
+    return jsonify(success=True, message=translate("container_labs.netem_ok", lang), output=combined), 200
+
+
 @container_labs_bp.route("/node/logs", methods=["POST"])
 def node_logs():
     """Retorna as últimas linhas de log do container de um node."""

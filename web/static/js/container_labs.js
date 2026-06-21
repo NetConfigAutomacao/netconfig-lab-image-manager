@@ -200,11 +200,55 @@ document.addEventListener('DOMContentLoaded', function () {
           topoBtn.className = 'btn-secondary';
           topoBtn.style.padding = '3px 8px';
           topoBtn.style.fontSize = '11px';
-          topoBtn.textContent = 'Topology';
+          topoBtn.textContent = t('ui.topo.viewBtn');
           topoBtn.addEventListener('click', function () {
-            openTopologyFromFile(lab, entry.path);
+            toggleInlineTopology(lab, entry.path, row, topoBtn);
           });
           actions.appendChild(topoBtn);
+
+          const topoFullBtn = document.createElement('button');
+          topoFullBtn.type = 'button';
+          topoFullBtn.className = 'btn-secondary';
+          topoFullBtn.style.padding = '3px 8px';
+          topoFullBtn.style.fontSize = '11px';
+          topoFullBtn.textContent = t('ui.topo.fullBtn');
+          topoFullBtn.addEventListener('click', function () {
+            openTopologyFromFile(lab, entry.path);
+          });
+          actions.appendChild(topoFullBtn);
+
+          const deployBtn = document.createElement('button');
+          deployBtn.type = 'button';
+          deployBtn.className = 'btn-secondary';
+          deployBtn.style.padding = '3px 8px';
+          deployBtn.style.fontSize = '11px';
+          deployBtn.textContent = t('ui.labs.deployBtn');
+          deployBtn.addEventListener('click', function () {
+            runLabAction('deploy', lab, entry.path, deployBtn);
+          });
+          actions.appendChild(deployBtn);
+
+          const destroyBtn = document.createElement('button');
+          destroyBtn.type = 'button';
+          destroyBtn.className = 'pill-action';
+          destroyBtn.style.padding = '3px 8px';
+          destroyBtn.style.fontSize = '11px';
+          destroyBtn.textContent = t('ui.labs.destroyBtn');
+          destroyBtn.addEventListener('click', function () {
+            runLabAction('destroy', lab, entry.path, destroyBtn);
+          });
+          actions.appendChild(destroyBtn);
+
+          const statusBtn = document.createElement('button');
+          statusBtn.type = 'button';
+          statusBtn.className = 'btn-secondary';
+          statusBtn.style.padding = '3px 8px';
+          statusBtn.style.fontSize = '11px';
+          statusBtn.textContent = t('ui.labs.statusBtn');
+          statusBtn.addEventListener('click', function () {
+            openLabStatus(lab, entry.path, statusBtn);
+          });
+          actions.appendChild(statusBtn);
         }
       }
 
@@ -1039,6 +1083,259 @@ document.addEventListener('DOMContentLoaded', function () {
         document.removeEventListener('keydown', esc);
       }
     });
+  }
+
+  function showOutputModal(title, initialText) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lab-editor-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,11,21,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:18px';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'width:92%;max-width:840px;max-height:88vh;background:linear-gradient(180deg,#111d33,#0d1626);border:1px solid #2a3c5e;border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 60px -28px rgba(0,0,0,.8)';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1e2c49';
+    const h = document.createElement('div');
+    h.style.cssText = 'font-weight:700;font-size:14px;color:#e7eef9';
+    h.textContent = title;
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-ghost';
+    closeBtn.style.cssText = 'padding:4px 12px';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { overlay.remove(); });
+    header.appendChild(h);
+    header.appendChild(closeBtn);
+
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'flex:1;overflow:auto;margin:0;padding:16px;font-family:var(--mono),monospace;font-size:12px;line-height:1.55;color:#9fb2cf;white-space:pre-wrap;word-break:break-word';
+    pre.textContent = initialText || '';
+
+    modal.appendChild(header);
+    modal.appendChild(pre);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    return { setText: function (txt) { pre.textContent = txt; }, close: function () { overlay.remove(); } };
+  }
+
+  function runLabAction(action, labName, relPath, btn) {
+    const creds = getCommonCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+      showMessage('error', t('container_labs.missing_creds'));
+      return;
+    }
+    const confirmKey = action === 'destroy' ? 'ui.labs.destroyConfirm' : 'ui.labs.deployConfirm';
+    if (!window.confirm(t(confirmKey, { lab: labName }))) return;
+
+    const titleKey = action === 'destroy' ? 'ui.labs.destroyTitle' : 'ui.labs.deployTitle';
+    const out = showOutputModal(t(titleKey, { lab: labName }), t('ui.labs.actionRunning'));
+
+    if (btn instanceof HTMLButtonElement) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    setBodyLoading(true);
+
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip);
+    fd.append('eve_user', creds.eve_user);
+    fd.append('eve_pass', creds.eve_pass);
+    fd.append('lab_name', labName);
+    fd.append('path', relPath);
+    if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/container-labs/' + action, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      let resp = null;
+      try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) {
+        out.setText(t('msg.parseError') + '\n\n' + (xhr.responseText || ''));
+        return;
+      }
+      const log = [resp.stdout || '', resp.stderr || ''].filter(Boolean).join('\n');
+      out.setText(log || resp.message || '');
+      if (resp.success) {
+        showMessage('success', resp.message || t('ui.labs.actionDone'));
+      } else {
+        showMessage('error', resp.message || t('ui.labs.actionFail'));
+      }
+    };
+    xhr.onerror = function () {
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      out.setText(t('msg.networkError'));
+      showMessage('error', t('msg.networkError'));
+    };
+    xhr.send(fd);
+  }
+
+  function toggleInlineTopology(lab, path, row, btn) {
+    // Painel inline logo após a linha do arquivo.
+    const existing = row.nextSibling;
+    if (existing && existing.classList && existing.classList.contains('topo-inline')) {
+      existing.remove();
+      if (btn) btn.classList.remove('active');
+      return;
+    }
+    const panel = document.createElement('div');
+    panel.className = 'topo-inline';
+    if (row.parentNode) {
+      row.parentNode.insertBefore(panel, row.nextSibling);
+    }
+    if (btn) btn.classList.add('active');
+    const labsDir = (dirInput && dirInput.value) ? dirInput.value.trim() : '';
+    if (window.NetConfigTopology) {
+      window.NetConfigTopology.mount(panel, { lab: lab, path: path, labsDir: labsDir });
+    } else {
+      panel.textContent = 'Topology editor unavailable.';
+    }
+  }
+
+  function nodeRequest(endpoint, container, extra) {
+    const creds = getCommonCreds();
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip);
+    fd.append('eve_user', creds.eve_user);
+    fd.append('eve_pass', creds.eve_pass);
+    fd.append('container', container);
+    if (extra) Object.keys(extra).forEach(function (k) { fd.append(k, extra[k]); });
+    return new Promise(function (resolve, reject) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/container-labs/' + endpoint, true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(xhr);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        try { resolve(JSON.parse(xhr.responseText || '{}')); }
+        catch (e) { reject(e); }
+      };
+      xhr.onerror = function () { reject(new Error('network')); };
+      xhr.send(fd);
+    });
+  }
+
+  function viewNodeLogs(container) {
+    const out = showOutputModal(t('ui.labs.logsTitle', { node: container }), t('ui.labs.actionRunning'));
+    nodeRequest('node/logs', container).then(function (resp) {
+      out.setText(resp.logs || resp.message || '(vazio)');
+    }).catch(function () { out.setText(t('msg.networkError')); });
+  }
+
+  function execNodeCommand(container) {
+    const command = window.prompt(t('ui.labs.execPrompt', { node: container }), 'ip -br addr');
+    if (command === null) return;
+    const cmd = (command || '').trim();
+    if (!cmd) return;
+    const out = showOutputModal(t('ui.labs.execTitle', { node: container }), '$ ' + cmd + '\n\n' + t('ui.labs.actionRunning'));
+    nodeRequest('node/exec', container, { command: cmd }).then(function (resp) {
+      out.setText('$ ' + cmd + '\n\n' + (resp.output || resp.message || ''));
+    }).catch(function () { out.setText(t('msg.networkError')); });
+  }
+
+  function openLabStatus(labName, relPath, btn) {
+    const creds = getCommonCreds();
+    if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) {
+      showMessage('error', t('container_labs.missing_creds'));
+      return;
+    }
+    if (btn instanceof HTMLButtonElement) { btn.disabled = true; btn.classList.add('btn-disabled'); }
+    setBodyLoading(true);
+
+    const fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip);
+    fd.append('eve_user', creds.eve_user);
+    fd.append('eve_pass', creds.eve_pass);
+    fd.append('lab_name', labName);
+    fd.append('path', relPath);
+    if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/container-labs/inspect', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(xhr);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      let resp = null;
+      try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) { showMessage('error', t('msg.parseError')); return; }
+      if (!resp.success && (!resp.containers || !resp.containers.length)) {
+        showMessage('error', resp.message || t('ui.labs.statusFail'));
+        return;
+      }
+      renderStatusModal(labName, resp.containers || []);
+    };
+    xhr.onerror = function () {
+      setBodyLoading(false);
+      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+      showMessage('error', t('msg.networkError'));
+    };
+    xhr.send(fd);
+  }
+
+  function renderStatusModal(labName, containers) {
+    const overlay = document.createElement('div');
+    overlay.className = 'lab-editor-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(7,11,21,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:18px';
+    const modal = document.createElement('div');
+    modal.style.cssText = 'width:94%;max-width:900px;max-height:88vh;background:linear-gradient(180deg,#111d33,#0d1626);border:1px solid #2a3c5e;border-radius:16px;display:flex;flex-direction:column;box-shadow:0 24px 60px -28px rgba(0,0,0,.8)';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #1e2c49';
+    const h = document.createElement('div');
+    h.style.cssText = 'font-weight:700;font-size:14px;color:#e7eef9';
+    h.textContent = t('ui.labs.statusTitle', { lab: labName });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button'; closeBtn.className = 'btn-ghost'; closeBtn.style.cssText = 'padding:4px 12px'; closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { overlay.remove(); });
+    header.appendChild(h); header.appendChild(closeBtn);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.style.cssText = 'flex:1;overflow:auto;padding:14px 16px';
+
+    if (!containers.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = t('ui.labs.statusEmpty');
+      bodyEl.appendChild(empty);
+    } else {
+      containers.forEach(function (c) {
+        const row = document.createElement('div');
+        row.className = 'vrnetlab-image-row';
+        row.style.cssText += ';flex-wrap:wrap;gap:8px';
+        const info = document.createElement('div');
+        info.style.cssText = 'display:flex;flex-direction:column;gap:2px;min-width:0;flex:1';
+        const name = document.createElement('span');
+        name.className = 'vrnetlab-image-name';
+        name.textContent = c.name || '(node)';
+        const meta = document.createElement('span');
+        meta.className = 'vrnetlab-image-size';
+        meta.textContent = [c.kind, c.state, c.ipv4].filter(Boolean).join(' · ');
+        info.appendChild(name); info.appendChild(meta);
+
+        const acts = document.createElement('div');
+        acts.style.cssText = 'display:flex;gap:6px';
+        const logsBtn = document.createElement('button');
+        logsBtn.type = 'button'; logsBtn.className = 'btn-ghost'; logsBtn.style.cssText = 'padding:4px 10px;font-size:11px';
+        logsBtn.textContent = t('ui.labs.logsBtn');
+        logsBtn.addEventListener('click', function () { viewNodeLogs(c.name); });
+        const execBtn = document.createElement('button');
+        execBtn.type = 'button'; execBtn.className = 'btn-ghost'; execBtn.style.cssText = 'padding:4px 10px;font-size:11px';
+        execBtn.textContent = t('ui.labs.execBtn');
+        execBtn.addEventListener('click', function () { execNodeCommand(c.name); });
+        if (c.name) { acts.appendChild(logsBtn); acts.appendChild(execBtn); }
+
+        row.appendChild(info); row.appendChild(acts);
+        bodyEl.appendChild(row);
+      });
+    }
+
+    modal.appendChild(header); modal.appendChild(bodyEl);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
   }
 
   function openTopologyFromFile(labName, path) {

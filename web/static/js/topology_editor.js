@@ -147,11 +147,32 @@
     return true;
   }
 
+  // Reescala/centraliza posições para caberem no canvas (UNL pode ter left/top
+  // fora do viewBox).
+  function fitPositions(nodes) {
+    if (!nodes.length) return;
+    const pad = 70;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(function (n) {
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y);
+    });
+    // Já cabe tudo dentro do canvas? não mexe.
+    if (minX >= 0 && minY >= 0 && maxX <= W && maxY <= H) return;
+    const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+    const s = Math.min((W - 2 * pad) / bw, (H - 2 * pad) / bh, 1.5);
+    const offX = (W - bw * s) / 2, offY = (H - bh * s) / 2;
+    nodes.forEach(function (n) {
+      n.x = offX + (n.x - minX) * s;
+      n.y = offY + (n.y - minY) * s;
+    });
+  }
+
   function autoLayout(nodes, force) {
     if (!nodes.length) return;
     // Mantém posições salvas (graph-posX/Y) a menos que seja re-layout forçado.
     const hasSaved = nodes.some(function (nd) { return nd.x || nd.y; });
-    if (hasSaved && !force) return;
+    if (hasSaved && !force) { fitPositions(nodes); return; }
     // Preferência: organizar por grupos do YAML; senão, grade.
     if (!layeredLayout(nodes)) gridLayout(nodes);
   }

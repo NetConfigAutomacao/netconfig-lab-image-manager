@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.18.0
+
+- EVE-NG/PNETLab (issue #50): status rodando/parado via **API REST do UNetLab** (a testar contra host real).
+  - Novo `POST /unl/running`: loga na API (`/api/auth/login`, http/https), consulta `/api/labs/<lab>/nodes` e retorna status por nó (running quando status 2/3) + contagem + raw para diagnóstico.
+  - Botão "Status" por lab na aba EVE/PNETLab mostra "{rodando}/{total} nós" (badge verde/cinza) ou o erro de login/consulta.
+
 ## 2.17.0
 
 - Tela de credenciais: pressionar **Enter** em IP/usuário/senha agora dispara o login (e impede o submit acidental do formulário de upload).

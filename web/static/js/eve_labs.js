@@ -49,7 +49,33 @@ document.addEventListener('DOMContentLoaded', function () {
         header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%';
         var name = document.createElement('span'); name.className = 'vrnetlab-image-name'; name.textContent = lab.name || lab.path;
         var sub = document.createElement('span'); sub.className = 'vrnetlab-image-size'; sub.textContent = lab.path;
-        var left = document.createElement('div'); left.style.cssText = 'display:flex;flex-direction:column;min-width:0'; left.appendChild(name); left.appendChild(sub);
+        var statusBadge = document.createElement('span'); statusBadge.className = 'lab-run-badge'; statusBadge.style.display = 'none';
+        var nameRow = document.createElement('div'); nameRow.style.cssText = 'display:flex;align-items:center;gap:8px'; nameRow.appendChild(name); nameRow.appendChild(statusBadge);
+        var left = document.createElement('div'); left.style.cssText = 'display:flex;flex-direction:column;min-width:0'; left.appendChild(nameRow); left.appendChild(sub);
+        var statusBtn = document.createElement('button'); statusBtn.type = 'button'; statusBtn.className = 'btn-secondary';
+        statusBtn.style.cssText = 'padding:2px 10px;font-size:11px'; statusBtn.textContent = t('ui.eveLabs.statusBtn');
+        statusBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var creds = getCommonCreds();
+          var fd = new FormData();
+          fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+          fd.append('path', lab.path);
+          statusBtn.disabled = true;
+          var xs = new XMLHttpRequest(); xs.open('POST', '/api/unl/running', true);
+          xs.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xs);
+          xs.onreadystatechange = function () {
+            if (xs.readyState !== 4) return; statusBtn.disabled = false;
+            var r = null; try { r = JSON.parse(xs.responseText || '{}'); } catch (e2) { showMessage('error', t('msg.parseError')); return; }
+            if (!r || r.success === false) { showMessage('error', (r && r.message) || t('ui.eveLabs.statusFail')); return; }
+            statusBadge.style.display = '';
+            statusBadge.classList.remove('is-up', 'is-down');
+            statusBadge.classList.add(r.running_count > 0 ? 'is-up' : 'is-down');
+            statusBadge.textContent = t('ui.eveLabs.statusResult', { running: r.running_count, total: r.total });
+            showMessage('success', t('ui.eveLabs.statusResult', { running: r.running_count, total: r.total }));
+          };
+          xs.onerror = function () { statusBtn.disabled = false; showMessage('error', t('msg.networkError')); };
+          xs.send(fd);
+        });
         var toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'btn-secondary';
         toggle.style.cssText = 'padding:2px 10px;font-size:11px'; toggle.textContent = '+';
         var topoWrap = document.createElement('div'); topoWrap.className = 'topo-inline'; topoWrap.style.display = 'none'; topoWrap.style.marginTop = '8px';
@@ -62,7 +88,9 @@ document.addEventListener('DOMContentLoaded', function () {
             window.NetConfigTopology.mount(topoWrap, { mode: 'unl', readOnly: true, path: lab.path, baseDir: baseDir() });
           }
         });
-        header.appendChild(left); header.appendChild(toggle);
+        var hActions = document.createElement('span'); hActions.style.cssText = 'display:flex;align-items:center;gap:6px';
+        hActions.appendChild(statusBtn); hActions.appendChild(toggle);
+        header.appendChild(left); header.appendChild(hActions);
         row.appendChild(header); row.appendChild(topoWrap);
         listEl.appendChild(row);
       });

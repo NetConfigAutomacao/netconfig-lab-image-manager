@@ -17,10 +17,16 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
+import requests
 from flask import Blueprint, jsonify, request
 
 from i18n import get_request_lang, translate
 from utils import run_ssh_command
+
+try:
+    requests.packages.urllib3.disable_warnings()  # type: ignore
+except Exception:
+    pass
 
 unl_bp = Blueprint("unl_bp", __name__, url_prefix="/unl")
 
@@ -44,6 +50,66 @@ def _creds():
         (request.form.get("eve_user") or "").strip(),
         (request.form.get("eve_pass") or "").strip(),
     )
+
+
+def _unl_login(ip, user, pwd, timeout=8):
+    """Loga na API REST do UNetLab/EVE-NG. Tenta http e https.
+    Retorna (session, base_url) ou (None, None)."""
+    payload = {"username": user, "password": pwd, "html5": "-1"}
+    for scheme in ("http", "https"):
+        base = f"{scheme}://{ip}"
+        s = requests.Session()
+        try:
+            r = s.post(base + "/api/auth/login", json=payload, timeout=timeout, verify=False)
+            data = {}
+            try:
+                data = r.json() or {}
+            except ValueError:
+                data = {}
+            if r.ok and (data.get("status") == "success" or "unetlab_session" in s.cookies.get_dict()):
+                return s, base
+        except requests.RequestException:
+            continue
+    return None, None
+
+
+@unl_bp.route("/running", methods=["POST"])
+def unl_running():
+    """Testa a API REST do UNetLab: loga e busca o status dos nós de um lab.
+    Retorna logged_in + nodes [{id,name,status,running}] + raw p/ diagnóstico."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _creds()
+    rel = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("unl.missing_creds", lang)), 400
+
+    sess, base = _unl_login(eve_ip, eve_user, eve_pass)
+    if not sess:
+        return jsonify(success=False, logged_in=False, message=translate("unl.api_login_fail", lang)), 200
+
+    # caminho do lab para a API: /api/labs/<rel>/nodes
+    lab_api = "/api/labs/" + "/".join([p for p in rel.split("/") if p])
+    try:
+        r = sess.get(base + lab_api + "/nodes", timeout=8, verify=False)
+        raw = r.text[:4000]
+        data = {}
+        try:
+            data = r.json() or {}
+        except ValueError:
+            data = {}
+    except requests.RequestException as exc:
+        return jsonify(success=False, logged_in=True, message=translate("unl.api_nodes_fail", lang, error=str(exc)), base=base), 200
+
+    nodes = []
+    node_map = data.get("data") if isinstance(data.get("data"), dict) else {}
+    for nid, n in node_map.items():
+        n = n if isinstance(n, dict) else {}
+        status = n.get("status")
+        # EVE/UNL: status 2 = running (ligado); 0 = parado.
+        running = str(status) in ("2", "3") or str(status).lower() == "running"
+        nodes.append({"id": nid, "name": n.get("name") or ("node" + str(nid)), "status": status, "running": running})
+
+    return jsonify(success=True, logged_in=True, base=base, nodes=nodes, running_count=sum(1 for x in nodes if x["running"]), total=len(nodes), raw=raw), 200
 
 
 @unl_bp.route("/labs", methods=["POST"])

@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.8.1
+
+- Editor de topologia (issue #43): no modo expandido (tela cheia) agora há um botão flutuante ✕ para sair, e a tecla **Esc** também cancela a expansão.
+
 ## 2.8.0
 
 - Editor de topologia (issue #43): melhorias de UX e correção do save.

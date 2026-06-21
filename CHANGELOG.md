@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.16.1
+
+- Editor de topologia (issue #50): posições do `.unl` (left/top) que extrapolavam o canvas agora são **reescaladas/centralizadas** para caber, deixando todos os nós visíveis e arrastáveis (antes parte da topologia ficava fora da área).
+
 ## 2.16.0
 
 - EVE-NG/PNETLab (issue #50) — descoberta via UNL + topologia.

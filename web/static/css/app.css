@@ -624,3 +624,7 @@ body.topo-fullscreen-lock { overflow: hidden; }
 .lab-run-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--text-3); white-space: nowrap; }
 .lab-run-badge.is-up { color: #a7e9c0; background: var(--green-bg); border-color: var(--green-bd); }
 .lab-run-badge.is-down { color: var(--text-3); background: var(--surface-3); }
+
+/* Topology fullscreen exit button */
+.topo-exit-fs { position: fixed; top: 26px; right: 26px; z-index: 61; width: 38px; height: 38px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--surface-2); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow); }
+.topo-exit-fs:hover { background: var(--surface-hover); }

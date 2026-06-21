@@ -1268,6 +1268,94 @@ def inspect_labs():
 _IFACE_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
+@container_labs_bp.route("/validate", methods=["POST"])
+def validate_topology():
+    """Validação estrutural do topo YAML (sem schema completo)."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    cmd = (
+        f"target='{labs_dir}/{lab_name}/{rel_path}'; "
+        "if [ ! -f \"$target\" ]; then echo '__FILE_NOT_FOUND__'; exit 44; fi; cat \"$target\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=30)
+    if "__FILE_NOT_FOUND__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    issues = []
+    try:
+        doc = yaml.safe_load(out or "") or {}
+    except Exception as exc:
+        return jsonify(success=True, ok=False, issues=[f"YAML inválido: {exc}"]), 200
+    if not isinstance(doc, dict):
+        return jsonify(success=True, ok=False, issues=["YAML raiz não é um mapa."]), 200
+    if not doc.get("name"):
+        issues.append("Falta 'name' no topo.")
+    topo = doc.get("topology") if isinstance(doc.get("topology"), dict) else {}
+    kinds = topo.get("kinds") if isinstance(topo.get("kinds"), dict) else {}
+    nodes = _normalize_nodes(topo)
+    if not nodes:
+        issues.append("Nenhum nó em topology.nodes.")
+    for name, node in nodes.items():
+        node = node if isinstance(node, dict) else {}
+        kind = node.get("kind")
+        if not kind:
+            issues.append(f"Nó '{name}' sem 'kind'.")
+        kd = kinds.get(kind) if isinstance(kinds.get(kind), dict) else {}
+        img = node.get("image") or kd.get("image")
+        if kind and kind not in ("linux", "bridge", "ovs-bridge", "host") and not img:
+            issues.append(f"Nó '{name}' (kind {kind}) sem 'image'.")
+    links = topo.get("links") if isinstance(topo.get("links"), list) else []
+    seen_eps = set()
+    for idx, link in enumerate(links):
+        eps = link.get("endpoints") if isinstance(link, dict) else None
+        if not isinstance(eps, list) or len(eps) < 2:
+            issues.append(f"Link #{idx + 1} sem 2 endpoints.")
+            continue
+        for ep in eps:
+            n = str(ep).split(":")[0].strip()
+            if n and n not in nodes:
+                issues.append(f"Link #{idx + 1} referencia nó inexistente: '{n}'.")
+            if str(ep) in seen_eps:
+                issues.append(f"Endpoint duplicado: '{ep}'.")
+            seen_eps.add(str(ep))
+    return jsonify(success=True, ok=len(issues) == 0, issues=issues), 200
+
+
+@container_labs_bp.route("/node/stats", methods=["POST"])
+def node_stats():
+    """docker/podman stats (CPU/mem) de um container (sem stream)."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+    q = shlex.quote(container)
+    cmd = (
+        "if command -v docker >/dev/null 2>&1; then docker stats --no-stream --format '{{.CPUPerc}};{{.MemUsage}};{{.MemPerc}}' " + q + " 2>&1; "
+        "elif command -v podman >/dev/null 2>&1; then podman stats --no-stream --format '{{.CPUPerc}};{{.MemUsage}};{{.MemPerc}}' " + q + " 2>&1; "
+        "else echo '__NO_RUNTIME__'; exit 45; fi"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=30)
+    combined = (out or "").strip()
+    if "__NO_RUNTIME__" in combined or rc == 45 or rc != 0:
+        return jsonify(success=False, message=translate("container_labs.stats_fail", lang), raw=combined), 200
+    line = combined.splitlines()[-1] if combined else ""
+    parts = line.split(";")
+    return jsonify(success=True, cpu=(parts[0] if len(parts) > 0 else ""), mem=(parts[1] if len(parts) > 1 else ""), mem_pct=(parts[2] if len(parts) > 2 else ""), raw=combined), 200
+
+
 @container_labs_bp.route("/netem", methods=["POST"])
 def node_netem():
     """Aplica impairments (delay/loss/rate) numa interface de um nó via

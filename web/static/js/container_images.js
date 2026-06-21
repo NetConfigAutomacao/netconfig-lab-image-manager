@@ -90,8 +90,27 @@ document.addEventListener('DOMContentLoaded', function () {
         size.className = 'vrnetlab-image-size';
         size.textContent = img.size || '';
 
+        const rmBtn = document.createElement('button');
+        rmBtn.type = 'button'; rmBtn.className = 'btn-ghost'; rmBtn.style.cssText = 'padding:2px 10px;font-size:11px';
+        rmBtn.textContent = t('ui.containerImages.removeBtn');
+        rmBtn.addEventListener('click', function () {
+          const ref = (img.repository && img.tag && img.tag !== '<none>') ? (img.repository + ':' + img.tag) : (img.id || img.repository);
+          if (!ref) return;
+          if (!window.confirm(t('ui.containerImages.removeConfirm', { name: ref }))) return;
+          rmBtn.disabled = true;
+          imageOp('/api/container-images/remove', { image: ref }).then(function (r) {
+            showMessage(r && r.success ? 'success' : 'error', (r && r.message) || t('ui.containerImages.removeFail'));
+            if (r && r.success) handleLoad();
+            else rmBtn.disabled = false;
+          }).catch(function () { rmBtn.disabled = false; showMessage('error', t('msg.networkError')); });
+        });
+
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex;align-items:center;gap:10px';
+        right.appendChild(size); right.appendChild(rmBtn);
+
         row.appendChild(left);
-        row.appendChild(size);
+        row.appendChild(right);
         listEl.appendChild(row);
       });
     }
@@ -162,6 +181,50 @@ document.addEventListener('DOMContentLoaded', function () {
       xhr.send(formData);
     });
   }
+
+  function imageOp(url, fields) {
+    return new Promise(function (resolve, reject) {
+      const creds = getCommonCreds();
+      if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) { showMessage('error', t('container_images.missing_creds')); return reject(new Error('creds')); }
+      const fd = new FormData();
+      fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+      Object.keys(fields || {}).forEach(function (k) { fd.append(k, fields[k]); });
+      const xhr = new XMLHttpRequest(); xhr.open('POST', url, true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xhr);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        try { resolve(JSON.parse(xhr.responseText || '{}')); } catch (e) { reject(e); }
+      };
+      xhr.onerror = function () { reject(new Error('network')); };
+      xhr.send(fd);
+    });
+  }
+
+  // Caixa de pull (puxar imagem) acima da lista.
+  (function buildPullBox() {
+    if (!countEl || !countEl.parentNode) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'mono'; inp.placeholder = t('ui.containerImages.pullPlaceholder');
+    inp.style.cssText = 'flex:1;min-width:220px;padding:6px 10px';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn-secondary'; btn.style.cssText = 'padding:6px 14px;font-size:12px';
+    btn.textContent = t('ui.containerImages.pullBtn');
+    function doPull() {
+      const image = inp.value.trim(); if (!image) return;
+      btn.disabled = true; showMessage('info', t('ui.containerImages.pulling', { image: image }));
+      imageOp('/api/container-images/pull', { image: image }).then(function (r) {
+        btn.disabled = false;
+        showMessage(r && r.success ? 'success' : 'error', (r && r.message) || t('ui.containerImages.pullFail'));
+        if (r && r.success) { inp.value = ''; handleLoad(); }
+      }).catch(function () { btn.disabled = false; showMessage('error', t('msg.networkError')); });
+    }
+    btn.addEventListener('click', doPull);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doPull(); } });
+    wrap.appendChild(inp); wrap.appendChild(btn);
+    countEl.parentNode.insertBefore(wrap, countEl.nextSibling);
+  })();
 
   function showListLoading() {
     if (listEl) listEl.innerHTML = '<div class="loading-state"><span class="spinner"></span><span>' + t('ui.containerImages.loading') + '</span></div>';

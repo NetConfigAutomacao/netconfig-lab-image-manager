@@ -554,6 +554,14 @@
     m.body.appendChild(add);
   };
 
+  // Modal simples só-leitura para mostrar texto (inspect, etc).
+  TopologyEditor.prototype.showTextModal = function (title, text) {
+    const m = buildModal(title);
+    const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 16; ta.readOnly = true;
+    ta.style.cssText = 'width:100%'; ta.value = text || '';
+    m.body.appendChild(ta);
+  };
+
   // P3 (#70): wrappers de `containerlab tools` (cert, veth, vxlan, sharing).
   TopologyEditor.prototype.openToolsModal = function () {
     const self = this;
@@ -765,6 +773,20 @@
       }).catch(function () { invOut.value = t('ui.topo.genFail'); });
     });
     invDl.addEventListener('click', function () { if (invOut.value.trim()) download((self.lab || 'lab') + '-' + invFmt.value + '.yml', invOut.value); });
+
+    // Versão do containerlab (+ upgrade)
+    const ver = section('ui.topo.genVersion');
+    const verOut = outArea(ver);
+    const verRun = btn(ver, 'ui.topo.genVerShow', true);
+    const verUp = btn(ver, 'ui.topo.genVerUpgrade', false);
+    function verCall(action) {
+      verOut.style.display = 'block'; verOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/version', { action: action }).then(function (r) {
+        verOut.value = (r && r.output) || (r && r.message) || t('ui.topo.genFail');
+      }).catch(function () { verOut.value = t('ui.topo.genFail'); });
+    }
+    verRun.addEventListener('click', function () { verCall('show'); });
+    verUp.addEventListener('click', function () { if (window.confirm(t('ui.topo.genVerConfirm'))) verCall('upgrade'); });
 
     // Vendor templates → adiciona nó
     const tpl = section('ui.topo.genTemplates');
@@ -1798,6 +1820,17 @@
       execB.type = 'button'; execB.className = 'btn-ghost'; execB.style.cssText = 'padding:4px 10px;font-size:11px';
       execB.textContent = t('ui.labs.execBtn');
       execB.addEventListener('click', function () { if (window.NetConfigLabs) window.NetConfigLabs.execNodeCommand(st.container); });
+      const inspB = document.createElement('button');
+      inspB.type = 'button'; inspB.className = 'btn-ghost'; inspB.style.cssText = 'padding:4px 10px;font-size:11px';
+      inspB.textContent = t('ui.topo.inspectBtn');
+      inspB.addEventListener('click', function () {
+        inspB.disabled = true;
+        postForm('/api/container-labs/node/inspect', { container: st.container }).then(function (r) {
+          inspB.disabled = false;
+          if (r && r.output) self.showTextModal(t('ui.topo.inspectBtn') + ' — ' + st.container, r.output);
+          else toast('error', (r && r.message) || t('ui.topo.genFail'));
+        }).catch(function () { inspB.disabled = false; toast('error', t('ui.topo.genFail')); });
+      });
       const statsB = document.createElement('button');
       statsB.type = 'button'; statsB.className = 'btn-ghost'; statsB.style.cssText = 'padding:4px 10px;font-size:11px';
       statsB.textContent = t('ui.topo.statsBtn');
@@ -1842,7 +1875,7 @@
           navigator.clipboard.writeText(cmd).then(function () { toast('success', t('ui.topo.termCopied')); }, function () { window.prompt(t('ui.topo.termCopy'), cmd); });
         } else { window.prompt(t('ui.topo.termCopy'), cmd); }
       });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB);
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB);
       panel.appendChild(acts);
     }
 

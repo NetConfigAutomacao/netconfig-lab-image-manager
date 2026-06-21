@@ -307,6 +307,92 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // P5 (#72): build de imagens vrnetlab (vendors + make docker-image, log ao vivo).
+  function vrlPost(url, fields) {
+    return new Promise(function (resolve, reject) {
+      const creds = getCommonCreds();
+      if (!creds.eve_ip || !creds.eve_user || !creds.eve_pass) { showMessage('error', t('vrnetlab.missingCreds')); return reject(new Error('creds')); }
+      const fd = new FormData();
+      fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+      Object.keys(fields || {}).forEach(function (k) { fd.append(k, fields[k]); });
+      const xhr = new XMLHttpRequest(); xhr.open('POST', url, true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xhr);
+      xhr.onreadystatechange = function () { if (xhr.readyState !== 4) return; try { resolve(JSON.parse(xhr.responseText || '{}')); } catch (e) { reject(e); } };
+      xhr.onerror = function () { reject(new Error('network')); };
+      xhr.send(fd);
+    });
+  }
+
+  (function buildVrlBuilder() {
+    if (!imagesCount || !imagesCount.parentNode) return;
+    const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:12px;border-top:1px solid var(--border);padding-top:10px';
+    const head = document.createElement('div'); head.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px';
+    const title = document.createElement('span'); title.style.cssText = 'font-size:12px;font-weight:700;color:var(--text-2)'; title.textContent = t('ui.vrnetlab.buildTitle');
+    const listBtn = document.createElement('button'); listBtn.type = 'button'; listBtn.className = 'btn-secondary'; listBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    listBtn.textContent = t('ui.vrnetlab.vendorsBtn');
+    head.appendChild(title); head.appendChild(listBtn);
+    const vlist = document.createElement('div'); vlist.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+    const log = document.createElement('pre'); log.className = 'io-log'; log.style.cssText = 'margin-top:8px;max-height:240px;overflow:auto;font-size:11px;display:none';
+    wrap.appendChild(head); wrap.appendChild(vlist); wrap.appendChild(log);
+    imagesCount.parentNode.insertBefore(wrap, imagesCount.nextSibling);
+
+    let polling = null;
+    function pollJob(jobId) {
+      if (polling) clearInterval(polling);
+      polling = setInterval(function () {
+        const creds = getCommonCreds();
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', '/api/vrnetlab/build/job?job_id=' + encodeURIComponent(jobId), true);
+        setLangHeader(xhr);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState !== 4) return;
+          let r = null; try { r = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
+          if (!r) return;
+          log.textContent = (r.lines || []).join('\n');
+          log.scrollTop = log.scrollHeight;
+          if (r.status === 'success' || r.status === 'error') {
+            clearInterval(polling); polling = null;
+            showMessage(r.status === 'success' ? 'success' : 'error', t(r.status === 'success' ? 'ui.vrnetlab.buildOk' : 'ui.vrnetlab.buildFail'));
+            loadVrnetlabStatus({ skipMessage: true });
+          }
+        };
+        xhr.send();
+      }, 1500);
+    }
+
+    function renderVendors(vendors) {
+      vlist.innerHTML = '';
+      if (!vendors.length) { const e = document.createElement('div'); e.className = 'hint'; e.textContent = t('ui.vrnetlab.vendorsEmpty'); vlist.appendChild(e); return; }
+      vendors.forEach(function (v) {
+        const row = document.createElement('div'); row.className = 'vrnetlab-image-row';
+        const left = document.createElement('div'); left.style.cssText = 'display:flex;flex-direction:column';
+        const nm = document.createElement('span'); nm.className = 'vrnetlab-image-name'; nm.textContent = v.name;
+        const sub = document.createElement('span'); sub.className = 'vrnetlab-image-size';
+        sub.textContent = v.images && v.images.length ? v.images.join(', ') : t('ui.vrnetlab.vendorNoImg');
+        left.appendChild(nm); left.appendChild(sub);
+        const bld = document.createElement('button'); bld.type = 'button'; bld.className = 'btn-secondary'; bld.style.cssText = 'padding:4px 12px;font-size:11px';
+        bld.textContent = t('ui.vrnetlab.buildBtn'); bld.disabled = !v.ready;
+        bld.addEventListener('click', function () {
+          log.style.display = 'block'; log.textContent = t('ui.vrnetlab.buildStarting');
+          vrlPost('/api/vrnetlab/build', { vendor: v.name }).then(function (r) {
+            if (r && r.success && r.job_id) { showMessage('info', t('ui.vrnetlab.buildStarted', { vendor: v.name })); pollJob(r.job_id); }
+            else showMessage('error', (r && r.message) || t('ui.vrnetlab.buildFail'));
+          }).catch(function () { showMessage('error', t('msg.networkError')); });
+        });
+        row.appendChild(left); row.appendChild(bld); vlist.appendChild(row);
+      });
+    }
+
+    listBtn.addEventListener('click', function () {
+      listBtn.disabled = true; vlist.innerHTML = '<div class="loading-state"><span class="spinner"></span></div>';
+      vrlPost('/api/vrnetlab/vendors', {}).then(function (r) {
+        listBtn.disabled = false;
+        if (!r || r.success === false) { vlist.innerHTML = ''; showMessage('error', (r && r.message) || t('ui.vrnetlab.vendorsFail')); return; }
+        renderVendors(r.vendors || []);
+      }).catch(function () { listBtn.disabled = false; vlist.innerHTML = ''; showMessage('error', t('msg.networkError')); });
+    });
+  })();
+
   statusBtn.addEventListener('click', handleStatusClick);
   if (installBtn) {
     installBtn.addEventListener('click', handleInstallClick);

@@ -1780,3 +1780,49 @@ def export_inventory():
     if "__NO_INV__" in combined or rc == 48:
         return jsonify(success=False, message=translate("container_labs.inv_missing", lang)), 404
     return jsonify(success=True, inventory=combined, format=fmt), 200
+
+
+# ---------------------------------------------------------------------------
+# P5 (#72): versão do containerlab + upgrade; inspect de runtime por nó.
+# ---------------------------------------------------------------------------
+
+@container_labs_bp.route("/version", methods=["POST"])
+def clab_version():
+    """`containerlab version` (e `version upgrade` se action=upgrade)."""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    action = (request.form.get("action") or "show").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    guard = "if ! command -v containerlab >/dev/null 2>&1; then echo '__NO_CONTAINERLAB__'; exit 46; fi; "
+    sub = "version upgrade" if action == "upgrade" else "version"
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, guard + "containerlab " + sub + " 2>&1", timeout=300)
+    combined = (out or "")
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    return jsonify(success=(rc == 0), output=combined.strip(), rc=rc), 200
+
+
+@container_labs_bp.route("/node/inspect", methods=["POST"])
+def node_inspect():
+    """`docker/podman inspect <container>` — detalhes de runtime de um nó."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    container = (request.form.get("container") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_container_name(container):
+        return jsonify(success=False, message=translate("container_labs.invalid_container", lang)), 400
+    q = shlex.quote(container)
+    cmd = (
+        "if command -v docker >/dev/null 2>&1; then docker inspect " + q + " 2>&1; "
+        "elif command -v podman >/dev/null 2>&1; then podman inspect " + q + " 2>&1; "
+        "else echo '__NO_RUNTIME__'; exit 45; fi"
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
+    combined = (out or "")
+    if "__NO_RUNTIME__" in combined or rc == 45:
+        return jsonify(success=False, message=translate("container_labs.logs_fail", lang, rc=rc), output=combined), 500
+    return jsonify(success=(rc == 0), output=combined.strip(), rc=rc), 200

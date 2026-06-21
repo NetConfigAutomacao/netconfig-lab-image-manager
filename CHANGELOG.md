@@ -2,6 +2,15 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.23.0
+
+- ContainerLab full control (épico #67) — **P5: imagens e runtime** (#72).
+  - **Imagens de container**: `pull` (puxar imagem) e `remove` (remover) na aba de imagens, além da listagem.
+  - **Runtime por nó**: botão **Inspect** (`docker/podman inspect`) no painel do nó, ao lado de logs/exec/stats/captura.
+  - **Versão do containerlab**: seção em Gerar/Exportar mostra `containerlab version` e oferece `version upgrade`.
+  - **VRNetLab build**: lista os vendors em `/opt/containerlab/vrnetlab` (com os arquivos de imagem presentes) e executa `make docker-image` com **log ao vivo** (job assíncrono + polling).
+  - Endpoints validados; i18n PT/EN/ES.
+
 ## 2.22.0
 
 - ContainerLab full control (épico #67) — **P4: inventário, geração e export** (#71).

@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.8.0
+
+- Editor de topologia (issue #43): melhorias de UX e correção do save.
+  - Save agora **preserva comentários e formatação** do YAML (lib eemeli `yaml` vendorizada): só atualiza nós/links/posições, mantendo header de licença, comentários de seção e estilo. Fallback para js-yaml se indisponível.
+  - Removido o botão "Tela cheia"; novo botão **expandir (⛶)** dentro do editor para ocupar a tela inteira inline.
+  - Ao expandir um laboratório, a **topologia abre automaticamente**.
+  - Lista de laboratórios mostra **badge RODANDO/PARADO** por lab (via `containerlab inspect --all`, casando pelo diretório do topo-file).
+
 ## 2.7.0
 
 - Visual Lab Manager (issue #43) — P5: robustez.

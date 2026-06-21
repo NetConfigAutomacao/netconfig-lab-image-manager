@@ -297,7 +297,50 @@
     autoLayout(this.state.nodes);
   };
 
+  // Aplica o estado do grafo sobre o YAML original PRESERVANDO comentários,
+  // ordem e estilo (via eemeli yaml Document). Retorna null se indisponível.
+  TopologyEditor.prototype.buildYamlComments = function () {
+    const YAML = window.YAMLLib;
+    if (!YAML || typeof YAML.parseDocument !== 'function' || !this.baseYaml) return null;
+    let doc;
+    try { doc = YAML.parseDocument(this.baseYaml); } catch (e) { return null; }
+    if (doc.errors && doc.errors.length) return null;
+    if (!doc.hasIn(['topology'])) doc.setIn(['topology'], {});
+    if (!doc.hasIn(['topology', 'nodes'])) doc.setIn(['topology', 'nodes'], {});
+
+    const stateNames = {};
+    this.state.nodes.forEach(function (n) { stateNames[n.name] = true; });
+    // remove nós que saíram
+    const nodesNode = doc.getIn(['topology', 'nodes']);
+    if (nodesNode && nodesNode.items) {
+      nodesNode.items.map(function (it) { return String(it.key); }).forEach(function (k) {
+        if (!stateNames[k]) doc.deleteIn(['topology', 'nodes', k]);
+      });
+    }
+    // upsert nós preservando campos existentes
+    this.state.nodes.forEach(function (n) {
+      const base = ['topology', 'nodes', n.name];
+      if (!doc.hasIn(base)) doc.setIn(base, {});
+      if (n.kind) doc.setIn(base.concat('kind'), n.kind);
+      if (n.image) doc.setIn(base.concat('image'), n.image);
+      if (n.type) doc.setIn(base.concat('type'), n.type);
+      if (n.mgmtIpv4) doc.setIn(base.concat('mgmt-ipv4'), n.mgmtIpv4);
+      if (n.group) doc.setIn(base.concat('group'), n.group);
+      if (n.startupConfig) doc.setIn(base.concat('startup-config'), n.startupConfig);
+      doc.setIn(base.concat(['labels', 'graph-posX']), String(Math.round(n.x)));
+      doc.setIn(base.concat(['labels', 'graph-posY']), String(Math.round(n.y)));
+    });
+    // links: regenerados (comentários de link não são preservados)
+    const links = this.state.links.map(function (l) {
+      return { endpoints: [l.source + ':' + (l.sourceEp || 'eth1'), l.target + ':' + (l.targetEp || 'eth1')] };
+    });
+    doc.setIn(['topology', 'links'], links);
+    try { return doc.toString(); } catch (e) { return null; }
+  };
+
   TopologyEditor.prototype.currentYaml = function () {
+    const preserved = this.buildYamlComments();
+    if (preserved != null) return preserved;
     try { return window.jsyaml ? window.jsyaml.dump(this.buildDoc(), { lineWidth: -1, noRefs: true }) : ''; }
     catch (e) { return '# ' + (e.message || 'dump error'); }
   };
@@ -353,6 +396,16 @@
     exportBtn.textContent = t('ui.topo.exportSvg');
     exportBtn.addEventListener('click', function () { self.exportSvg(); });
 
+    const expandBtn = document.createElement('button');
+    expandBtn.type = 'button'; expandBtn.className = 'btn-ghost'; expandBtn.style.cssText = 'padding:5px 11px;font-size:13px';
+    expandBtn.title = t('ui.topo.expand'); expandBtn.textContent = '⛶';
+    expandBtn.addEventListener('click', function () {
+      const host = self.target;
+      const full = host.classList.toggle('topo-fullscreen');
+      document.body.classList.toggle('topo-fullscreen-lock', full);
+      expandBtn.textContent = full ? '🗗' : '⛶';
+    });
+
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     tidyBtn.textContent = t('ui.topo.tidyBtn');
@@ -401,6 +454,7 @@
     bar.appendChild(statusBtn);
     bar.appendChild(yamlBtn);
     bar.appendChild(exportBtn);
+    bar.appendChild(expandBtn);
     bar.appendChild(counter);
     const spacer = document.createElement('span'); spacer.style.flex = '1'; bar.appendChild(spacer);
     bar.appendChild(restoreBtn);

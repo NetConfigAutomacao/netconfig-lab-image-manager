@@ -16,7 +16,18 @@
 import subprocess
 
 
-def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str):
+def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str, timeout: int | None = None):
+    """
+    Executa um comando via SSH no host remoto.
+
+    - ConnectTimeout faz a fase de conexão falhar rápido (host inacessível/lento)
+      em vez de pendurar o request "pra sempre".
+    - ServerAlive* derruba conexões mortas durante comandos longos sem matar
+      comandos lentos porém vivos (deploy/destroy).
+    - timeout (opcional) impõe um teto total para operações rápidas (leituras);
+      ao estourar, o processo é morto e retorna rc=124. Não use em comandos
+      longos (deploy/destroy) — deixe None.
+    """
     cmd = [
         "sshpass",
         "-p",
@@ -30,17 +41,29 @@ def run_ssh_command(eve_ip: str, eve_user: str, eve_pass: str, command: str):
         "PreferredAuthentications=password",
         "-o",
         "PubkeyAuthentication=no",
+        "-o",
+        "ConnectTimeout=15",
+        "-o",
+        "ServerAliveInterval=15",
+        "-o",
+        "ServerAliveCountMax=4",
         f"{eve_user}@{eve_ip}",
         command,
     ]
-    print(f"[API] Executando SSH: {' '.join(cmd)}", flush=True)
+    print(f"[API] Executando SSH (timeout={timeout}): {' '.join(cmd)}", flush=True)
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    stdout, stderr = proc.communicate()
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        print(f"[API] SSH TIMEOUT após {timeout}s", flush=True)
+        return 124, stdout or "", (stderr or "") + f"\nSSH timeout após {timeout}s."
     print(f"[API] SSH STDOUT:\n{stdout}", flush=True)
     print(f"[API] SSH STDERR:\n{stderr}", flush=True)
     return proc.returncode, stdout, stderr

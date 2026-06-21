@@ -827,6 +827,67 @@ def container_labs_topoviewer_restore():
     return jsonify(success=True, message=translate("container_labs.restore_success", lang), content=out or ""), 200
 
 
+@container_labs_bp.route("/create-lab", methods=["POST"])
+def create_lab():
+    """Cria um novo lab (diretório + .clab.yml inicial) em labs_dir."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or "/" in lab_name:
+        return jsonify(success=False, message=translate("container_labs.invalid_lab", lang)), 400
+    file_name = lab_name + ".clab.yml"
+    starter = f"name: {lab_name}\ntopology:\n  nodes: {{}}\n  links: []\n"
+    import base64 as _b64
+    b64 = _b64.b64encode(starter.encode("utf-8")).decode("ascii")
+    cmd = (
+        f"dir='{labs_dir}/{lab_name}'; "
+        "if [ -e \"$dir\" ]; then echo '__EXISTS__'; exit 44; fi; "
+        "mkdir -p \"$dir\"; "
+        f"echo '{b64}' | base64 -d > \"$dir/{file_name}\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=30)
+    if "__EXISTS__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.lab_exists", lang, name=lab_name)), 409
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.create_fail", lang, rc=rc), stderr=(err or "").strip()), 500
+    return jsonify(success=True, message=translate("container_labs.lab_created", lang, name=lab_name), lab_name=lab_name, path=file_name), 200
+
+
+@container_labs_bp.route("/clone-lab", methods=["POST"])
+def clone_lab():
+    """Clona um lab existente para um novo nome."""
+    lang = get_request_lang()
+    eve_ip = (request.form.get("eve_ip") or "").strip()
+    eve_user = (request.form.get("eve_user") or "").strip()
+    eve_pass = (request.form.get("eve_pass") or "").strip()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    src = (request.form.get("src_lab") or "").strip()
+    dst = (request.form.get("new_lab") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(src) or "/" in src or not _is_safe_relpath(dst) or "/" in dst:
+        return jsonify(success=False, message=translate("container_labs.invalid_lab", lang)), 400
+    cmd = (
+        f"src='{labs_dir}/{src}'; dst='{labs_dir}/{dst}'; "
+        "if [ ! -d \"$src\" ]; then echo '__NO_SRC__'; exit 45; fi; "
+        "if [ -e \"$dst\" ]; then echo '__EXISTS__'; exit 44; fi; "
+        "cp -r \"$src\" \"$dst\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=60)
+    if "__NO_SRC__" in (out or "") or rc == 45:
+        return jsonify(success=False, message=translate("container_labs.lab_missing", lang, name=src)), 404
+    if "__EXISTS__" in (out or "") or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.lab_exists", lang, name=dst)), 409
+    if rc != 0:
+        return jsonify(success=False, message=translate("container_labs.clone_fail", lang, rc=rc), stderr=(err or "").strip()), 500
+    return jsonify(success=True, message=translate("container_labs.lab_cloned", lang, src=src, dst=dst)), 200
+
+
 @container_labs_bp.route("/save-configs", methods=["POST"])
 def save_configs():
     """Executa `containerlab save -t <topo>` (persiste configs dos nós)."""

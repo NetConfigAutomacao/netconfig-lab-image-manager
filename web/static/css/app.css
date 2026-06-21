@@ -565,6 +565,9 @@ body[data-connected="true"] .dashboard { display: grid; grid-template-columns: v
 .topo-panel { margin-top: 10px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-3); border: 1px solid var(--border-2); }
 .topo-panel-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
 .topo-panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.topo-adv { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.topo-adv > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); user-select: none; }
+.topo-adv textarea { width: 100%; resize: vertical; font-size: 12px; }
 .topo-yaml { display: none; flex-direction: column; margin-top: 10px; border: 1px solid var(--border-2); border-radius: var(--radius-sm); overflow: hidden; }
 .topo-yaml-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--surface-3); border-bottom: 1px solid var(--border-2); font-size: 12px; font-weight: 600; color: var(--text-2); }
 .topo-yaml-ta { width: 100%; min-height: 240px; resize: vertical; border: 0; background: var(--bg-2); color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.5; padding: 12px; outline: none; }

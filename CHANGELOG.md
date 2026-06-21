@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.19.0
+
+- ContainerLab full control (épico #67) — **P1: editor de nó completo** (#68).
+  - Painel do nó ganha seção "Campos avançados" cobrindo todos os campos do `.clab.yml`: `mgmt-ipv6`, `license`, `enforce-startup-config`, `image-pull-policy`, `restart-policy`, `startup-delay`, `runtime`, `network-mode`, `user`, `entrypoint`, `cmd`, `memory`, `cpu`, `cpu-set`, `shm-size`, `binds`, `ports`, `exec`, `env-files`, `cap-add`, `aliases`, `dns.servers`, `dns.search`, `env`, `sysctls`, `certificate.issue`, `certificate.sans`.
+  - Editores por tipo: texto, checkbox, lista (um por linha) e chave=valor.
+  - Save preserva comentários/ordem do YAML (caminho eemeli `yaml`); limpar um campo o remove do arquivo. Campos `stages`/`healthcheck` permanecem editáveis pela aba YAML.
+  - i18n PT/EN/ES.
+
 ## 2.18.1
 
 - EVE-NG/PNETLab (issue #50): detecção de status rodando/parado migrada da API REST para **SSH** (mais confiável, mesmo canal das outras operações).

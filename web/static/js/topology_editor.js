@@ -43,6 +43,95 @@
     if (app.showMessage) app.showMessage(type, msg);
   }
 
+  // P1 (#68): campos extras de nó ContainerLab editáveis no painel, além dos
+  // básicos (name/kind/image/type/mgmt/group/startup-config já tratados à parte).
+  // type: 'scalar' (texto), 'bool' (checkbox), 'list' (1 por linha), 'kv' (CHAVE=VALOR por linha).
+  const EXTRA_NODE_FIELDS = [
+    { id: 'mgmt-ipv6', path: ['mgmt-ipv6'], type: 'scalar', t: 'ui.topo.fMgmt6' },
+    { id: 'license', path: ['license'], type: 'scalar', t: 'ui.topo.fLicense' },
+    { id: 'enforce-startup-config', path: ['enforce-startup-config'], type: 'bool', t: 'ui.topo.fEnforceStartup' },
+    { id: 'image-pull-policy', path: ['image-pull-policy'], type: 'scalar', t: 'ui.topo.fPullPolicy' },
+    { id: 'restart-policy', path: ['restart-policy'], type: 'scalar', t: 'ui.topo.fRestart' },
+    { id: 'startup-delay', path: ['startup-delay'], type: 'scalar', t: 'ui.topo.fStartupDelay' },
+    { id: 'runtime', path: ['runtime'], type: 'scalar', t: 'ui.topo.fRuntime' },
+    { id: 'network-mode', path: ['network-mode'], type: 'scalar', t: 'ui.topo.fNetMode' },
+    { id: 'user', path: ['user'], type: 'scalar', t: 'ui.topo.fUser' },
+    { id: 'entrypoint', path: ['entrypoint'], type: 'scalar', t: 'ui.topo.fEntrypoint' },
+    { id: 'cmd', path: ['cmd'], type: 'scalar', t: 'ui.topo.fCmd' },
+    { id: 'memory', path: ['memory'], type: 'scalar', t: 'ui.topo.fMemory' },
+    { id: 'cpu', path: ['cpu'], type: 'scalar', t: 'ui.topo.fCpu' },
+    { id: 'cpu-set', path: ['cpu-set'], type: 'scalar', t: 'ui.topo.fCpuSet' },
+    { id: 'shm-size', path: ['shm-size'], type: 'scalar', t: 'ui.topo.fShmSize' },
+    { id: 'binds', path: ['binds'], type: 'list', t: 'ui.topo.fBinds' },
+    { id: 'ports', path: ['ports'], type: 'list', t: 'ui.topo.fPorts' },
+    { id: 'exec', path: ['exec'], type: 'list', t: 'ui.topo.fExecList' },
+    { id: 'env-files', path: ['env-files'], type: 'list', t: 'ui.topo.fEnvFiles' },
+    { id: 'cap-add', path: ['cap-add'], type: 'list', t: 'ui.topo.fCapAdd' },
+    { id: 'aliases', path: ['aliases'], type: 'list', t: 'ui.topo.fAliases' },
+    { id: 'dns-servers', path: ['dns', 'servers'], type: 'list', t: 'ui.topo.fDnsServers' },
+    { id: 'dns-search', path: ['dns', 'search'], type: 'list', t: 'ui.topo.fDnsSearch' },
+    { id: 'env', path: ['env'], type: 'kv', t: 'ui.topo.fEnv' },
+    { id: 'sysctls', path: ['sysctls'], type: 'kv', t: 'ui.topo.fSysctls' },
+    { id: 'cert-issue', path: ['certificate', 'issue'], type: 'bool', t: 'ui.topo.fCertIssue' },
+    { id: 'cert-sans', path: ['certificate', 'sans'], type: 'list', t: 'ui.topo.fCertSans' }
+  ];
+
+  function getInPath(obj, path) {
+    let cur = obj;
+    for (let i = 0; i < path.length; i++) {
+      if (!cur || typeof cur !== 'object') return undefined;
+      cur = cur[path[i]];
+    }
+    return cur;
+  }
+  // Lê os campos extras de um objeto de nó (YAML) -> props {id:value}.
+  function readExtraProps(o) {
+    const props = {};
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const v = getInPath(o, f.path);
+      if (v === undefined || v === null) return;
+      if (f.type === 'bool') props[f.id] = v === true || v === 'true';
+      else if (f.type === 'list') props[f.id] = Array.isArray(v) ? v.map(String) : [String(v)];
+      else if (f.type === 'kv') {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const m = {}; Object.keys(v).forEach(function (k) { m[k] = String(v[k]); }); props[f.id] = m;
+        }
+      } else props[f.id] = String(v);
+    });
+    return props;
+  }
+  // Aplica props nos caminhos de um objeto JS simples (fallback js-yaml).
+  function writeExtraPropsPlain(base, props) {
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const v = props ? props[f.id] : undefined;
+      const empty = v === undefined || v === '' ||
+        (f.type === 'bool' && !v) ||
+        (f.type === 'list' && (!v || !v.length)) ||
+        (f.type === 'kv' && (!v || !Object.keys(v).length));
+      if (empty) return;
+      let cur = base;
+      for (let i = 0; i < f.path.length - 1; i++) {
+        if (!cur[f.path[i]] || typeof cur[f.path[i]] !== 'object') cur[f.path[i]] = {};
+        cur = cur[f.path[i]];
+      }
+      cur[f.path[f.path.length - 1]] = v;
+    });
+  }
+  // Aplica props num Document eemeli (preserva comentários); apaga quando vazio.
+  function writeExtraPropsDoc(doc, YAML, baseArr, props) {
+    EXTRA_NODE_FIELDS.forEach(function (f) {
+      const full = baseArr.concat(f.path);
+      const v = props ? props[f.id] : undefined;
+      const empty = v === undefined || v === '' ||
+        (f.type === 'bool' && !v) ||
+        (f.type === 'list' && (!v || !v.length)) ||
+        (f.type === 'kv' && (!v || !Object.keys(v).length));
+      if (empty) { if (doc.hasIn(full)) doc.deleteIn(full); return; }
+      if (f.type === 'list' || f.type === 'kv') doc.setIn(full, doc.createNode(v));
+      else doc.setIn(full, v);
+    });
+  }
+
   function postForm(url, fields) {
     return new Promise(function (resolve, reject) {
       const c = creds();
@@ -90,7 +179,8 @@
           x: typeof pos.x === 'number' && pos.x ? pos.x : 0,
           y: typeof pos.y === 'number' && pos.y ? pos.y : 0,
           level: isNaN(lvl) ? null : lvl,
-          labels: labels
+          labels: labels,
+          props: {}
         });
       } else if (el.group === 'edges') {
         links.push({
@@ -318,11 +408,31 @@
       try { self.baseDoc = (window.jsyaml ? window.jsyaml.load(self.baseYaml) : null) || {}; } catch (e) { self.baseDoc = {}; }
       if (typeof self.baseDoc !== 'object' || !self.baseDoc) self.baseDoc = {};
       self.state = cytoToState(resp.elements || []);
+      self.mergePropsFromDoc();
       autoLayout(self.state.nodes);
       self.render();
     }).catch(function (e) {
       try { console.error('[topology] load failed:', e && (e.stack || e.message || e)); } catch (_) {}
       self.target.innerHTML = '<div class="empty-state">' + t('ui.topo.loadFail') + '</div>';
+    });
+  };
+
+  // Enriquece o estado (vindo do endpoint cyto) com os campos extras do nó
+  // lidos do YAML cru (baseDoc), que o grafo cyto não carrega. P1 (#68).
+  TopologyEditor.prototype.mergePropsFromDoc = function () {
+    const topo = (this.baseDoc && typeof this.baseDoc.topology === 'object') ? this.baseDoc.topology : null;
+    if (!topo) return;
+    let raw = topo.nodes;
+    if (Array.isArray(raw)) {
+      const m = {}; raw.forEach(function (it, i) { if (it && typeof it === 'object') m[it.name || ('node-' + (i + 1))] = it; }); raw = m;
+    }
+    if (!raw || typeof raw !== 'object') return;
+    this.state.nodes.forEach(function (nd) {
+      const o = raw[nd.name];
+      if (!o || typeof o !== 'object') return;
+      nd.props = readExtraProps(o);
+      if (!nd.startupConfig && o['startup-config']) nd.startupConfig = String(o['startup-config']);
+      if (!nd.mgmtIpv4 && o['mgmt-ipv4']) nd.mgmtIpv4 = String(o['mgmt-ipv4']);
     });
   };
 
@@ -346,6 +456,7 @@
       if (nd.mgmtIpv4) base['mgmt-ipv4'] = nd.mgmtIpv4;
       if (nd.group) base.group = nd.group;
       if (nd.startupConfig) base['startup-config'] = nd.startupConfig;
+      writeExtraPropsPlain(base, nd.props);
       const labels = (base.labels && typeof base.labels === 'object') ? base.labels : {};
       if (nd.labels) Object.keys(nd.labels).forEach(function (k) { labels[k] = nd.labels[k]; });
       labels['graph-posX'] = String(Math.round(nd.x));
@@ -382,7 +493,8 @@
         mgmtIpv4: o['mgmt-ipv4'] || '', startupConfig: o['startup-config'] || '',
         x: isNaN(x) ? 0 : x, y: isNaN(y) ? 0 : y,
         group: (o.group || labels['graph-group'] || '').toString().trim(),
-        level: isNaN(lvl) ? null : lvl, labels: labels
+        level: isNaN(lvl) ? null : lvl, labels: labels,
+        props: readExtraProps(o)
       });
     });
     const links = [];
@@ -428,6 +540,7 @@
       if (n.mgmtIpv4) doc.setIn(base.concat('mgmt-ipv4'), n.mgmtIpv4);
       if (n.group) doc.setIn(base.concat('group'), n.group);
       if (n.startupConfig) doc.setIn(base.concat('startup-config'), n.startupConfig);
+      writeExtraPropsDoc(doc, YAML, base, n.props);
       if (!YAML.isMap(doc.getIn(base.concat('labels')))) doc.setIn(base.concat('labels'), doc.createNode({}));
       doc.setIn(base.concat(['labels', 'graph-posX']), String(Math.round(n.x)));
       doc.setIn(base.concat(['labels', 'graph-posY']), String(Math.round(n.y)));
@@ -932,7 +1045,7 @@
     let kind = presetKind;
     if (!kind) kind = (window.prompt(t('ui.topo.nodeKindPrompt'), 'linux') || '').trim();
     const image = (window.prompt(t('ui.topo.nodeImagePrompt'), '') || '').trim();
-    const node = { name: name, kind: kind, image: image, type: '', mgmtIpv4: '', group: '', startupConfig: '', x: W / 2, y: H / 2, labels: {} };
+    const node = { name: name, kind: kind, image: image, type: '', mgmtIpv4: '', group: '', startupConfig: '', x: W / 2, y: H / 2, labels: {}, props: {} };
     this.state.nodes.push(node);
     this.renderNode(node);
     this.updateCounter();
@@ -1110,6 +1223,54 @@
     }));
     grid.appendChild(field('ui.topo.fStartup', node.startupConfig, function (v) { node.startupConfig = v; }));
     panel.appendChild(grid);
+
+    // P1 (#68): campos avançados do nó ContainerLab (colapsável).
+    if (!node.props || typeof node.props !== 'object') node.props = {};
+    const adv = document.createElement('details');
+    adv.className = 'topo-adv';
+    const sum = document.createElement('summary');
+    sum.textContent = t('ui.topo.advNode');
+    adv.appendChild(sum);
+    const advGrid = document.createElement('div');
+    advGrid.className = 'topo-panel-grid';
+    advGrid.style.marginTop = '8px';
+
+    function advField(spec) {
+      const wrap = document.createElement('div'); wrap.className = 'field'; wrap.style.marginBottom = '8px';
+      const lbl = document.createElement('label'); lbl.textContent = t(spec.t); wrap.appendChild(lbl);
+      const cur = node.props[spec.id];
+      if (spec.type === 'bool') {
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = cur === true;
+        cb.style.cssText = 'width:auto;margin-left:4px';
+        cb.addEventListener('change', function () { node.props[spec.id] = cb.checked; self.refreshYaml(); });
+        lbl.style.cssText = 'display:flex;align-items:center;gap:6px'; lbl.appendChild(cb);
+        return wrap;
+      }
+      if (spec.type === 'list' || spec.type === 'kv') {
+        const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 3;
+        ta.placeholder = spec.type === 'kv' ? 'KEY=value' : t('ui.topo.onePerLine');
+        if (spec.type === 'kv' && cur && typeof cur === 'object') {
+          ta.value = Object.keys(cur).map(function (k) { return k + '=' + cur[k]; }).join('\n');
+        } else if (spec.type === 'list' && Array.isArray(cur)) {
+          ta.value = cur.join('\n');
+        }
+        ta.addEventListener('change', function () {
+          const lines = ta.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+          if (spec.type === 'kv') {
+            const m = {}; lines.forEach(function (ln) { const i = ln.indexOf('='); if (i > 0) m[ln.slice(0, i).trim()] = ln.slice(i + 1).trim(); });
+            node.props[spec.id] = m;
+          } else { node.props[spec.id] = lines; }
+          self.refreshYaml();
+        });
+        wrap.appendChild(ta); return wrap;
+      }
+      const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = (cur != null ? cur : '');
+      inp.addEventListener('change', function () { node.props[spec.id] = inp.value.trim(); self.refreshYaml(); });
+      wrap.appendChild(inp); return wrap;
+    }
+    EXTRA_NODE_FIELDS.forEach(function (spec) { advGrid.appendChild(advField(spec)); });
+    adv.appendChild(advGrid);
+    panel.appendChild(adv);
 
     // Ações de runtime (se houver status do nó via inspect).
     const st = self.statusMap[node.name];
@@ -1466,6 +1627,8 @@
       const ed = new TopologyEditor(target, opts || {});
       ed.load();
       return ed;
-    }
+    },
+    // Seam para testes headless (não usar em produção).
+    Editor: TopologyEditor
   };
 })();

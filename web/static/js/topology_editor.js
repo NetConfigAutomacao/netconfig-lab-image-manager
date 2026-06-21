@@ -399,12 +399,8 @@
     const expandBtn = document.createElement('button');
     expandBtn.type = 'button'; expandBtn.className = 'btn-ghost'; expandBtn.style.cssText = 'padding:5px 11px;font-size:13px';
     expandBtn.title = t('ui.topo.expand'); expandBtn.textContent = '⛶';
-    expandBtn.addEventListener('click', function () {
-      const host = self.target;
-      const full = host.classList.toggle('topo-fullscreen');
-      document.body.classList.toggle('topo-fullscreen-lock', full);
-      expandBtn.textContent = full ? '🗗' : '⛶';
-    });
+    self.expandBtn = expandBtn;
+    expandBtn.addEventListener('click', function () { self.setFullscreen(!self.isFullscreen); });
 
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
@@ -511,6 +507,7 @@
     self.panel = panel;
     self.target.appendChild(panel);
     self.renderPanel();
+    if (self.isFullscreen) self.setFullscreen(true);
   };
 
   TopologyEditor.prototype.applyYaml = function () {
@@ -1051,6 +1048,37 @@
     }).finally(function () {
       if (btn) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
     });
+  };
+
+  TopologyEditor.prototype.setFullscreen = function (on) {
+    const self = this;
+    const host = self.target;
+    self.isFullscreen = !!on;
+    host.classList.toggle('topo-fullscreen', self.isFullscreen);
+    document.body.classList.toggle('topo-fullscreen-lock', self.isFullscreen);
+    // Sempre remove handler/btn antigos para não duplicar em re-renders.
+    if (self.escHandler) { document.removeEventListener('keydown', self.escHandler); self.escHandler = null; }
+    if (self.exitBtn && self.exitBtn.parentNode) self.exitBtn.parentNode.removeChild(self.exitBtn);
+    if (self.expandBtn) {
+      self.expandBtn.textContent = self.isFullscreen ? '🗗' : '⛶';
+      self.expandBtn.title = self.isFullscreen ? t('ui.topo.collapse') : t('ui.topo.expand');
+    }
+
+    if (self.isFullscreen) {
+      // Botão flutuante de sair (visível só em tela cheia).
+      if (!self.exitBtn) {
+        const x = document.createElement('button');
+        x.type = 'button'; x.className = 'topo-exit-fs';
+        x.title = t('ui.topo.collapse');
+        x.textContent = '✕';
+        x.addEventListener('click', function () { self.setFullscreen(false); });
+        self.exitBtn = x;
+      }
+      host.appendChild(self.exitBtn);
+      // Esc cancela a expansão.
+      self.escHandler = function (ev) { if (ev.key === 'Escape') { ev.preventDefault(); self.setFullscreen(false); } };
+      document.addEventListener('keydown', self.escHandler);
+    }
   };
 
   // ---- Undo/redo ----

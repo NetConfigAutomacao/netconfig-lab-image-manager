@@ -1204,41 +1204,55 @@ document.addEventListener('DOMContentLoaded', function () {
     fd.append('path', relPath);
     if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/container-labs/' + action, true);
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    setLangHeader(xhr);
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState !== 4) return;
+    function finishBtn() {
       setBodyLoading(false);
       if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
+    }
+
+    // Inicia o job assíncrono e faz polling do log ao vivo.
+    const startXhr = new XMLHttpRequest();
+    startXhr.open('POST', '/api/container-labs/' + action + '_async', true);
+    startXhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    setLangHeader(startXhr);
+    startXhr.onreadystatechange = function () {
+      if (startXhr.readyState !== 4) return;
       let resp = null;
-      try { resp = JSON.parse(xhr.responseText || '{}'); } catch (e) {
-        out.setState('error');
-        out.setText(t('msg.parseError') + '\n\n' + (xhr.responseText || ''));
-        return;
+      try { resp = JSON.parse(startXhr.responseText || '{}'); } catch (e) {
+        finishBtn(); out.setState('error'); out.setText(t('msg.parseError')); return;
       }
-      const log = [resp.stdout || '', resp.stderr || ''].filter(Boolean).join('\n');
-      out.setText(log || resp.message || '');
-      if (resp.success) {
-        out.setState('ok', resp.message || t('ui.labs.actionDone'));
-        if (action === 'deploy') {
-          out.addAction(t('ui.labs.viewStatusBtn'), function () { out.close(); openLabStatus(labName, relPath, null); }, true);
+      if (!resp.success || !resp.job_id) {
+        finishBtn(); out.setState('error', resp.message || t('ui.labs.actionFail'));
+        showMessage('error', resp.message || t('ui.labs.actionFail')); return;
+      }
+      pollJob(resp.job_id);
+    };
+    startXhr.onerror = function () { finishBtn(); out.setState('error'); out.setText(t('msg.networkError')); };
+    startXhr.send(fd);
+
+    function pollJob(jobId) {
+      const px = new XMLHttpRequest();
+      px.open('GET', '/api/container-labs/job?job_id=' + encodeURIComponent(jobId), true);
+      px.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      setLangHeader(px);
+      px.onreadystatechange = function () {
+        if (px.readyState !== 4) return;
+        let j = null;
+        try { j = JSON.parse(px.responseText || '{}'); } catch (e) { setTimeout(function () { pollJob(jobId); }, 1500); return; }
+        if (j.log != null) out.setText(j.log || t('ui.labs.actionRunning'));
+        if (!j.done) { setTimeout(function () { pollJob(jobId); }, 1500); return; }
+        finishBtn();
+        if (j.status === 'success') {
+          out.setState('ok', t('ui.labs.actionDone'));
+          if (action === 'deploy') out.addAction(t('ui.labs.viewStatusBtn'), function () { out.close(); openLabStatus(labName, relPath, null); }, true);
+          showMessage('success', t('ui.labs.actionDone'));
+        } else {
+          out.setState('error', t('ui.labs.actionFail'));
+          showMessage('error', t('ui.labs.actionFail'));
         }
-        showMessage('success', resp.message || t('ui.labs.actionDone'));
-      } else {
-        out.setState('error', resp.message || t('ui.labs.actionFail'));
-        showMessage('error', resp.message || t('ui.labs.actionFail'));
-      }
-    };
-    xhr.onerror = function () {
-      setBodyLoading(false);
-      if (btn instanceof HTMLButtonElement) { btn.disabled = false; btn.classList.remove('btn-disabled'); }
-      out.setState('error');
-      out.setText(t('msg.networkError'));
-      showMessage('error', t('msg.networkError'));
-    };
-    xhr.send(fd);
+      };
+      px.onerror = function () { setTimeout(function () { pollJob(jobId); }, 2000); };
+      px.send(null);
+    }
   }
 
   function toggleInlineTopology(lab, path, row, btn) {

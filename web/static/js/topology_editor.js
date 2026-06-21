@@ -84,9 +84,11 @@
           kind: ed.kind || '',
           image: ed.image || '',
           type: ed.type || '',
+          mgmtIpv4: ed.mgmtIpv4Address || '',
+          group: grp,
+          startupConfig: '',
           x: typeof pos.x === 'number' && pos.x ? pos.x : 0,
           y: typeof pos.y === 'number' && pos.y ? pos.y : 0,
-          group: grp,
           level: isNaN(lvl) ? null : lvl,
           labels: labels
         });
@@ -240,6 +242,9 @@
       if (nd.kind) base.kind = nd.kind;
       if (nd.image) base.image = nd.image;
       if (nd.type) base.type = nd.type;
+      if (nd.mgmtIpv4) base['mgmt-ipv4'] = nd.mgmtIpv4;
+      if (nd.group) base.group = nd.group;
+      if (nd.startupConfig) base['startup-config'] = nd.startupConfig;
       const labels = (base.labels && typeof base.labels === 'object') ? base.labels : {};
       if (nd.labels) Object.keys(nd.labels).forEach(function (k) { labels[k] = nd.labels[k]; });
       labels['graph-posX'] = String(Math.round(nd.x));
@@ -273,6 +278,7 @@
       let lvl = parseInt(labels['graph-level'], 10);
       nodes.push({
         name: name, kind: o.kind || '', image: o.image || '', type: o.type || '',
+        mgmtIpv4: o['mgmt-ipv4'] || '', startupConfig: o['startup-config'] || '',
         x: isNaN(x) ? 0 : x, y: isNaN(y) ? 0 : y,
         group: (o.group || labels['graph-group'] || '').toString().trim(),
         level: isNaN(lvl) ? null : lvl, labels: labels
@@ -310,6 +316,21 @@
     addBtn.type = 'button'; addBtn.className = 'btn-ghost'; addBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     addBtn.textContent = t('ui.topo.addNode');
     addBtn.addEventListener('click', function () { self.addNode(); });
+    // Paleta de kinds comuns: adiciona um nó já com o kind escolhido.
+    const palette = document.createElement('select');
+    palette.className = 'topo-palette mono';
+    const KINDS = ['', 'nokia_srlinux', 'arista_ceos', 'linux', 'juniper_crpd', 'cisco_xrd', 'cisco_iol', 'sonic-vs', 'cisco_n9kv'];
+    KINDS.forEach(function (k, i) {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = i === 0 ? t('ui.topo.palettePlaceholder') : k;
+      palette.appendChild(o);
+    });
+    palette.addEventListener('change', function () {
+      const k = palette.value;
+      palette.value = '';
+      if (k) self.addNode(k);
+    });
+
     const linkBtn = document.createElement('button');
     linkBtn.type = 'button'; linkBtn.className = 'btn-ghost'; linkBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     linkBtn.textContent = t('ui.topo.linkMode');
@@ -353,6 +374,7 @@
     saveBtn.addEventListener('click', function () { self.save(saveBtn); });
 
     bar.appendChild(addBtn);
+    bar.appendChild(palette);
     bar.appendChild(linkBtn);
     bar.appendChild(tidyBtn);
     bar.appendChild(yamlBtn);
@@ -637,13 +659,14 @@
     this.refreshYaml();
   };
 
-  TopologyEditor.prototype.addNode = function () {
+  TopologyEditor.prototype.addNode = function (presetKind) {
     const name = (window.prompt(t('ui.topo.nodeNamePrompt'), 'node' + (this.state.nodes.length + 1)) || '').trim();
     if (!name) return;
     if (this.nodeByName(name)) { toast('error', t('ui.topo.nodeExists', { name: name })); return; }
-    const kind = (window.prompt(t('ui.topo.nodeKindPrompt'), 'linux') || '').trim();
+    let kind = presetKind;
+    if (!kind) kind = (window.prompt(t('ui.topo.nodeKindPrompt'), 'linux') || '').trim();
     const image = (window.prompt(t('ui.topo.nodeImagePrompt'), '') || '').trim();
-    const node = { name: name, kind: kind, image: image, type: '', x: W / 2, y: H / 2, labels: {} };
+    const node = { name: name, kind: kind, image: image, type: '', mgmtIpv4: '', group: '', startupConfig: '', x: W / 2, y: H / 2, labels: {} };
     this.state.nodes.push(node);
     this.renderNode(node);
     this.updateCounter();
@@ -761,6 +784,15 @@
       if (self.nodeEls[node.name]) self.nodeEls[node.name].querySelector('.topo-node-kind').textContent = v;
     }));
     grid.appendChild(field('ui.topo.fImage', node.image, function (v) { node.image = v; }));
+    grid.appendChild(field('ui.topo.fType', node.type, function (v) { node.type = v; }));
+    grid.appendChild(field('ui.topo.fMgmt', node.mgmtIpv4, function (v) { node.mgmtIpv4 = v; }));
+    grid.appendChild(field('ui.topo.fGroup', node.group, function (v) {
+      node.group = v;
+      const lbl = (node.labels && typeof node.labels === 'object') ? node.labels : {};
+      if (v) lbl['graph-group'] = v; else delete lbl['graph-group'];
+      node.labels = lbl;
+    }));
+    grid.appendChild(field('ui.topo.fStartup', node.startupConfig, function (v) { node.startupConfig = v; }));
     panel.appendChild(grid);
 
     const del = document.createElement('button');

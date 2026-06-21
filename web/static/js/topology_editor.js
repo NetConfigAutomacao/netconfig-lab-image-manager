@@ -1010,7 +1010,40 @@
           else toast('error', (r && r.message) || t('ui.topo.statsFail'));
         }).catch(function () { statsB.disabled = false; toast('error', t('ui.topo.statsFail')); });
       });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(statsB);
+      const capB = document.createElement('button');
+      capB.type = 'button'; capB.className = 'btn-ghost'; capB.style.cssText = 'padding:4px 10px;font-size:11px';
+      capB.textContent = t('ui.topo.captureBtn');
+      capB.addEventListener('click', function () {
+        const iface = (window.prompt(t('ui.topo.captureIface'), 'eth1') || '').trim();
+        if (!iface) return;
+        const count = (window.prompt(t('ui.topo.captureCount'), '200') || '200').trim();
+        const c = creds();
+        const fd = new FormData();
+        fd.append('eve_ip', c.eve_ip); fd.append('eve_user', c.eve_user); fd.append('eve_pass', c.eve_pass);
+        fd.append('container', st.container); fd.append('iface', iface); fd.append('count', count);
+        toast('info', t('ui.topo.captureRunning'));
+        fetch('/api/container-labs/node/capture', { method: 'POST', body: fd }).then(function (r) {
+          const ct = r.headers.get('content-type') || '';
+          if (ct.indexOf('pcap') === -1) { return r.json().then(function (j) { toast('error', (j && j.message) || t('ui.topo.captureFail')); }); }
+          return r.blob().then(function (blob) {
+            const url = URL.createObjectURL(blob); const a = document.createElement('a');
+            a.href = url; a.download = st.container + '_' + iface + '.pcap'; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+            toast('success', t('ui.topo.captureOk'));
+          });
+        }).catch(function () { toast('error', t('ui.topo.captureFail')); });
+      });
+      const termB = document.createElement('button');
+      termB.type = 'button'; termB.className = 'btn-ghost'; termB.style.cssText = 'padding:4px 10px;font-size:11px';
+      termB.textContent = t('ui.topo.termBtn');
+      termB.addEventListener('click', function () {
+        const c = creds();
+        const cmd = 'ssh ' + (c.eve_user || 'root') + '@' + (c.eve_ip || '<host>') + ' -t docker exec -it ' + st.container + ' sh';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).then(function () { toast('success', t('ui.topo.termCopied')); }, function () { window.prompt(t('ui.topo.termCopy'), cmd); });
+        } else { window.prompt(t('ui.topo.termCopy'), cmd); }
+      });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB);
       panel.appendChild(acts);
     }
 

@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.16.2
+
+- Editor de topologia (issue #50): layout **force-directed** (Fruchterman–Reingold) com anti-sobreposição para topologias UNL — espalha nós e arestas sem encostar (antes os nós do .unl se sobrepunham). Aplicado ao abrir e no botão "Reorganizar" (UNL).
+
 ## 2.16.1
 
 - Editor de topologia (issue #50): posições do `.unl` (left/top) que extrapolavam o canvas agora são **reescaladas/centralizadas** para caber, deixando todos os nós visíveis e arrastáveis (antes parte da topologia ficava fora da área).

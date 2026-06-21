@@ -2,6 +2,14 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.16.0
+
+- EVE-NG/PNETLab (issue #50) — descoberta via UNL + topologia.
+  - Nova aba "Labs (EVE/PNETLab)" para hosts EVE-NG/PNETLab: lista os `.unl` em `/opt/unetlab/labs` (`POST /unl/labs`).
+  - Abre a topologia do lab (nós, redes/bridges, enlaces, posições left/top) no editor nativo em modo **somente leitura** (`POST /unl/topology`, parser XML do .unl).
+  - Editor de topologia ganha modo read-only (esconde edição/save/deploy). Testes do parser UNL.
+  - Pendente em #50: status rodando/parado por lab no EVE/PNETLab.
+
 ## 2.15.0
 
 - ContainerLab (issue #52) — itens 7 e 2:

@@ -2,6 +2,17 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.27.0
+
+- ContainerLab — lacunas funcionais (épico #80):
+  - **defaults/kinds**: botão "Defaults/Kinds" edita `topology.defaults` e `topology.kinds` (YAML), preservando o resto do arquivo.
+  - **stages/healthcheck**: campos estruturados (YAML) por nó no painel avançado, com validação.
+  - **deploy avançado**: flags `--node-filter`, `--max-workers`, `--timeout`, `--log-level` (modal "Deploy avançado" por lab).
+  - **inspect interfaces**: `containerlab inspect interfaces` no diálogo Gerar/Exportar.
+  - **drawio**: exportação `containerlab graph --drawio` (requer clab-io-draw) com download.
+  - Round-trip testado (headless) preservando comentários; i18n PT/EN/ES.
+  - Pendentes do épico (precisam de infra WebSocket + QA em host real): terminal embutido e logs/deploy ao vivo via WebSocket.
+
 ## 2.26.2
 
 - Documentação: README (PT/EN/ES) com a instalação atualizada para o fluxo de comando único (`make`) — instala deps, clona e sobe tudo; inclui alvos úteis e seção de Segurança em todos os idiomas.

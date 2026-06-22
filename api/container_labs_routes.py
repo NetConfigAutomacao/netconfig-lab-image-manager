@@ -1155,10 +1155,35 @@ def _start_clab_job(action_label, action_cmd):
     return jsonify(success=True, job_id=job_id), 200
 
 
+_LOG_LEVELS = {"trace", "debug", "info", "warn", "warning", "error", "fatal"}
+
+
+def _deploy_flags():
+    """Monta flags avançadas de deploy a partir do form (validadas). #80"""
+    parts = []
+    nf = (request.form.get("node_filter") or "").strip()
+    mw = (request.form.get("max_workers") or "").strip()
+    tmo = (request.form.get("timeout") or "").strip()
+    lvl = (request.form.get("log_level") or "").strip().lower()
+    if nf and re.match(r"^[A-Za-z0-9_.,-]+$", nf):
+        parts += ["--node-filter", shlex.quote(nf)]
+    if mw and mw.isdigit():
+        parts += ["--max-workers", mw]
+    if tmo and re.match(r"^[0-9]+(ms|s|m|h)?$", tmo):
+        parts += ["--timeout", shlex.quote(tmo)]
+    if lvl in _LOG_LEVELS:
+        parts += ["--log-level", lvl]
+    return " ".join(parts)
+
+
 @container_labs_bp.route("/deploy_async", methods=["POST"])
 def deploy_async():
     reconfigure = str(request.form.get("reconfigure") or "").strip().lower() in {"1", "true", "yes", "on"}
-    return _start_clab_job("deploy", "deploy --reconfigure" if reconfigure else "deploy")
+    action = "deploy --reconfigure" if reconfigure else "deploy"
+    flags = _deploy_flags()
+    if flags:
+        action = action + " " + flags
+    return _start_clab_job("deploy", action)
 
 
 @container_labs_bp.route("/destroy_async", methods=["POST"])
@@ -1314,6 +1339,61 @@ def inspect_labs():
         return jsonify(success=False, message=translate("container_labs.inspect_parse_fail", lang), containers=[], raw=combined), 200
 
     return jsonify(success=True, containers=_normalize_inspect(parsed), raw=combined, ssh_rc=rc), 200
+
+
+@container_labs_bp.route("/inspect/interfaces", methods=["POST"])
+def inspect_interfaces():
+    """`containerlab inspect interfaces -t <target>` — mapa de interfaces. #80"""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    cmd = _target_guard(labs_dir, lab_name, rel_path) + "containerlab inspect interfaces -t \"$target\" 2>&1"
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=45)
+    combined = (out or "")
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    return jsonify(success=(rc == 0), output=combined.strip(), rc=rc), 200
+
+
+@container_labs_bp.route("/graph/drawio", methods=["POST"])
+def graph_drawio():
+    """`containerlab graph --drawio` — exporta diagrama .drawio (precisa do
+    plugin clab-io-draw no host). Retorna o XML do .drawio. #80"""
+    lang = get_request_lang()
+    eve_ip, eve_user, eve_pass = _tool_creds()
+    labs_dir = (request.form.get("labs_dir") or "/opt/containerlab/labs").strip() or "/opt/containerlab/labs"
+    lab_name = (request.form.get("lab_name") or "").strip()
+    rel_path = (request.form.get("path") or "").strip()
+    if not (eve_ip and eve_user and eve_pass):
+        return jsonify(success=False, message=translate("container_labs.missing_creds", lang)), 400
+    if not _is_safe_relpath(lab_name) or not _is_safe_relpath(rel_path):
+        return jsonify(success=False, message=translate("container_labs.invalid_path", lang)), 400
+    cmd = (
+        _target_guard(labs_dir, lab_name, rel_path)
+        + "tmpd=$(mktemp -d); containerlab graph -t \"$target\" --drawio --drawio-output-dir \"$tmpd\" >\"$tmpd/.log\" 2>&1 "
+        "|| containerlab graph -t \"$target\" --drawio >\"$tmpd/.log\" 2>&1; "
+        "f=$(ls \"$tmpd\"/*.drawio 2>/dev/null | head -1); "
+        "if [ -z \"$f\" ]; then f=$(find \"$(dirname \"$target\")\" -maxdepth 1 -name '*.drawio' 2>/dev/null | head -1); fi; "
+        "if [ -n \"$f\" ]; then cat \"$f\"; else echo '__NO_DRAWIO__'; cat \"$tmpd/.log\"; fi; rm -rf \"$tmpd\""
+    )
+    rc, out, err = run_ssh_command(eve_ip, eve_user, eve_pass, cmd, timeout=90)
+    combined = (out or "")
+    if "__FILE_NOT_FOUND__" in combined or rc == 44:
+        return jsonify(success=False, message=translate("container_labs.file_missing", lang, path=rel_path)), 404
+    if "__NO_CONTAINERLAB__" in combined or rc == 46:
+        return jsonify(success=False, message=translate("container_labs.no_clab", lang), output=combined), 500
+    if "__NO_DRAWIO__" in combined:
+        return jsonify(success=False, message=translate("container_labs.drawio_missing", lang),
+                       output=combined.replace("__NO_DRAWIO__", "").strip()), 200
+    return jsonify(success=True, drawio=combined.strip()), 200
 
 
 _IFACE_RE = re.compile(r"^[A-Za-z0-9._/-]+$")

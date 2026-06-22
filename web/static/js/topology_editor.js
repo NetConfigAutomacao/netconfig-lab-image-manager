@@ -1926,7 +1926,9 @@
         fd.append('eve_ip', c.eve_ip); fd.append('eve_user', c.eve_user); fd.append('eve_pass', c.eve_pass);
         fd.append('container', st.container); fd.append('iface', iface); fd.append('count', count);
         toast('info', t('ui.topo.captureRunning'));
-        fetch('/api/container-labs/node/capture', { method: 'POST', body: fd }).then(function (r) {
+        const capHeaders = {};
+        if (window.NetConfigApp && window.NetConfigApp.csrfToken) capHeaders['X-CSRF-Token'] = window.NetConfigApp.csrfToken;
+        fetch('/api/container-labs/node/capture', { method: 'POST', body: fd, headers: capHeaders }).then(function (r) {
           const ct = r.headers.get('content-type') || '';
           if (ct.indexOf('pcap') === -1) { return r.json().then(function (j) { toast('error', (j && j.message) || t('ui.topo.captureFail')); }); }
           return r.blob().then(function (blob) {

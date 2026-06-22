@@ -2,6 +2,15 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.25.0
+
+- Segurança (issue #75): camada de autenticação da aplicação.
+  - **Login por sessão** ativado quando `APP_PASSWORD` está definida (senão, "modo aberto" com aviso na interface).
+  - **CSRF**: token por sessão exigido em todas as requisições que alteram estado (`X-CSRF-Token`).
+  - **Rate-limit** de login por IP.
+  - **Cabeçalhos de segurança** (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) no Nginx e na API.
+  - Overlay de login + banner de "modo aberto" no front-end (PT/EN/ES). Segredo de sessão estável via `APP_SECRET_KEY`/`APP_PASSWORD`; `APP_COOKIE_SECURE` para HTTPS.
+
 ## 2.24.0
 
 - ContainerLab full control (épico #67) — **P6: operação de produção** (#73). Conclui o épico.

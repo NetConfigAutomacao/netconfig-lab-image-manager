@@ -22,6 +22,11 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      # Segurança (issue #75): defina APP_PASSWORD para exigir login na aplicação.
+      # Sem ela, a app roda em "modo aberto" (sem autenticação) e exibe um aviso.
+      # - APP_PASSWORD=troque-esta-senha
+      # - APP_SECRET_KEY=opcional-segredo-de-sessao-estavel
+      # - APP_COOKIE_SECURE=1   # ative quando servir atrás de HTTPS
     networks:
       - eveng-net
 

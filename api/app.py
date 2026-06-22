@@ -26,6 +26,7 @@ from container_images_routes import container_images_bp
 from container_labs_routes import container_labs_bp
 from unl_routes import unl_bp
 from version import get_app_version, check_for_update
+from auth import register_security
 
 
 def create_app() -> Flask:
@@ -49,6 +50,10 @@ def create_app() -> Flask:
     app.register_blueprint(container_images_bp)
     app.register_blueprint(container_labs_bp)
     app.register_blueprint(unl_bp)
+
+    # Camada de segurança: login por sessão, CSRF e cabeçalhos (issue #75).
+    # Ativa quando APP_PASSWORD está definida; senão roda em modo aberto.
+    register_security(app)
 
     @app.route("/health", methods=["GET"])
     def health():

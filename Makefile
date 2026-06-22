@@ -14,7 +14,8 @@ COMPOSE := docker compose
 ENV_FILE := .env
 PORT ?= 8080
 
-.DEFAULT_GOAL := help
+# Comando único (`make`) sobe o projeto inteiro.
+.DEFAULT_GOAL := up
 
 # Gera um valor aleatório url-safe (openssl, com fallback para /dev/urandom).
 define randval
@@ -24,8 +25,14 @@ endef
 .PHONY: help
 help: ## Mostra esta ajuda
 	@echo "NetConfig Lab Image Manager — alvos do Makefile:"
+	@echo "  (rode apenas 'make' para subir o projeto inteiro)"
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: check-docker
+check-docker: ## Verifica se Docker + compose estão disponíveis
+	@command -v docker >/dev/null 2>&1 || { echo "[make] Docker não encontrado. Instale: curl -fsSL https://get.docker.com | sh"; exit 1; }
+	@docker compose version >/dev/null 2>&1 || { echo "[make] 'docker compose' (v2) não disponível. Atualize o Docker."; exit 1; }
 
 $(ENV_FILE): ## Cria o .env com senha e segredo aleatórios (se não existir)
 	@if [ ! -f $(ENV_FILE) ]; then \
@@ -40,13 +47,16 @@ $(ENV_FILE): ## Cria o .env com senha e segredo aleatórios (se não existir)
 env: $(ENV_FILE) ## Garante o .env (gera se faltar)
 
 .PHONY: up
-up: $(ENV_FILE) ## Sobe o projeto inteiro (build) com autenticação ativada
+up: check-docker $(ENV_FILE) ## (padrão) Sobe o projeto INTEIRO num único comando: build + auth + todos os serviços
+	@echo "[make] Subindo o projeto inteiro (web + api + ishare2)..."
 	@$(COMPOSE) up -d --build
 	@echo ""
 	@echo "================ NetConfig Lab Image Manager ================"
 	@echo " URL:   http://localhost:$(PORT)"
 	@echo " Senha: $$(grep '^APP_PASSWORD=' $(ENV_FILE) | cut -d= -f2-)"
 	@echo " (guarde a senha; está em ./$(ENV_FILE))"
+	@echo "------------------------------------------------------------"
+	@$(COMPOSE) ps
 	@echo "============================================================"
 
 .PHONY: down

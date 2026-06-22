@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.26.1
+
+- Makefile: `make` (sem argumentos) virou o comando único que sobe o projeto inteiro (build + auth + web/api/ishare2). Adiciona checagem de Docker/compose e mostra `docker compose ps` ao final. `make help` lista os alvos.
+
 ## 2.26.0
 
 - **Makefile + senha aleatória** (issue #77): `make up` gera um `.env` com `APP_PASSWORD` e `APP_SECRET_KEY` aleatórios (se não existir) e sobe todo o projeto com build, já com autenticação ativada — imprime a URL e a senha no fim.

@@ -73,7 +73,9 @@
     { id: 'env', path: ['env'], type: 'kv', t: 'ui.topo.fEnv' },
     { id: 'sysctls', path: ['sysctls'], type: 'kv', t: 'ui.topo.fSysctls' },
     { id: 'cert-issue', path: ['certificate', 'issue'], type: 'bool', t: 'ui.topo.fCertIssue' },
-    { id: 'cert-sans', path: ['certificate', 'sans'], type: 'list', t: 'ui.topo.fCertSans' }
+    { id: 'cert-sans', path: ['certificate', 'sans'], type: 'list', t: 'ui.topo.fCertSans' },
+    { id: 'stages', path: ['stages'], type: 'yaml', t: 'ui.topo.fStages' },
+    { id: 'healthcheck', path: ['healthcheck'], type: 'yaml', t: 'ui.topo.fHealthcheck' }
   ];
 
   function getInPath(obj, path) {
@@ -96,6 +98,8 @@
         if (v && typeof v === 'object' && !Array.isArray(v)) {
           const m = {}; Object.keys(v).forEach(function (k) { m[k] = String(v[k]); }); props[f.id] = m;
         }
+      } else if (f.type === 'yaml') {
+        if (v && typeof v === 'object') props[f.id] = v;  // mantém objeto/array
       } else props[f.id] = String(v);
     });
     return props;
@@ -107,7 +111,7 @@
       const empty = v === undefined || v === '' ||
         (f.type === 'bool' && !v) ||
         (f.type === 'list' && (!v || !v.length)) ||
-        (f.type === 'kv' && (!v || !Object.keys(v).length));
+        ((f.type === 'kv' || f.type === 'yaml') && (!v || typeof v !== 'object' || (!Array.isArray(v) && !Object.keys(v).length) || (Array.isArray(v) && !v.length)));
       if (empty) return;
       let cur = base;
       for (let i = 0; i < f.path.length - 1; i++) {
@@ -125,9 +129,9 @@
       const empty = v === undefined || v === '' ||
         (f.type === 'bool' && !v) ||
         (f.type === 'list' && (!v || !v.length)) ||
-        (f.type === 'kv' && (!v || !Object.keys(v).length));
+        ((f.type === 'kv' || f.type === 'yaml') && (!v || typeof v !== 'object' || (!Array.isArray(v) && !Object.keys(v).length) || (Array.isArray(v) && !v.length)));
       if (empty) { if (doc.hasIn(full)) doc.deleteIn(full); return; }
-      if (f.type === 'list' || f.type === 'kv') doc.setIn(full, doc.createNode(v));
+      if (f.type === 'list' || f.type === 'kv' || f.type === 'yaml') doc.setIn(full, doc.createNode(v));
       else doc.setIn(full, v);
     });
   }
@@ -450,6 +454,8 @@
     this.statusMap = {};        // nodeName -> { state, ipv4, container }
     this.specialLinks = [];     // links single-endpoint (host/macvlan/vxlan/...)
     this.mgmt = {};             // rede de gerência (doc-level)
+    this.topoDefaults = {};     // topology.defaults (#80)
+    this.topoKinds = {};        // topology.kinds (#80)
   }
 
   // Modal genérico (overlay + caixa), seguindo o padrão io-overlay/io-modal.
@@ -489,6 +495,33 @@
     });
     const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '4px';
     hint.textContent = t('ui.topo.mgmtHint'); m.body.appendChild(hint);
+  };
+
+  // topology.defaults / topology.kinds — editor YAML estruturado (#80).
+  TopologyEditor.prototype.openDefaultsModal = function () {
+    const self = this;
+    const m = buildModal(t('ui.topo.defaultsBtn'));
+    function block(labelKey, obj, apply) {
+      const w = document.createElement('div'); w.style.marginBottom = '12px';
+      const lbl = document.createElement('label'); lbl.style.cssText = 'font-weight:600;font-size:12px'; lbl.textContent = t(labelKey); w.appendChild(lbl);
+      const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 7; ta.style.cssText = 'width:100%';
+      if (obj && Object.keys(obj).length && window.jsyaml) { try { ta.value = window.jsyaml.dump(obj, { lineWidth: -1 }).trim(); } catch (e) {} }
+      const err = document.createElement('div'); err.style.cssText = 'color:var(--red,#f87171);font-size:11px;min-height:14px';
+      ta.addEventListener('change', function () {
+        const txt = ta.value.trim(); err.textContent = '';
+        if (!txt) { apply({}); self.refreshYaml(); return; }
+        if (!window.jsyaml) { err.textContent = 'YAML lib indisponível'; return; }
+        try {
+          const o = window.jsyaml.load(txt);
+          if (o && typeof o === 'object' && !Array.isArray(o)) { apply(o); self.refreshYaml(); }
+          else err.textContent = t('ui.topo.yamlObjErr');
+        } catch (e) { err.textContent = (e && e.message) || 'YAML inválido'; }
+      });
+      w.appendChild(ta); w.appendChild(err); m.body.appendChild(w);
+    }
+    block('ui.topo.defaultsBlock', self.topoDefaults, function (o) { self.topoDefaults = o; });
+    block('ui.topo.kindsBlock', self.topoKinds, function (o) { self.topoKinds = o; });
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.textContent = t('ui.topo.defaultsHint'); m.body.appendChild(hint);
   };
 
   // Links especiais (single-endpoint): host/macvlan/vxlan/mgmt-net/dummy.
@@ -784,6 +817,29 @@
     });
     merDl.addEventListener('click', function () { if (merOut.value.trim()) download((self.lab || 'lab') + '.mmd', merOut.value); });
 
+    // drawio (#80)
+    const dio = section('ui.topo.genDrawio');
+    const dioOut = outArea(dio);
+    const dioRun = btn(dio, 'ui.topo.genRun', true);
+    const dioDl = btn(dio, 'ui.topo.genDownload', false);
+    dioRun.addEventListener('click', function () {
+      dioOut.style.display = 'block'; dioOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/graph/drawio', labF()).then(function (r) {
+        dioOut.value = (r && r.success) ? (r.drawio || '') : ((r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { dioOut.value = t('ui.topo.genFail'); });
+    });
+    dioDl.addEventListener('click', function () { if (dioOut.value.trim()) download((self.lab || 'lab') + '.drawio', dioOut.value); });
+
+    // inspect interfaces (#80)
+    const itf = section('ui.topo.genInterfaces');
+    const itfOut = outArea(itf);
+    btn(itf, 'ui.topo.genRun', true).addEventListener('click', function () {
+      itfOut.style.display = 'block'; itfOut.value = t('ui.topo.toolsRunning');
+      postForm('/api/container-labs/inspect/interfaces', labF()).then(function (r) {
+        itfOut.value = (r && r.success) ? (r.output || t('ui.topo.genNone')) : ((r && r.message) || t('ui.topo.genFail'));
+      }).catch(function () { itfOut.value = t('ui.topo.genFail'); });
+    });
+
     // Generate
     const gen = section('ui.topo.genGenerate');
     function gi(labelKey, ph, val) {
@@ -951,6 +1007,8 @@
     const parsed = parseClabLinks(topo || {});
     this.specialLinks = parsed.special;
     this.mgmt = readMgmt(this.baseDoc || {});
+    this.topoDefaults = (topo && typeof topo.defaults === 'object' && topo.defaults) ? topo.defaults : {};
+    this.topoKinds = (topo && typeof topo.kinds === 'object' && topo.kinds) ? topo.kinds : {};
     // casa atributos de aresta por assinatura de endpoints (sem ordem).
     const sig = function (s, se, t, te) { return [s + ':' + (se || ''), t + ':' + (te || '')].sort().join('|'); };
     const byKey = {};
@@ -994,6 +1052,8 @@
       .concat((this.specialLinks || []).map(specialToYaml));
     topo.nodes = nodes;
     topo.links = links;
+    if (this.topoDefaults && Object.keys(this.topoDefaults).length) topo.defaults = this.topoDefaults;
+    if (this.topoKinds && Object.keys(this.topoKinds).length) topo.kinds = this.topoKinds;
     doc.topology = topo;
     const mgmt = this.mgmt || {};
     const mObj = {};
@@ -1033,6 +1093,8 @@
     });
     this.specialLinks = parsed.special;
     this.mgmt = readMgmt(this.baseDoc || {});
+    this.topoDefaults = (topo && typeof topo.defaults === 'object' && topo.defaults) ? topo.defaults : {};
+    this.topoKinds = (topo && typeof topo.kinds === 'object' && topo.kinds) ? topo.kinds : {};
     this.state = { nodes: nodes, links: links };
     autoLayout(this.state.nodes);
   };
@@ -1085,6 +1147,13 @@
       if (v === undefined || v === '') { if (doc.hasIn(['mgmt'].concat(f.path))) doc.deleteIn(['mgmt'].concat(f.path)); }
       else doc.setIn(['mgmt'].concat(f.path), v);
     });
+    // topology.defaults / topology.kinds (#80)
+    const dft = this.topoDefaults || {};
+    if (dft && Object.keys(dft).length) doc.setIn(['topology', 'defaults'], doc.createNode(dft));
+    else if (doc.hasIn(['topology', 'defaults'])) doc.deleteIn(['topology', 'defaults']);
+    const kinds = this.topoKinds || {};
+    if (kinds && Object.keys(kinds).length) doc.setIn(['topology', 'kinds'], doc.createNode(kinds));
+    else if (doc.hasIn(['topology', 'kinds'])) doc.deleteIn(['topology', 'kinds']);
     try { return doc.toString(); } catch (e) { return null; }
   };
 
@@ -1168,6 +1237,10 @@
     hostLinksBtn.type = 'button'; hostLinksBtn.className = 'btn-ghost'; hostLinksBtn.style.cssText = 'padding:5px 12px;font-size:12px';
     hostLinksBtn.textContent = t('ui.topo.hostLinksBtn');
     hostLinksBtn.addEventListener('click', function () { self.openHostLinksModal(); });
+    const defaultsBtn = document.createElement('button');
+    defaultsBtn.type = 'button'; defaultsBtn.className = 'btn-ghost'; defaultsBtn.style.cssText = 'padding:5px 12px;font-size:12px';
+    defaultsBtn.textContent = t('ui.topo.defaultsBtn');
+    defaultsBtn.addEventListener('click', function () { self.openDefaultsModal(); });
 
     const tidyBtn = document.createElement('button');
     tidyBtn.type = 'button'; tidyBtn.className = 'btn-ghost'; tidyBtn.style.cssText = 'padding:5px 12px;font-size:12px';
@@ -1246,6 +1319,7 @@
       bar.appendChild(redoBtn);
       bar.appendChild(mgmtBtn);
       bar.appendChild(hostLinksBtn);
+      bar.appendChild(defaultsBtn);
       bar.appendChild(toolsBtn);
       bar.appendChild(genBtn);
       bar.appendChild(tidyBtn);
@@ -1858,6 +1932,26 @@
           self.refreshYaml();
         });
         wrap.appendChild(ta); return wrap;
+      }
+      if (spec.type === 'yaml') {
+        // stages / healthcheck: editor YAML estruturado (#80).
+        const ta = document.createElement('textarea'); ta.className = 'mono'; ta.rows = 4;
+        ta.placeholder = 'chave: valor';
+        if (cur && typeof cur === 'object' && window.jsyaml) {
+          try { ta.value = window.jsyaml.dump(cur, { lineWidth: -1 }).trim(); } catch (e) {}
+        }
+        const errEl = document.createElement('div'); errEl.style.cssText = 'color:var(--red,#f87171);font-size:11px;min-height:14px';
+        ta.addEventListener('change', function () {
+          const txt = ta.value.trim(); errEl.textContent = '';
+          if (!txt) { delete node.props[spec.id]; self.refreshYaml(); return; }
+          if (!window.jsyaml) { errEl.textContent = 'YAML lib indisponível'; return; }
+          try {
+            const obj = window.jsyaml.load(txt);
+            if (obj && typeof obj === 'object') { node.props[spec.id] = obj; self.refreshYaml(); }
+            else errEl.textContent = t('ui.topo.yamlObjErr');
+          } catch (e) { errEl.textContent = (e && e.message) || 'YAML inválido'; }
+        });
+        wrap.appendChild(ta); wrap.appendChild(errEl); return wrap;
       }
       const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'mono'; inp.value = (cur != null ? cur : '');
       inp.addEventListener('change', function () { node.props[spec.id] = inp.value.trim(); self.refreshYaml(); });

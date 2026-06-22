@@ -271,6 +271,18 @@ document.addEventListener('DOMContentLoaded', function () {
           });
           actions.appendChild(deployBtn);
 
+          // Deploy avançado (flags: node-filter, max-workers, timeout, log-level) — #80
+          const advDeployBtn = document.createElement('button');
+          advDeployBtn.type = 'button';
+          advDeployBtn.className = 'btn-secondary';
+          advDeployBtn.style.padding = '3px 8px';
+          advDeployBtn.style.fontSize = '11px';
+          advDeployBtn.textContent = t('ui.labs.deployAdvBtn');
+          advDeployBtn.addEventListener('click', function () {
+            openDeployAdvModal(function (opts) { runLabAction('deploy', lab, entry.path, advDeployBtn, opts); });
+          });
+          actions.appendChild(advDeployBtn);
+
           const redeployBtn = document.createElement('button');
           redeployBtn.type = 'button';
           redeployBtn.className = 'btn-secondary';
@@ -1305,6 +1317,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (dirInput && dirInput.value) fd.append('labs_dir', dirInput.value.trim());
     if (opts.reconfigure) fd.append('reconfigure', '1');
     if (opts.cleanup) fd.append('cleanup', '1');
+    // Flags avançadas de deploy (#80)
+    if (opts.node_filter) fd.append('node_filter', opts.node_filter);
+    if (opts.max_workers) fd.append('max_workers', opts.max_workers);
+    if (opts.timeout) fd.append('timeout', opts.timeout);
+    if (opts.log_level) fd.append('log_level', opts.log_level);
 
     function finishBtn() {
       setBodyLoading(false);
@@ -2123,6 +2140,50 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
   })();
+
+  // Deploy avançado: coleta flags e chama o callback com opts (#80).
+  function openDeployAdvModal(onRun) {
+    const overlay = document.createElement('div'); overlay.className = 'io-overlay';
+    const modal = document.createElement('div'); modal.className = 'io-modal'; modal.style.maxWidth = '460px';
+    const head = document.createElement('div'); head.className = 'io-head';
+    const h = document.createElement('div'); h.className = 'io-title'; h.textContent = t('ui.labs.deployAdvBtn');
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'btn-ghost'; x.style.cssText = 'padding:4px 12px'; x.textContent = '✕';
+    x.addEventListener('click', function () { overlay.remove(); });
+    head.appendChild(h); head.appendChild(x);
+    const body = document.createElement('div'); body.className = 'io-body'; body.style.cssText = 'padding:14px';
+    modal.appendChild(head); modal.appendChild(body); overlay.appendChild(modal);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    function field(labelKey, ph, opts) {
+      const w = document.createElement('div'); w.style.marginBottom = '8px';
+      const l = document.createElement('label'); l.style.cssText = 'display:block;font-size:12px;margin-bottom:3px'; l.textContent = t(labelKey); w.appendChild(l);
+      let el;
+      if (opts && opts.options) {
+        el = document.createElement('select'); el.className = 'mono'; el.style.width = '100%';
+        opts.options.forEach(function (o) { const op = document.createElement('option'); op.value = o; op.textContent = o || '—'; el.appendChild(op); });
+      } else { el = document.createElement('input'); el.type = 'text'; el.className = 'mono'; el.style.cssText = 'width:100%;padding:6px 8px'; if (ph) el.placeholder = ph; }
+      w.appendChild(el); body.appendChild(w); return el;
+    }
+    const reconf = document.createElement('label'); reconf.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px';
+    const reconfCb = document.createElement('input'); reconfCb.type = 'checkbox'; reconfCb.style.width = 'auto';
+    reconf.appendChild(reconfCb); reconf.appendChild(document.createTextNode(t('ui.labs.bulkDeployReconf'))); body.appendChild(reconf);
+    const nf = field('ui.labs.advNodeFilter', 'r1,r2');
+    const mw = field('ui.labs.advMaxWorkers', '4');
+    const tmo = field('ui.labs.advTimeout', '5m');
+    const lvl = field('ui.labs.advLogLevel', null, { options: ['', 'info', 'debug', 'warn', 'error', 'trace'] });
+    const run = document.createElement('button'); run.type = 'button'; run.className = 'btn-primary'; run.style.cssText = 'padding:7px 16px;font-size:12px;margin-top:6px';
+    run.textContent = t('ui.labs.deployBtn');
+    run.addEventListener('click', function () {
+      const opts = {};
+      if (reconfCb.checked) opts.reconfigure = true;
+      if (nf.value.trim()) opts.node_filter = nf.value.trim();
+      if (mw.value.trim()) opts.max_workers = mw.value.trim();
+      if (tmo.value.trim()) opts.timeout = tmo.value.trim();
+      if (lvl.value) opts.log_level = lvl.value;
+      overlay.remove(); onRun(opts);
+    });
+    body.appendChild(run);
+  }
 
   // Exposto para o editor de topologia nativo (P4: runtime no canvas).
   window.NetConfigLabs = {

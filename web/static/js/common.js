@@ -268,11 +268,89 @@ document.addEventListener('DOMContentLoaded', function () {
   window.NetConfigApp.getCommonCreds = getCommonCreds;
   window.NetConfigApp.t = window.NetConfigApp.t || t;
   window.NetConfigApp.getLanguage = window.NetConfigApp.getLanguage || function () { return 'en'; };
+  window.NetConfigApp.csrfToken = '';
   window.NetConfigApp.setLanguageHeader = function (xhr) {
     if (xhr && xhr.setRequestHeader) {
       xhr.setRequestHeader('X-Language', (window.NetConfigApp.getLanguage && window.NetConfigApp.getLanguage()) || 'en');
+      // CSRF (issue #75): anexa o token a todas as requisições XHR.
+      if (window.NetConfigApp.csrfToken) {
+        try { xhr.setRequestHeader('X-CSRF-Token', window.NetConfigApp.csrfToken); } catch (e) {}
+      }
     }
   };
+
+  // ---- Segurança: status de auth, overlay de login e aviso de modo aberto ----
+  function showInsecureBanner() {
+    if (document.getElementById('insecureBanner')) return;
+    const bar = document.createElement('div');
+    bar.id = 'insecureBanner';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#7f1d1d;color:#fff;font-size:12px;padding:6px 14px;text-align:center';
+    bar.textContent = t('ui.auth.insecure');
+    document.body.appendChild(bar);
+    document.body.style.paddingTop = '28px';
+  }
+
+  function showLoginOverlay() {
+    if (document.getElementById('authOverlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'authOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(7,11,21,0.92)';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#0f172a;border:1px solid #334155;border-radius:12px;padding:24px;width:340px;max-width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5)';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:16px;font-weight:700;color:#e5e7eb;margin-bottom:14px';
+    title.textContent = t('ui.auth.title');
+    const inp = document.createElement('input');
+    inp.type = 'password'; inp.className = 'mono';
+    inp.placeholder = t('ui.auth.password');
+    inp.style.cssText = 'width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#e5e7eb;margin-bottom:10px';
+    const err = document.createElement('div');
+    err.style.cssText = 'color:#f87171;font-size:12px;min-height:16px;margin-bottom:8px';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn-primary'; btn.style.cssText = 'width:100%;padding:10px;font-size:13px';
+    btn.textContent = t('ui.auth.loginBtn');
+    function doLogin() {
+      err.textContent = ''; btn.disabled = true;
+      const fd = new FormData(); fd.append('password', inp.value);
+      const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/auth/login', true);
+      xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return; btn.disabled = false;
+        let r = null; try { r = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
+        if (xhr.status === 200 && r && r.success) {
+          window.NetConfigApp.csrfToken = r.csrf || '';
+          ov.remove();
+        } else if (xhr.status === 429) {
+          err.textContent = t('ui.auth.tooMany');
+        } else {
+          err.textContent = t('ui.auth.invalid');
+          inp.value = ''; inp.focus();
+        }
+      };
+      xhr.onerror = function () { btn.disabled = false; err.textContent = t('msg.networkError'); };
+      xhr.send(fd);
+    }
+    btn.addEventListener('click', doLogin);
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doLogin(); } });
+    box.appendChild(title); box.appendChild(inp); box.appendChild(err); box.appendChild(btn);
+    ov.appendChild(box); document.body.appendChild(ov);
+    setTimeout(function () { inp.focus(); }, 50);
+  }
+
+  function bootstrapAuth() {
+    const xhr = new XMLHttpRequest(); xhr.open('GET', '/api/auth/status', true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      let r = null; try { r = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
+      if (!r) return;
+      if (r.csrf) window.NetConfigApp.csrfToken = r.csrf;
+      if (r.enabled && !r.authed) { showLoginOverlay(); }
+      else if (r.insecure) { showInsecureBanner(); }
+    };
+    xhr.send();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrapAuth);
+  else bootstrapAuth();
 
   window.addEventListener('netconfig:language-changed', function () {
     if (currentAppVersion) setAppVersionBadge(currentAppVersion);

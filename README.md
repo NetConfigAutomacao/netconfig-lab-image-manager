@@ -95,7 +95,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `2.24.0` (arquivo `VERSION`)
+- Versão atual: `2.25.0` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Checar update disponível: `curl -s http://localhost:8080/api/update`
@@ -119,6 +119,19 @@ Opções úteis:
 ```
 
 > O script aborta por padrão se houver alterações locais no repositório, para evitar sobrescrever customizações sem revisão.
+
+### Segurança (autenticação)
+
+A aplicação não tem autenticação por padrão (modo aberto) e exibe um aviso na interface. Para proteger o acesso, defina a variável de ambiente `APP_PASSWORD` no serviço `api` do `docker-compose.yml`:
+
+```yaml
+environment:
+  - APP_PASSWORD=uma-senha-forte
+  # - APP_SECRET_KEY=segredo-de-sessao-estavel   # opcional
+  # - APP_COOKIE_SECURE=1                          # quando atrás de HTTPS
+```
+
+Com `APP_PASSWORD` definida, a aplicação passa a exigir **login por sessão**, valida **CSRF** em todas as requisições que alteram estado e envia cabeçalhos de segurança. Recomenda-se fortemente definir `APP_PASSWORD` antes de expor a aplicação fora de uma rede confiável.
 
 ---
 
@@ -213,7 +226,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `2.24.0` (file `VERSION`)
+- Current version: `2.25.0` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 - Check whether an update is available: `curl -s http://localhost:8080/api/update`
@@ -328,7 +341,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `2.24.0` (archivo `VERSION`)
+- Versión actual: `2.25.0` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 - Verificar si hay actualización: `curl -s http://localhost:8080/api/update`

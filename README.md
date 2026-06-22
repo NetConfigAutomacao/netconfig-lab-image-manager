@@ -95,7 +95,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `2.25.0` (arquivo `VERSION`)
+- Versão atual: `2.26.0` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Checar update disponível: `curl -s http://localhost:8080/api/update`
@@ -120,9 +120,28 @@ Opções úteis:
 
 > O script aborta por padrão se houver alterações locais no repositório, para evitar sobrescrever customizações sem revisão.
 
+### Início rápido (Makefile)
+
+A forma mais simples de subir tudo já com autenticação é o `make`:
+
+```bash
+make up        # gera .env com senha/segredo aleatórios e sobe o projeto (build)
+```
+
+No fim do `make up` a senha de acesso é impressa (e fica salva em `./.env`, que não é versionado). Outros alvos úteis:
+
+```bash
+make password         # mostra a senha de acesso atual
+make regen-password   # gera nova senha e reinicia a API
+make open-mode        # desativa a autenticação (modo aberto)
+make logs             # acompanha os logs
+make down             # para o projeto
+make help             # lista todos os alvos
+```
+
 ### Segurança (autenticação)
 
-A aplicação não tem autenticação por padrão (modo aberto) e exibe um aviso na interface. Para proteger o acesso, defina a variável de ambiente `APP_PASSWORD` no serviço `api` do `docker-compose.yml`:
+A aplicação não tem autenticação por padrão (modo aberto) e exibe um aviso na interface. O `make up` já ativa a autenticação gerando uma senha aleatória. Para configurar manualmente, defina `APP_PASSWORD` no serviço `api` do `docker-compose.yml` (ou no arquivo `.env`):
 
 ```yaml
 environment:
@@ -226,7 +245,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `2.25.0` (file `VERSION`)
+- Current version: `2.26.0` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 - Check whether an update is available: `curl -s http://localhost:8080/api/update`
@@ -341,7 +360,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `2.25.0` (archivo `VERSION`)
+- Versión actual: `2.26.0` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 - Verificar si hay actualización: `curl -s http://localhost:8080/api/update`

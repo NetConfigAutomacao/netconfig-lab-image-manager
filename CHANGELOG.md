@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.26.0
+
+- **Makefile + senha aleatória** (issue #77): `make up` gera um `.env` com `APP_PASSWORD` e `APP_SECRET_KEY` aleatórios (se não existir) e sobe todo o projeto com build, já com autenticação ativada — imprime a URL e a senha no fim.
+  - Alvos: `up`, `down`, `restart`, `rebuild`, `logs`, `ps`, `password`, `regen-password`, `open-mode`, `help`.
+  - `docker-compose.yml` passa a ler `APP_PASSWORD`/`APP_SECRET_KEY`/`APP_COOKIE_SECURE` do `.env`; `.env` adicionado ao `.gitignore`.
+  - README com seção "Início rápido (Makefile)".
+
 ## 2.25.0
 
 - Segurança (issue #75): camada de autenticação da aplicação.

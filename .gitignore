@@ -1,3 +1,5 @@
 model_netconfig_lab_image_manager.md
 __pycache__/
 *.pyc
+# Segredos locais gerados pelo Makefile (senha de acesso e segredo de sessão).
+.env

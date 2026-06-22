@@ -33,19 +33,21 @@ Este projeto utiliza o [iShare2](https://ishare2.sh/), projeto open source para 
 
 ### Instalação do NetConfig Lab Image Manager
 
-#### 1. Instalar dependências
-
-No Debian 12 ou 13:
+Em uma VM separada (Debian 12 ou 13), instale o Docker, clone o repositório e suba tudo com um único comando:
 
 ```bash
 apt-get update
-apt-get install curl -y
+apt-get install curl make git -y
 curl -fsSL https://get.docker.com | sh
 
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 cd /opt/netconfig-lab-image-manager
-docker compose up -d --build
+make
 ```
+
+O `make` gera uma senha de acesso aleatória, faz o build e sobe todos os serviços (web + api + ishare2). Ao final, ele imprime a **URL** e a **senha** (também salva em `./.env`). Acesse `http://<ip-da-vm>:8080` e entre com a senha.
+
+> Sem `make` instalado, você pode usar `docker compose up -d --build` — nesse caso a aplicação sobe em "modo aberto" (sem autenticação). Veja a seção **Segurança (autenticação)** abaixo para ativar o login.
 
 ### Tutorial em vídeo
 
@@ -95,7 +97,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `2.26.1` (arquivo `VERSION`)
+- Versão atual: `2.26.2` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Checar update disponível: `curl -s http://localhost:8080/api/update`
@@ -126,10 +128,10 @@ A forma mais simples de subir tudo já com autenticação é o `make`:
 
 ```bash
 make           # sobe TUDO num único comando (gera .env, build, auth)
-make up        # idem (alvo explícito) com senha/segredo aleatórios e sobe o projeto (build)
+make up        # idem (alvo explícito)
 ```
 
-No fim do `make up` a senha de acesso é impressa (e fica salva em `./.env`, que não é versionado). Outros alvos úteis:
+No fim do `make` a senha de acesso é impressa (e fica salva em `./.env`, que não é versionado). Outros alvos úteis:
 
 ```bash
 make password         # mostra a senha de acesso atual
@@ -184,19 +186,46 @@ This project uses [iShare2](https://ishare2.sh/), an open-source project to auto
 
 ### Installation
 
-#### 1. Install dependencies
-
-Tested on Debian 12/13:
+On a separate VM (Debian 12/13), install Docker, clone the repo and bring everything up with a single command:
 
 ```bash
 apt-get update
-apt-get install curl -y
+apt-get install curl make git -y
 curl -fsSL https://get.docker.com | sh
 
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 cd /opt/netconfig-lab-image-manager
-docker compose up -d --build
+make
 ```
+
+`make` generates a random access password, builds and starts all services (web + api + ishare2). At the end it prints the **URL** and the **password** (also stored in `./.env`). Open `http://<vm-ip>:8080` and log in with that password.
+
+> Without `make`, you can run `docker compose up -d --build` — in that case the app runs in "open mode" (no authentication). See the **Security (authentication)** section to enable login.
+
+#### Useful Makefile targets
+
+```bash
+make              # bring up the whole project (default)
+make password     # show the current access password
+make regen-password  # generate a new password and restart the API
+make open-mode    # disable authentication (open mode)
+make logs         # follow logs
+make down         # stop the project
+make help         # list all targets
+```
+
+### Security (authentication)
+
+By default the app has no authentication (open mode) and shows a warning in the UI. Running `make` already enables authentication with a random password. To configure it manually, set `APP_PASSWORD` on the `api` service in `docker-compose.yml` (or in the `.env` file):
+
+```yaml
+environment:
+  - APP_PASSWORD=a-strong-password
+  # - APP_SECRET_KEY=stable-session-secret   # optional
+  # - APP_COOKIE_SECURE=1                      # when behind HTTPS
+```
+
+With `APP_PASSWORD` set, the app requires **session login**, validates **CSRF** on every state-changing request, and sends security headers. Setting `APP_PASSWORD` is strongly recommended before exposing the app outside a trusted network.
 
 ### Video tutorial
 
@@ -246,7 +275,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `2.26.1` (file `VERSION`)
+- Current version: `2.26.2` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 - Check whether an update is available: `curl -s http://localhost:8080/api/update`
@@ -300,17 +329,32 @@ El proyecto integra el CLI de [iShare2](https://ishare2.sh/) para automatizar de
 
 ### Instalación
 
-#### 1. Instalar dependencias
+En una VM separada (Debian 12/13), instala Docker, clona el repo y levanta todo con un único comando:
 
-Probado en Debian 12/13.
 ```bash
 apt-get update
-apt-get install curl -y
+apt-get install curl make git -y
 curl -fsSL https://get.docker.com | sh
 
 git clone https://github.com/NetConfigAutomacao/netconfig-lab-image-manager.git /opt/netconfig-lab-image-manager
 cd /opt/netconfig-lab-image-manager
-docker compose up -d --build
+make
+```
+
+`make` genera una contraseña de acceso aleatoria, construye y arranca todos los servicios (web + api + ishare2). Al final imprime la **URL** y la **contraseña** (también guardada en `./.env`). Abre `http://<ip-de-la-vm>:8080` e inicia sesión con esa contraseña.
+
+> Sin `make`, puedes usar `docker compose up -d --build` — en ese caso la app arranca en "modo abierto" (sin autenticación). Para activar el login, define `APP_PASSWORD` en el servicio `api` del `docker-compose.yml` (o en el archivo `.env`).
+
+#### Objetivos útiles del Makefile
+
+```bash
+make              # levanta todo el proyecto (por defecto)
+make password     # muestra la contraseña actual
+make regen-password  # genera una nueva contraseña y reinicia la API
+make open-mode    # desactiva la autenticación (modo abierto)
+make logs         # sigue los logs
+make down         # detiene el proyecto
+make help         # lista todos los objetivos
 ```
 
 ### Tutorial en video
@@ -361,7 +405,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `2.26.1` (archivo `VERSION`)
+- Versión actual: `2.26.2` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 - Verificar si hay actualización: `curl -s http://localhost:8080/api/update`

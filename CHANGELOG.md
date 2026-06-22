@@ -2,6 +2,12 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.29.0
+
+- EVE/PNETLab — repositórios de imagem (issue #84):
+  - **repo.netconfig.com.br sempre priorizado** na ordenação de repositórios (antes do LabHub), independente da latência.
+  - **Fonte por imagem** na lista de busca: cada imagem mostra um selo indicando se está no **NetConfig**, no **LabHub** ou em **ambos** (campos `source`/`repos` na API ishare2).
+
 ## 2.28.0
 
 - WebSocket (épico #80, issue #82): experiências em tempo real.

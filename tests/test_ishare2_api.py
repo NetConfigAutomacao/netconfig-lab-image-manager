@@ -474,11 +474,11 @@ class TestIshare2Api(unittest.TestCase):
 
         with patch.object(
             ishare2_api,
-            "_available_image_names_for_type",
+            "_image_names_by_source",
             side_effect=lambda image_type: {
-                "qemu": {"csr1000v-17-03-06", "csr1000v-17-03-08a-serial"},
-                "dynamips": {"c7200.image"},
-            }.get(image_type, set()),
+                "qemu": {"netconfig": {"csr1000v-17-03-06"}, "labhub": {"csr1000v-17-03-08a-serial", "csr1000v-17-03-06"}},
+                "dynamips": {"netconfig": set(), "labhub": {"c7200.image"}},
+            }.get(image_type),
         ):
             filtered = ishare2_api._filter_search_sections_with_available_repositories(sections)
 
@@ -488,6 +488,23 @@ class TestIshare2Api(unittest.TestCase):
             ["csr1000v-17-03-06", "csr1000v-17-03-08a-serial"],
         )
         self.assertEqual([item["name"] for item in filtered[1]["items"]], ["c7200.image"])
+        # anotação de fonte (#repos)
+        first = {item["name"]: item for item in filtered[0]["items"]}
+        self.assertEqual(first["csr1000v-17-03-06"]["source"], "both")
+        self.assertEqual(first["csr1000v-17-03-08a-serial"]["source"], "labhub")
+        self.assertEqual(filtered[1]["items"][0]["source"], "labhub")
+
+    def test_netconfig_repo_is_prioritized_even_if_slower(self):
+        ishare2_api = _import_ishare2_api()
+        repos = [
+            {"id": "/0:", "host": "labhub.eu.org", "prefix": "/0:", "protocol": "https", "kind": "labhub"},
+            {"id": ishare2_api._NETCONFIG_REPO_ID, "host": ishare2_api._NETCONFIG_REPO_HOST, "prefix": ishare2_api._NETCONFIG_REPO_PREFIX, "protocol": "https", "kind": "catalog"},
+        ]
+        # netconfig com latência PIOR que labhub
+        lat = {"/0:": 50.0, ishare2_api._NETCONFIG_REPO_ID: 900.0}
+        with patch.object(ishare2_api, "_probe_repository_latency", side_effect=lambda r, timeout=2.0: lat.get(r.get("id"))):
+            ordered, _ = ishare2_api._order_repositories_by_latency(repos)
+        self.assertEqual(ordered[0]["id"], ishare2_api._NETCONFIG_REPO_ID)
 
     def test_build_repository_candidates_filters_empty_labhub_prefixes(self):
         ishare2_api = _import_ishare2_api()

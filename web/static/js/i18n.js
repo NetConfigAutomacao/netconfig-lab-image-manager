@@ -585,7 +585,10 @@
       'ishare2.list.headers': 'ID,Nome,Tamanho,',
       'ishare2.list.count': '{count} item|{count} itens',
       'ishare2.install.missingIds': 'Não foi possível identificar o tipo ou ID da imagem.',
-      'ishare2.installButton': 'Instalar'
+      'ishare2.installButton': 'Instalar',
+      'ishare2.repo.netconfig': 'NetConfig',
+      'ishare2.repo.labhub': 'LabHub',
+      'ishare2.repo.both': 'Ambos'
     },
     en: {
       'ui.projectTitle': 'NetConfig Lab Image Manager',
@@ -1153,7 +1156,10 @@
       'ishare2.list.headers': 'ID,Name,Size,',
       'ishare2.list.count': '{count} item|{count} items',
       'ishare2.install.missingIds': 'Could not identify the image type or ID.',
-      'ishare2.installButton': 'Install'
+      'ishare2.installButton': 'Install',
+      'ishare2.repo.netconfig': 'NetConfig',
+      'ishare2.repo.labhub': 'LabHub',
+      'ishare2.repo.both': 'Both'
     },
     es: {
       'ui.projectTitle': 'NetConfig Lab Image Manager',
@@ -1721,7 +1727,10 @@
       'ishare2.list.headers': 'ID,Nombre,Tamaño,',
       'ishare2.list.count': '{count} ítem|{count} ítems',
       'ishare2.install.missingIds': 'No fue posible identificar el tipo o ID de la imagen.',
-      'ishare2.installButton': 'Instalar'
+      'ishare2.installButton': 'Instalar',
+      'ishare2.repo.netconfig': 'NetConfig',
+      'ishare2.repo.labhub': 'LabHub',
+      'ishare2.repo.both': 'Ambos'
     }
   };
 

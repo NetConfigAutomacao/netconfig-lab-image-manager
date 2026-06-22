@@ -524,6 +524,15 @@ document.addEventListener('DOMContentLoaded', function () {
       var nameSpan = document.createElement('span');
       nameSpan.className = 'ishare2-item-name';
       nameSpan.textContent = item.name || '';
+      // Badge indicando o(s) repositório(s) que tem a imagem.
+      if (item.source) {
+        var badge = document.createElement('span');
+        badge.className = 'repo-badge repo-' + item.source;
+        badge.textContent = item.source === 'both' ? t('ishare2.repo.both')
+          : (item.source === 'netconfig' ? t('ishare2.repo.netconfig') : t('ishare2.repo.labhub'));
+        nameSpan.appendChild(document.createTextNode(' '));
+        nameSpan.appendChild(badge);
+      }
 
       var sizeSpan = document.createElement('span');
       sizeSpan.className = 'ishare2-item-size';

@@ -754,17 +754,19 @@ def _probe_repository_latency(repository: Dict[str, str], timeout: float = _REPO
 def _order_repositories_by_latency(
   repositories: List[Dict[str, str]]
 ) -> tuple[List[Dict[str, str]], Dict[str, float | None]]:
-  ranked: List[tuple[bool, float, int, Dict[str, str]]] = []
+  ranked: List[tuple[int, bool, float, int, Dict[str, str]]] = []
   latencies: Dict[str, float | None] = {}
 
   for idx, repository in enumerate(repositories):
     repo_id = repository.get("id", f"repo-{idx}")
     latency = _probe_repository_latency(repository)
     latencies[repo_id] = latency
-    ranked.append((latency is None, latency if latency is not None else 10e9, idx, repository))
+    # repo.netconfig.com.br sempre tem prioridade máxima (priority=0).
+    priority = 0 if repo_id == _NETCONFIG_REPO_ID or repository.get("kind") == "catalog" else 1
+    ranked.append((priority, latency is None, latency if latency is not None else 10e9, idx, repository))
 
-  ranked.sort(key=lambda item: (item[0], item[1], item[2]))
-  ordered = [item[3] for item in ranked]
+  ranked.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+  ordered = [item[4] for item in ranked]
   return ordered, latencies
 
 
@@ -1572,23 +1574,40 @@ def _repository_image_names(repository: Dict[str, str], image_type: str) -> set[
   return None
 
 
-def _available_image_names_for_type(image_type: str) -> set[str] | None:
+def _repo_source_label(repository: Dict[str, str]) -> str:
+  """Rótulo de fonte para a UI: 'netconfig' (catalog) ou 'labhub'."""
+  kind = (repository.get("kind") or "").strip()
+  if kind == "catalog" or repository.get("id") == _NETCONFIG_REPO_ID:
+    return "netconfig"
+  return "labhub"
+
+
+def _image_names_by_source(image_type: str) -> Dict[str, set[str]] | None:
+  """Mapeia fonte -> conjunto de nomes de imagem disponíveis para o tipo.
+  Retorna None se nenhum repositório respondeu (não dá pra filtrar/anotar)."""
   repositories = _build_repository_candidates()
   if not repositories:
     return None
 
-  available_names: set[str] = set()
+  by_source: Dict[str, set[str]] = {"netconfig": set(), "labhub": set()}
   any_repository_responded = False
   for repository in repositories:
     repo_names = _repository_image_names(repository, image_type)
     if repo_names is None:
       continue
     any_repository_responded = True
-    available_names.update(repo_names)
+    by_source[_repo_source_label(repository)].update(repo_names)
 
   if not any_repository_responded:
     return None
-  return available_names
+  return by_source
+
+
+def _available_image_names_for_type(image_type: str) -> set[str] | None:
+  by_source = _image_names_by_source(image_type)
+  if by_source is None:
+    return None
+  return by_source["netconfig"] | by_source["labhub"]
 
 
 def _filter_search_sections_with_available_repositories(
@@ -1606,10 +1625,11 @@ def _filter_search_sections_with_available_repositories(
       filtered_sections.append(section)
       continue
 
-    available_names = _available_image_names_for_type(section_type)
-    if available_names is None:
+    by_source = _image_names_by_source(section_type)
+    if by_source is None:
       filtered_sections.append(section)
       continue
+    available_names = by_source["netconfig"] | by_source["labhub"]
 
     kept_items: List[Dict[str, Any]] = []
     for item in items:
@@ -1617,7 +1637,11 @@ def _filter_search_sections_with_available_repositories(
       if not image_name:
         continue
       if image_name in available_names:
-        kept_items.append(item)
+        sources = [s for s in ("netconfig", "labhub") if image_name in by_source[s]]
+        annotated = dict(item)
+        annotated["repos"] = sources
+        annotated["source"] = "both" if len(sources) == 2 else (sources[0] if sources else "")
+        kept_items.append(annotated)
 
     if kept_items:
       filtered_sections.append(

@@ -27,6 +27,7 @@ from container_labs_routes import container_labs_bp
 from unl_routes import unl_bp
 from version import get_app_version, check_for_update
 from auth import register_security
+from ws_routes import register_ws
 
 
 def create_app() -> Flask:
@@ -55,6 +56,9 @@ def create_app() -> Flask:
     # Ativa quando APP_PASSWORD está definida; senão roda em modo aberto.
     register_security(app)
 
+    # WebSocket: log ao vivo de jobs e terminal por nó (issue #82).
+    register_ws(app)
+
     @app.route("/health", methods=["GET"])
     def health():
         return jsonify(status="ok"), 200
@@ -79,4 +83,5 @@ app = create_app()
 
 if __name__ == "__main__":
     print("[API] Iniciando servidor Flask na porta 8080...", flush=True)
-    app.run(host="::", port=8080)
+    # threaded=True é necessário para WebSocket (flask-sock) no servidor de dev.
+    app.run(host="::", port=8080, threaded=True)

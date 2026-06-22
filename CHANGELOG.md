@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.28.0
+
+- WebSocket (épico #80, issue #82): experiências em tempo real.
+  - **Logs ao vivo via WebSocket** para deploy/destroy, operações em massa e build vrnetlab (com *fallback* automático para polling). Backend `flask-sock`; Nginx faz proxy de `/ws/` com Upgrade.
+  - **Terminal embutido** por nó: `/ws/terminal` faz a ponte de um shell interativo (PTY) via SSH + `docker exec` até o navegador (botão "Terminal" no painel do nó). Terminal simples (sem emulação completa de TUI).
+  - Endpoints WS respeitam a autenticação por sessão (quando `APP_PASSWORD` está ativa).
+
 ## 2.27.0
 
 - ContainerLab — lacunas funcionais (épico #80):

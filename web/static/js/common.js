@@ -268,6 +268,30 @@ document.addEventListener('DOMContentLoaded', function () {
   window.NetConfigApp.getCommonCreds = getCommonCreds;
   window.NetConfigApp.t = window.NetConfigApp.t || t;
   window.NetConfigApp.getLanguage = window.NetConfigApp.getLanguage || function () { return 'en'; };
+  // WebSocket helpers (issue #82).
+  window.NetConfigApp.wsUrl = function (path) {
+    var proto = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+    return proto + '//' + window.location.host + path;
+  };
+  // Faz streaming das linhas de um job via WS. Retorna o socket (ou null se indisponível).
+  // cb: { onLine(line), onDone(status), onError() }
+  window.NetConfigApp.wsStreamJob = function (wsPath, cb) {
+    cb = cb || {};
+    if (typeof WebSocket === 'undefined') { if (cb.onError) cb.onError(); return null; }
+    var ws;
+    try { ws = new WebSocket(window.NetConfigApp.wsUrl(wsPath)); }
+    catch (e) { if (cb.onError) cb.onError(); return null; }
+    var got = false;
+    ws.onmessage = function (ev) {
+      var m = null; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (!m) return;
+      if (m.error) { if (cb.onError) cb.onError(); try { ws.close(); } catch (e) {} return; }
+      if (m.line != null && cb.onLine) cb.onLine(m.line);
+      if (m.done) { got = true; if (cb.onDone) cb.onDone(m.status); try { ws.close(); } catch (e) {} }
+    };
+    ws.onerror = function () { if (!got && cb.onError) cb.onError(); };
+    return ws;
+  };
   window.NetConfigApp.csrfToken = '';
   window.NetConfigApp.setLanguageHeader = function (xhr) {
     if (xhr && xhr.setRequestHeader) {

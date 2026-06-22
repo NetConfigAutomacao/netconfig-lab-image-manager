@@ -337,6 +337,20 @@ document.addEventListener('DOMContentLoaded', function () {
     imagesCount.parentNode.insertBefore(wrap, imagesCount.nextSibling);
 
     let polling = null;
+    function buildDone(status) {
+      showMessage(status === 'success' ? 'success' : 'error', t(status === 'success' ? 'ui.vrnetlab.buildOk' : 'ui.vrnetlab.buildFail'));
+      loadVrnetlabStatus({ skipMessage: true });
+    }
+    // WS-first com fallback para polling (#82).
+    function streamBuild(jobId) {
+      const buf = [];
+      const ws = (window.NetConfigApp && window.NetConfigApp.wsStreamJob) ? window.NetConfigApp.wsStreamJob('/ws/vrljob/' + encodeURIComponent(jobId), {
+        onLine: function (ln) { buf.push(ln); log.textContent = buf.join('\n'); log.scrollTop = log.scrollHeight; },
+        onDone: function (status) { buildDone(status); },
+        onError: function () { if (!buf.length) pollJob(jobId); }
+      }) : null;
+      if (!ws) pollJob(jobId);
+    }
     function pollJob(jobId) {
       if (polling) clearInterval(polling);
       polling = setInterval(function () {
@@ -375,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function () {
         bld.addEventListener('click', function () {
           log.style.display = 'block'; log.textContent = t('ui.vrnetlab.buildStarting');
           vrlPost('/api/vrnetlab/build', { vendor: v.name }).then(function (r) {
-            if (r && r.success && r.job_id) { showMessage('info', t('ui.vrnetlab.buildStarted', { vendor: v.name })); pollJob(r.job_id); }
+            if (r && r.success && r.job_id) { showMessage('info', t('ui.vrnetlab.buildStarted', { vendor: v.name })); streamBuild(r.job_id); }
             else showMessage('error', (r && r.message) || t('ui.vrnetlab.buildFail'));
           }).catch(function () { showMessage('error', t('msg.networkError')); });
         });

@@ -595,6 +595,70 @@
     m.body.appendChild(ta);
   };
 
+  // Terminal interativo embutido (PTY via WebSocket). Básico: sem emulação
+  // completa de TUI, mas suficiente para shell/CLI de rede. #82.
+  TopologyEditor.prototype.openWebPTY = function (container) {
+    const self = this;
+    if (typeof WebSocket === 'undefined') { toast('error', t('ui.topo.genFail')); return; }
+    const m = buildModal(t('ui.topo.webPtyBtn') + ' — ' + container);
+    const term = document.createElement('div');
+    term.tabIndex = 0;
+    term.className = 'mono';
+    term.style.cssText = 'background:#0b1220;color:#d1f7d1;padding:10px;border-radius:8px;height:360px;overflow:auto;white-space:pre-wrap;word-break:break-all;font-size:12px;outline:none';
+    m.body.appendChild(term);
+    const hint = document.createElement('div'); hint.className = 'hint'; hint.style.marginTop = '6px';
+    hint.textContent = t('ui.topo.webPtyHint'); m.body.appendChild(hint);
+
+    // Remove sequências ANSI/escape para legibilidade (terminal simples).
+    function strip(s) {
+      return s.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '')
+              .replace(/\x1b[@-Z\\-_]/g, '')
+              .replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, '')
+              .replace(/[\x00\x07\x08]/g, '');
+    }
+    function append(s) {
+      term.textContent += strip(s);
+      term.scrollTop = term.scrollHeight;
+    }
+
+    const c = creds();
+    let ws;
+    try { ws = new WebSocket(window.NetConfigApp.wsUrl('/ws/terminal')); }
+    catch (e) { toast('error', t('ui.topo.genFail')); return; }
+    ws.onopen = function () {
+      ws.send(JSON.stringify({ eve_ip: c.eve_ip, eve_user: c.eve_user, eve_pass: c.eve_pass, container: container }));
+      append(t('ui.topo.webPtyConnected') + '\n');
+      term.focus();
+    };
+    ws.onmessage = function (ev) { append(typeof ev.data === 'string' ? ev.data : ''); };
+    ws.onclose = function () { append('\n' + t('ui.topo.webPtyClosed') + '\n'); };
+    ws.onerror = function () { append('\n[ws error]\n'); };
+
+    function sendKey(data) { if (ws && ws.readyState === 1) ws.send(data); }
+    term.addEventListener('keydown', function (e) {
+      if (ws.readyState !== 1) return;
+      let data = null;
+      if (e.key === 'Enter') data = '\r';
+      else if (e.key === 'Backspace') data = '\x7f';
+      else if (e.key === 'Tab') data = '\t';
+      else if (e.key === 'Escape') data = '\x1b';
+      else if (e.key === 'ArrowUp') data = '\x1b[A';
+      else if (e.key === 'ArrowDown') data = '\x1b[B';
+      else if (e.key === 'ArrowRight') data = '\x1b[C';
+      else if (e.key === 'ArrowLeft') data = '\x1b[D';
+      else if (e.ctrlKey && e.key.length === 1) {
+        const code = e.key.toLowerCase().charCodeAt(0) - 96;
+        if (code > 0 && code < 27) data = String.fromCharCode(code);
+      } else if (e.key.length === 1) data = e.key;
+      if (data != null) { e.preventDefault(); sendKey(data); }
+    });
+    // fecha o WS ao fechar o modal.
+    const origClose = m.close;
+    m.close = function () { try { ws.close(); } catch (e) {} origClose(); };
+    const xbtn = m.box.querySelector('.io-head button');
+    if (xbtn) xbtn.addEventListener('click', function () { try { ws.close(); } catch (e) {} });
+  };
+
   // Mostra a saída do gotty com os links http(s) clicáveis (terminal web). P6.
   TopologyEditor.prototype.showTermLinks = function (output) {
     const m = buildModal(t('ui.topo.webTermBtn'));
@@ -2055,7 +2119,12 @@
           self.showTermLinks(out);
         }).catch(function () { webB.disabled = false; toast('error', t('ui.topo.genFail')); });
       });
-      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB); acts.appendChild(webB);
+      // P-WS (#82): terminal interativo embutido (PTY via WebSocket).
+      const ptyB = document.createElement('button');
+      ptyB.type = 'button'; ptyB.className = 'btn-ghost'; ptyB.style.cssText = 'padding:4px 10px;font-size:11px';
+      ptyB.textContent = t('ui.topo.webPtyBtn');
+      ptyB.addEventListener('click', function () { self.openWebPTY(st.container); });
+      acts.appendChild(info); acts.appendChild(logsB); acts.appendChild(execB); acts.appendChild(inspB); acts.appendChild(statsB); acts.appendChild(capB); acts.appendChild(termB); acts.appendChild(ptyB); acts.appendChild(webB);
       panel.appendChild(acts);
     }
 

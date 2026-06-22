@@ -1343,10 +1343,34 @@ document.addEventListener('DOMContentLoaded', function () {
         finishBtn(); out.setState('error', resp.message || t('ui.labs.actionFail'));
         showMessage('error', resp.message || t('ui.labs.actionFail')); return;
       }
-      pollJob(resp.job_id);
+      streamJob(resp.job_id);
     };
     startXhr.onerror = function () { finishBtn(); out.setState('error'); out.setText(t('msg.networkError')); };
     startXhr.send(fd);
+
+    function onJobDone(status) {
+      finishBtn();
+      if (status === 'success') {
+        out.setState('ok', t('ui.labs.actionDone'));
+        if (action === 'deploy') out.addAction(t('ui.labs.viewStatusBtn'), function () { out.close(); openLabStatus(labName, relPath, null); }, true);
+        showMessage('success', t('ui.labs.actionDone'));
+      } else {
+        out.setState('error', t('ui.labs.actionFail'));
+        showMessage('error', t('ui.labs.actionFail'));
+      }
+    }
+
+    // WS-first com fallback para polling (#82).
+    function streamJob(jobId) {
+      if (!(window.NetConfigApp && window.NetConfigApp.wsStreamJob)) { pollJob(jobId); return; }
+      const buf = [];
+      const ws = window.NetConfigApp.wsStreamJob('/ws/job/' + encodeURIComponent(jobId), {
+        onLine: function (ln) { buf.push(ln); out.setText(buf.join('\n')); },
+        onDone: function (status) { onJobDone(status); },
+        onError: function () { if (!buf.length) pollJob(jobId); }
+      });
+      if (!ws) pollJob(jobId);
+    }
 
     function pollJob(jobId) {
       const px = new XMLHttpRequest();
@@ -2123,19 +2147,30 @@ document.addEventListener('DOMContentLoaded', function () {
         run.disabled = true; log.style.display = 'block'; log.textContent = t('ui.labs.actionRunning');
         clabPost('/api/container-labs/bulk', { action: sel.value, labs: labs.join(',') }).then(function (r) {
           if (!r || !r.job_id) { run.disabled = false; showMessage('error', (r && r.message) || t('ui.labs.actionFail')); return; }
-          if (poll) clearInterval(poll);
-          poll = setInterval(function () {
-            const xhr = new XMLHttpRequest(); xhr.open('GET', '/api/container-labs/job?job_id=' + encodeURIComponent(r.job_id), true);
-            setLangHeader(xhr);
-            xhr.onreadystatechange = function () {
-              if (xhr.readyState !== 4) return;
-              let j = null; try { j = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
-              if (!j) return;
-              log.textContent = j.log || ''; log.scrollTop = log.scrollHeight;
-              if (j.done) { clearInterval(poll); poll = null; run.disabled = false; showMessage(j.status === 'success' ? 'success' : 'error', j.status === 'success' ? t('ui.labs.actionDone') : t('ui.labs.actionFail')); resetLabCache(); }
-            };
-            xhr.send();
-          }, 1500);
+          function done(status) { run.disabled = false; showMessage(status === 'success' ? 'success' : 'error', status === 'success' ? t('ui.labs.actionDone') : t('ui.labs.actionFail')); resetLabCache(); }
+          function pollBulk() {
+            if (poll) clearInterval(poll);
+            poll = setInterval(function () {
+              const xhr = new XMLHttpRequest(); xhr.open('GET', '/api/container-labs/job?job_id=' + encodeURIComponent(r.job_id), true);
+              setLangHeader(xhr);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                let j = null; try { j = JSON.parse(xhr.responseText || '{}'); } catch (e) { return; }
+                if (!j) return;
+                log.textContent = j.log || ''; log.scrollTop = log.scrollHeight;
+                if (j.done) { clearInterval(poll); poll = null; done(j.status); }
+              };
+              xhr.send();
+            }, 1500);
+          }
+          // WS-first com fallback (#82)
+          const buf = [];
+          const ws = (window.NetConfigApp && window.NetConfigApp.wsStreamJob) ? window.NetConfigApp.wsStreamJob('/ws/job/' + encodeURIComponent(r.job_id), {
+            onLine: function (ln) { buf.push(ln); log.textContent = buf.join('\n'); log.scrollTop = log.scrollHeight; },
+            onDone: function (status) { done(status); },
+            onError: function () { if (!buf.length) pollBulk(); }
+          }) : null;
+          if (!ws) pollBulk();
         }).catch(function () { run.disabled = false; showMessage('error', t('msg.networkError')); });
       });
     });

@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.26.2
+
+- Documentação: README (PT/EN/ES) com a instalação atualizada para o fluxo de comando único (`make`) — instala deps, clona e sobe tudo; inclui alvos úteis e seção de Segurança em todos os idiomas.
+
 ## 2.26.1
 
 - Makefile: `make` (sem argumentos) virou o comando único que sobe o projeto inteiro (build + auth + web/api/ishare2). Adiciona checagem de Docker/compose e mostra `docker compose ps` ao final. `make help` lista os alvos.

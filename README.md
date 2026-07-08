@@ -45,9 +45,9 @@ cd /opt/netconfig-lab-image-manager
 make
 ```
 
-O `make` gera uma senha de acesso aleatória, faz o build e sobe todos os serviços (web + api + ishare2). Ao final, ele imprime a **URL** e a **senha** (também salva em `./.env`). Acesse `http://<ip-da-vm>:8080` e entre com a senha.
+O `make` faz o build e sobe todos os serviços (web + api + ishare2) em **modo aberto (sem senha)** por padrão. Ao final, imprime a **URL**. Acesse `http://<ip-da-vm>:8080`.
 
-> Sem `make` instalado, você pode usar `docker compose up -d --build` — nesse caso a aplicação sobe em "modo aberto" (sem autenticação). Veja a seção **Segurança (autenticação)** abaixo para ativar o login.
+> **Ative o login** com `make secure` (gera uma senha aleatória, salva em `./.env` e reinicia a API). **Recomendado fortemente** antes de expor a aplicação fora de uma rede confiável. Veja a seção **Segurança (autenticação)**.
 
 ### Tutorial em vídeo
 
@@ -97,7 +97,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `2.29.0` (arquivo `VERSION`)
+- Versão atual: `2.29.2` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Checar update disponível: `curl -s http://localhost:8080/api/update`
@@ -124,19 +124,20 @@ Opções úteis:
 
 ### Início rápido (Makefile)
 
-A forma mais simples de subir tudo já com autenticação é o `make`:
+A forma mais simples de subir tudo é o `make` (sobe em **modo aberto**, sem senha):
 
 ```bash
-make           # sobe TUDO num único comando (gera .env, build, auth)
+make           # sobe TUDO num único comando (build, modo aberto)
 make up        # idem (alvo explícito)
 ```
 
-No fim do `make` a senha de acesso é impressa (e fica salva em `./.env`, que não é versionado). Outros alvos úteis:
+Alvos úteis:
 
 ```bash
-make password         # mostra a senha de acesso atual
+make secure           # ATIVA o login (gera senha aleatória e reinicia a API)
+make password         # mostra a senha de acesso atual (quando ativado)
 make regen-password   # gera nova senha e reinicia a API
-make open-mode        # desativa a autenticação (modo aberto)
+make open-mode        # desativa a autenticação (volta ao modo aberto)
 make logs             # acompanha os logs
 make down             # para o projeto
 make help             # lista todos os alvos
@@ -144,7 +145,7 @@ make help             # lista todos os alvos
 
 ### Segurança (autenticação)
 
-A aplicação não tem autenticação por padrão (modo aberto) e exibe um aviso na interface. O `make up` já ativa a autenticação gerando uma senha aleatória. Para configurar manualmente, defina `APP_PASSWORD` no serviço `api` do `docker-compose.yml` (ou no arquivo `.env`):
+A aplicação sobe **em modo aberto por padrão** (sem autenticação) e exibe um aviso na interface. Ative o login com `make secure` (gera uma senha aleatória). Para configurar manualmente, defina `APP_PASSWORD` no serviço `api` do `docker-compose.yml` (ou no arquivo `.env`):
 
 ```yaml
 environment:
@@ -198,17 +199,18 @@ cd /opt/netconfig-lab-image-manager
 make
 ```
 
-`make` generates a random access password, builds and starts all services (web + api + ishare2). At the end it prints the **URL** and the **password** (also stored in `./.env`). Open `http://<vm-ip>:8080` and log in with that password.
+`make` builds and starts all services (web + api + ishare2) in **open mode (no password)** by default. At the end it prints the **URL**. Open `http://<vm-ip>:8080`.
 
-> Without `make`, you can run `docker compose up -d --build` — in that case the app runs in "open mode" (no authentication). See the **Security (authentication)** section to enable login.
+> **Enable login** with `make secure` (generates a random password, stores it in `./.env` and restarts the API). **Strongly recommended** before exposing the app outside a trusted network. See the **Security (authentication)** section.
 
 #### Useful Makefile targets
 
 ```bash
-make              # bring up the whole project (default)
-make password     # show the current access password
+make              # bring up the whole project (default, open mode)
+make secure       # ENABLE login (generate a random password, restart the API)
+make password     # show the current access password (when enabled)
 make regen-password  # generate a new password and restart the API
-make open-mode    # disable authentication (open mode)
+make open-mode    # disable authentication (back to open mode)
 make logs         # follow logs
 make down         # stop the project
 make help         # list all targets
@@ -216,7 +218,7 @@ make help         # list all targets
 
 ### Security (authentication)
 
-By default the app has no authentication (open mode) and shows a warning in the UI. Running `make` already enables authentication with a random password. To configure it manually, set `APP_PASSWORD` on the `api` service in `docker-compose.yml` (or in the `.env` file):
+By default the app starts **in open mode** (no authentication) and shows a warning in the UI. Enable login with `make secure` (generates a random password). To configure it manually, set `APP_PASSWORD` on the `api` service in `docker-compose.yml` (or in the `.env` file):
 
 ```yaml
 environment:
@@ -275,7 +277,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `2.29.0` (file `VERSION`)
+- Current version: `2.29.2` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 - Check whether an update is available: `curl -s http://localhost:8080/api/update`
@@ -341,17 +343,18 @@ cd /opt/netconfig-lab-image-manager
 make
 ```
 
-`make` genera una contraseña de acceso aleatoria, construye y arranca todos los servicios (web + api + ishare2). Al final imprime la **URL** y la **contraseña** (también guardada en `./.env`). Abre `http://<ip-de-la-vm>:8080` e inicia sesión con esa contraseña.
+`make` construye y arranca todos los servicios (web + api + ishare2) en **modo abierto (sin contraseña)** por defecto. Al final imprime la **URL**. Abre `http://<ip-de-la-vm>:8080`.
 
-> Sin `make`, puedes usar `docker compose up -d --build` — en ese caso la app arranca en "modo abierto" (sin autenticación). Para activar el login, define `APP_PASSWORD` en el servicio `api` del `docker-compose.yml` (o en el archivo `.env`).
+> **Activa el login** con `make secure` (genera una contraseña aleatoria, la guarda en `./.env` y reinicia la API). **Muy recomendado** antes de exponer la app fuera de una red confiable.
 
 #### Objetivos útiles del Makefile
 
 ```bash
-make              # levanta todo el proyecto (por defecto)
-make password     # muestra la contraseña actual
+make              # levanta todo el proyecto (por defecto, modo abierto)
+make secure       # ACTIVA el login (genera contraseña aleatoria y reinicia la API)
+make password     # muestra la contraseña actual (cuando está activado)
 make regen-password  # genera una nueva contraseña y reinicia la API
-make open-mode    # desactiva la autenticación (modo abierto)
+make open-mode    # desactiva la autenticación (vuelve al modo abierto)
 make logs         # sigue los logs
 make down         # detiene el proyecto
 make help         # lista todos los objetivos
@@ -405,7 +408,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `2.29.0` (archivo `VERSION`)
+- Versión actual: `2.29.2` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 - Verificar si hay actualización: `curl -s http://localhost:8080/api/update`

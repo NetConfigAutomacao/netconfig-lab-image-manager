@@ -253,6 +253,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  // Persistência das credenciais do EVE na sessão do navegador (sobrevive ao F5,
+  // some ao fechar a aba). Evita "deslogar" a cada refresh.
+  const CREDS_KEY = 'nclim.eve.creds';
+  function saveCreds(c) {
+    try { sessionStorage.setItem(CREDS_KEY, JSON.stringify({ eve_ip: c.eve_ip, eve_user: c.eve_user, eve_pass: c.eve_pass })); } catch (e) {}
+  }
+  function clearSavedCreds() { try { sessionStorage.removeItem(CREDS_KEY); } catch (e) {} }
+  function readSavedCreds() {
+    try { const s = sessionStorage.getItem(CREDS_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  window.NetConfigApp = window.NetConfigApp || {};
+  window.NetConfigApp.clearSavedCreds = clearSavedCreds;
+
   function handleLoadAll() {
     clearMessages();
 
@@ -319,6 +332,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         setFeatureAreaVisible(anySuccess);
         setDependentButtons(anySuccess);
+        if (anySuccess) saveCreds(creds); else clearSavedCreds();
       })
       .catch(function () {
         showMessage('error', t('load.failed'));
@@ -333,6 +347,20 @@ document.addEventListener('DOMContentLoaded', function () {
   if (loadBtn) {
     loadBtn.addEventListener('click', handleLoadAll);
   }
+
+  // Após um F5, restaura as credenciais salvas e reconecta sozinho, evitando
+  // que o usuário precise digitar tudo de novo ("deslogar" a cada refresh).
+  (function restoreSession() {
+    if (!form || !form.elements) return;
+    const saved = readSavedCreds();
+    if (!saved || !saved.eve_ip || !saved.eve_user || !saved.eve_pass) return;
+    const ipEl = form.elements['eve_ip'];
+    if (!ipEl || (ipEl.value || '').trim()) return; // já preenchido, não sobrescreve
+    ipEl.value = saved.eve_ip;
+    if (form.elements['eve_user']) form.elements['eve_user'].value = saved.eve_user;
+    if (form.elements['eve_pass']) form.elements['eve_pass'].value = saved.eve_pass;
+    handleLoadAll();
+  })();
 
   function reloadSystemInfo() {
     const loader = app.loadImages;

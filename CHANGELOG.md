@@ -6,6 +6,7 @@ Este projeto segue **SemVer** (x.y.z).
 
 - UI: o menu **iShare2** foi renomeado para **Repositório** (PT/EN/ES).
 - Labs EVE/PNETLab: a tela **busca o status de todos os labs automaticamente** ao listar e mostra um selo por lab — **Rodando** (verde) ou **Parado** — sem clicar. O contador passa a exibir quantos estão rodando (`X labs · Y rodando`). O botão por lab vira **Atualizar** (recarrega o status daquele lab). Busca com concorrência limitada (4 por vez) e cache por lab.
+- Sessão: as **credenciais do EVE** passam a ser guardadas na sessão do navegador (`sessionStorage`). Após um **F5**, o app **restaura os dados e reconecta sozinho** — não "desloga" mais a cada refresh. O botão **Desconectar** limpa as credenciais salvas; elas somem também ao fechar a aba.
 
 ## 2.29.0
 

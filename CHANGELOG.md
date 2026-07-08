@@ -2,6 +2,11 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.29.3
+
+- UI: o menu **iShare2** foi renomeado para **Repositório** (PT/EN/ES).
+- Labs EVE/PNETLab: a tela **busca o status de todos os labs automaticamente** ao listar e mostra um selo por lab — **Rodando** (verde) ou **Parado** — sem clicar. O contador passa a exibir quantos estão rodando (`X labs · Y rodando`). O botão por lab vira **Atualizar** (recarrega o status daquele lab). Busca com concorrência limitada (4 por vez) e cache por lab.
+
 ## 2.29.0
 
 - EVE/PNETLab — repositórios de imagem (issue #84):

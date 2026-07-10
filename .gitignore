@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 # Segredos locais gerados pelo Makefile (senha de acesso e segredo de sessão).
 .env
+# Backups locais do .env (ex.: ao ativar/desativar auth) — contêm senha.
+.env.bak.*

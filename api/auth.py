@@ -58,7 +58,10 @@ def session_secret() -> str:
         return env
     pw = app_password()
     if pw:
-        return hashlib.sha256(("ncf-secret:" + pw).encode("utf-8")).hexdigest()
+        derived = hashlib.pbkdf2_hmac(
+            "sha256", pw.encode("utf-8"), b"ncf-secret-salt-v1", 390000
+        )
+        return derived.hex()
     return secrets.token_hex(32)
 
 

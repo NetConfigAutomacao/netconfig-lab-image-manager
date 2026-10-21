@@ -2,6 +2,13 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.29.2
+
+- Makefile: **modo aberto passa a ser o padrão**. `make` (e `make up`) sobem o projeto sem senha — o `.env` é criado com `APP_PASSWORD` vazio (apenas `APP_SECRET_KEY` aleatório).
+  - Novo alvo **`make secure`**: ativa o login gerando uma senha aleatória e reiniciando a API.
+  - `make up` informa no fim se está em modo aberto ou com auth ativada.
+  - README (PT/EN/ES) e Segurança atualizados: instalar sobe aberto; recomenda `make secure` antes de expor a rede.
+
 ## 2.29.0
 
 - EVE/PNETLab — repositórios de imagem (issue #84):

@@ -25,7 +25,9 @@ Suporta EVE-NG, PNETLAB e ContainerLab (em desenvolvimento) :)
 - Upload de templates .yaml;
 - Upload de ícones;
 - Auto instalação de imagens no EVE-NG (iShare2 embarcado).
+- Origem da imagem (EVE/PNETLab): selo **NetConfig / LabHub / ambos** na busca, com `repo.netconfig` sempre priorizado.
 - Suporte a ContainerLab: aba VRNETLAB (build/clone), aba Container Images (docker/podman) e aba Laboratórios para listar/editar labs em `/opt/containerlab/labs`.
+- Logs em tempo real e terminal por nó via **WebSocket**: acompanhamento ao vivo de deploy/destroy, operações em massa e build vrnetlab, além de terminal embutido no painel do nó.
 
 ### iShare2
 
@@ -97,7 +99,7 @@ ports:
 
 Este projeto usa **SemVer** (`x.y.z`).
 
-- Versão atual: `2.29.0` (arquivo `VERSION`)
+- Versão atual: `2.29.1` (arquivo `VERSION`)
 - Ver no repo: `cat VERSION`
 - Ver pela aplicação (via Nginx): `curl -s http://localhost:8080/api/version`
 - Checar update disponível: `curl -s http://localhost:8080/api/update`
@@ -178,7 +180,9 @@ Supports EVE-NG, PNETLAB, and ContainerLab (in development).
 - YAML template uploads;
 - Icon uploads;
 - Auto installation of images on EVE-NG (embedded iShare2).
+- Image source (EVE/PNETLab): **NetConfig / LabHub / both** badge in search, with `repo.netconfig` always prioritized.
 - ContainerLab support: VRNETLAB tab (build/clone), Container Images tab (docker/podman), and Labs tab to list/edit labs in `/opt/containerlab/labs`.
+- Real-time logs and per-node terminal over **WebSocket**: live deploy/destroy, bulk operations and vrnetlab build, plus an embedded terminal in the node panel.
 
 ### iShare2
 
@@ -275,7 +279,7 @@ ports:
 
 This project uses **SemVer** (`x.y.z`).
 
-- Current version: `2.29.0` (file `VERSION`)
+- Current version: `2.29.1` (file `VERSION`)
 - See in repo: `cat VERSION`
 - See via the app (Nginx): `curl -s http://localhost:8080/api/version`
 - Check whether an update is available: `curl -s http://localhost:8080/api/update`
@@ -322,7 +326,9 @@ Soporta EVE-NG, PNETLAB y ContainerLab (en desarrollo).
 - Carga de plantillas YAML;
 - Carga de íconos;
 - Instalación automática de imágenes con el CLI de iShare2 integrado.
+- Origen de la imagen (EVE/PNETLab): sello **NetConfig / LabHub / ambos** en la búsqueda, con `repo.netconfig` siempre priorizado.
 - Soporte a ContainerLab: VRNETLAB, imágenes de contenedor (docker/podman) y pestaña de laboratorios en `/opt/containerlab/labs`.
+- Registros en tiempo real y terminal por nodo vía **WebSocket**: deploy/destroy en vivo, operaciones masivas y build vrnetlab, además de un terminal integrado en el panel del nodo.
 
 ### iShare2
 El proyecto integra el CLI de [iShare2](https://ishare2.sh/) para automatizar descargas e instalaciones de imágenes en EVE-NG/PNETLab.
@@ -405,7 +411,7 @@ ports:
 
 Este proyecto usa **SemVer** (`x.y.z`).
 
-- Versión actual: `2.29.0` (archivo `VERSION`)
+- Versión actual: `2.29.1` (archivo `VERSION`)
 - Ver en el repo: `cat VERSION`
 - Ver por la aplicación (vía Nginx): `curl -s http://localhost:8080/api/version`
 - Verificar si hay actualización: `curl -s http://localhost:8080/api/update`

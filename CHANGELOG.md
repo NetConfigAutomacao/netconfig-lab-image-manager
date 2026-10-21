@@ -2,6 +2,10 @@
 
 Este projeto segue **SemVer** (x.y.z).
 
+## 2.29.1
+
+- Documentação: a lista de **Funcionalidades** do `README.md` (PT/EN/ES) agora reflete recursos já entregues — **logs em tempo real e terminal por nó via WebSocket** e o **selo de origem da imagem** (NetConfig/LabHub/ambos, com `repo.netconfig` priorizado).
+
 ## 2.29.0
 
 - EVE/PNETLab — repositórios de imagem (issue #84):

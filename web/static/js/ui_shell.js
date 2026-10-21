@@ -178,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (disconnectBtn) {
     disconnectBtn.addEventListener('click', function () {
       if (featureArea) featureArea.dataset.state = 'locked';
+      if (window.NetConfigApp && window.NetConfigApp.clearSavedCreds) window.NetConfigApp.clearSavedCreds();
       var pass = form && form.elements ? form.elements['eve_pass'] : null;
       if (pass) pass.value = '';
       var messages = document.getElementById('messages');

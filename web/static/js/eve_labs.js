@@ -31,13 +31,78 @@ document.addEventListener('DOMContentLoaded', function () {
   var setLangHeader = app.setLanguageHeader || function () {};
 
   var allLabs = [];
+  // Cache de status por caminho do lab: { running, total } ou { error: true }.
+  var statusCache = {};
 
   function baseDir() { return (dirInput && dirInput.value) ? dirInput.value.trim() : '/opt/unetlab/labs'; }
+
+  // Aplica o resultado de status (do cache) ao selo do lab.
+  function applyBadge(badge, st) {
+    badge.style.display = '';
+    badge.classList.remove('is-up', 'is-down');
+    if (!st) { badge.textContent = t('ui.eveLabs.statusChecking'); badge.title = ''; return; }
+    if (st.error) {
+      badge.classList.add('is-down');
+      badge.textContent = t('ui.eveLabs.statusUnknown');
+      badge.title = t('ui.eveLabs.statusFail');
+      return;
+    }
+    var running = st.running > 0;
+    badge.classList.add(running ? 'is-up' : 'is-down');
+    badge.textContent = t(running ? 'ui.eveLabs.statusRunning' : 'ui.eveLabs.statusStopped');
+    badge.title = t('ui.eveLabs.statusResult', { running: st.running, total: st.total });
+  }
+
+  // Consulta o status de um lab e atualiza cache + selo. cb(err) opcional.
+  function fetchLabStatus(lab, badge, cb) {
+    var creds = getCommonCreds();
+    var fd = new FormData();
+    fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
+    fd.append('path', lab.path);
+    applyBadge(badge, null); // estado "verificando…"
+    var xs = new XMLHttpRequest(); xs.open('POST', '/api/unl/running', true);
+    xs.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xs);
+    xs.onreadystatechange = function () {
+      if (xs.readyState !== 4) return;
+      var r = null; try { r = JSON.parse(xs.responseText || '{}'); } catch (e2) { r = null; }
+      if (!r || r.success === false) { statusCache[lab.path] = { error: true }; }
+      else { statusCache[lab.path] = { running: r.running_count || 0, total: r.total || 0 }; }
+      applyBadge(badge, statusCache[lab.path]);
+      updateCount();
+      if (cb) cb();
+    };
+    xs.onerror = function () { statusCache[lab.path] = { error: true }; applyBadge(badge, statusCache[lab.path]); updateCount(); if (cb) cb(); };
+    xs.send(fd);
+  }
+
+  // Dispara a busca de status para os labs ainda sem resultado, com concorrência limitada.
+  function autoStatus(pending) {
+    var queue = pending.slice();
+    var MAX = 4;
+    function next() {
+      var item = queue.shift();
+      if (!item) return;
+      fetchLabStatus(item.lab, item.badge, next);
+    }
+    for (var i = 0; i < MAX; i++) next();
+  }
+
+  // Atualiza o contador com o total de labs e quantos estão rodando (quando conhecido).
+  function updateCount() {
+    var runningLabs = 0, known = 0;
+    allLabs.forEach(function (l) {
+      var st = statusCache[l.path];
+      if (st && !st.error) { known++; if (st.running > 0) runningLabs++; }
+    });
+    if (known > 0) countEl.textContent = t('ui.eveLabs.countRunning', { count: allLabs.length, running: runningLabs });
+    else countEl.textContent = t('ui.eveLabs.count', { count: allLabs.length });
+  }
 
   function render() {
     var q = (filterInput && filterInput.value || '').trim().toLowerCase();
     var arr = q ? allLabs.filter(function (l) { return (l.path || '').toLowerCase().indexOf(q) !== -1; }) : allLabs;
     listEl.innerHTML = '';
+    var pending = [];
     if (!arr.length) {
       var e = document.createElement('div'); e.className = 'images-empty'; e.textContent = t('ui.eveLabs.none'); listEl.appendChild(e);
     } else {
@@ -52,29 +117,16 @@ document.addEventListener('DOMContentLoaded', function () {
         var statusBadge = document.createElement('span'); statusBadge.className = 'lab-run-badge'; statusBadge.style.display = 'none';
         var nameRow = document.createElement('div'); nameRow.style.cssText = 'display:flex;align-items:center;gap:8px'; nameRow.appendChild(name); nameRow.appendChild(statusBadge);
         var left = document.createElement('div'); left.style.cssText = 'display:flex;flex-direction:column;min-width:0'; left.appendChild(nameRow); left.appendChild(sub);
+        // Selo inicial: usa o cache se já conhecido; senão entra na fila de auto-status.
+        if (statusCache[lab.path]) { applyBadge(statusBadge, statusCache[lab.path]); }
+        else { pending.push({ lab: lab, badge: statusBadge }); }
         var statusBtn = document.createElement('button'); statusBtn.type = 'button'; statusBtn.className = 'btn-secondary';
         statusBtn.style.cssText = 'padding:2px 10px;font-size:11px'; statusBtn.textContent = t('ui.eveLabs.statusBtn');
+        statusBtn.title = t('ui.eveLabs.statusBtn');
         statusBtn.addEventListener('click', function (e) {
           e.stopPropagation();
-          var creds = getCommonCreds();
-          var fd = new FormData();
-          fd.append('eve_ip', creds.eve_ip); fd.append('eve_user', creds.eve_user); fd.append('eve_pass', creds.eve_pass);
-          fd.append('path', lab.path);
           statusBtn.disabled = true;
-          var xs = new XMLHttpRequest(); xs.open('POST', '/api/unl/running', true);
-          xs.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); setLangHeader(xs);
-          xs.onreadystatechange = function () {
-            if (xs.readyState !== 4) return; statusBtn.disabled = false;
-            var r = null; try { r = JSON.parse(xs.responseText || '{}'); } catch (e2) { showMessage('error', t('msg.parseError')); return; }
-            if (!r || r.success === false) { showMessage('error', (r && r.message) || t('ui.eveLabs.statusFail')); return; }
-            statusBadge.style.display = '';
-            statusBadge.classList.remove('is-up', 'is-down');
-            statusBadge.classList.add(r.running_count > 0 ? 'is-up' : 'is-down');
-            statusBadge.textContent = t('ui.eveLabs.statusResult', { running: r.running_count, total: r.total });
-            showMessage('success', t('ui.eveLabs.statusResult', { running: r.running_count, total: r.total }));
-          };
-          xs.onerror = function () { statusBtn.disabled = false; showMessage('error', t('msg.networkError')); };
-          xs.send(fd);
+          fetchLabStatus(lab, statusBadge, function () { statusBtn.disabled = false; });
         });
         var toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'btn-secondary';
         toggle.style.cssText = 'padding:2px 10px;font-size:11px'; toggle.textContent = '+';
@@ -95,7 +147,8 @@ document.addEventListener('DOMContentLoaded', function () {
         listEl.appendChild(row);
       });
     }
-    countEl.textContent = t('ui.eveLabs.count', { count: allLabs.length });
+    updateCount();
+    if (pending.length) autoStatus(pending);
   }
 
   function loadLabs() {
@@ -114,6 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!r || (r.success === false && !r.missing_dir)) { listEl.innerHTML = ''; showMessage('error', (r && r.message) || t('ui.eveLabs.fail')); return; }
       if (r.missing_dir) { listEl.innerHTML = ''; showMessage('error', r.message || t('ui.eveLabs.fail')); allLabs = []; render(); return; }
       allLabs = r.labs || [];
+      statusCache = {}; // lista nova → status fresco (auto-buscado no render)
       render();
     };
     x.onerror = function () { listEl.innerHTML = ''; showMessage('error', t('msg.networkError')); };
